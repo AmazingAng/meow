@@ -1,0 +1,11 @@
+# Only go.mod, go.sum, client/ and server/ are needed to build the server.
+*
+!go.mod
+!go.sum
+!client/
+!server/
+**/*_test.go
+**/*.db
+**/*.db-*
+**/*.p8
+**/.DS_Store

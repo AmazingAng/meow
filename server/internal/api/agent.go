@@ -189,6 +189,7 @@ func (s *Server) idemFailed(w http.ResponseWriter, r *http.Request, err error) b
 		return false
 	case errors.Is(err, store.ErrIdempotencyMismatch):
 		writeError(w, http.StatusUnprocessableEntity, "idempotency_mismatch", "Idempotency-Key was already used for a different request")
+	case quotaFailed(w, err):
 	default:
 		s.internalError(w, r, err)
 	}
@@ -298,4 +299,15 @@ func (s *Server) cancelQuestion(w http.ResponseWriter, r *http.Request, p princi
 
 func conflictBody(code, msg string, q store.Question) map[string]any {
 	return map[string]any{"error": errorBody{Code: code, Message: msg}, "question": toQuestionJSON(q)}
+}
+
+// quotaFailed writes 429 quota_exceeded for a store.QuotaError. Unlike
+// rate_limited, retrying soon won't help, so clients should not retry it.
+func quotaFailed(w http.ResponseWriter, err error) bool {
+	var q *store.QuotaError
+	if !errors.As(err, &q) {
+		return false
+	}
+	writeError(w, http.StatusTooManyRequests, "quota_exceeded", q.Error())
+	return true
 }

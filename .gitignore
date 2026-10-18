@@ -5,3 +5,4 @@
 *.p8
 .DS_Store
 ios/Meow.xcodeproj/
+deploy/.env

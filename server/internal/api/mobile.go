@@ -135,6 +135,9 @@ func (s *Server) createKey(w http.ResponseWriter, r *http.Request, p principal) 
 		}
 	}
 	k, secret, err := s.st.CreateKey(r.Context(), p.device.ID, in.Name, scopes)
+	if quotaFailed(w, err) {
+		return
+	}
 	if err != nil {
 		s.internalError(w, r, err)
 		return

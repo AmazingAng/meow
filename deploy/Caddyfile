@@ -1,0 +1,9 @@
+{$MEOW_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy meow:8080 {
+		# "meow wait" holds a request open until the user answers.
+		transport http {
+			read_timeout 10m
+		}
+	}
+}

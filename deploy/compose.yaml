@@ -1,0 +1,46 @@
+# Meow behind Caddy, which gets a TLS certificate automatically.
+#
+#   cd deploy
+#   cp .env.example .env        # fill in your domain and APNs key details
+#   cp ~/Downloads/AuthKey_XXXXXXXXXX.p8 ./apns.p8
+#   docker compose up -d
+#
+# The server is only reachable through Caddy; Caddy listens on 80 and 443.
+
+services:
+  meow:
+    build:
+      context: ..
+    image: meow-server
+    restart: unless-stopped
+    environment:
+      MEOW_TRUST_PROXY: "true" # Caddy sets X-Forwarded-For
+      MEOW_APNS_KEY_FILE: /run/secrets/apns.p8
+      MEOW_APNS_KEY_ID: ${MEOW_APNS_KEY_ID:?set MEOW_APNS_KEY_ID in .env}
+      MEOW_APNS_TEAM_ID: ${MEOW_APNS_TEAM_ID:?set MEOW_APNS_TEAM_ID in .env}
+      MEOW_APNS_TOPIC: ${MEOW_APNS_TOPIC:-blue.meow.app}
+      MEOW_MAX_KEYS_PER_DEVICE: ${MEOW_MAX_KEYS_PER_DEVICE:-10}
+      MEOW_MAX_PENDING_QUESTIONS: ${MEOW_MAX_PENDING_QUESTIONS:-20}
+      MEOW_MAX_DAILY_MESSAGES: ${MEOW_MAX_DAILY_MESSAGES:-1000}
+      MEOW_INACTIVE_DEVICE_TTL: ${MEOW_INACTIVE_DEVICE_TTL:-0}
+    volumes:
+      - meow-data:/data
+      - ./apns.p8:/run/secrets/apns.p8:ro
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [meow]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      MEOW_DOMAIN: ${MEOW_DOMAIN:?set MEOW_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  meow-data:
+  caddy-data:

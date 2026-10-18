@@ -425,3 +425,18 @@ func TestInboxFilterAndCounts(t *testing.T) {
 		t.Fatalf("counts after read all = %v", counts)
 	}
 }
+
+func TestQuotaExceededIsNotRetried(t *testing.T) {
+	e := setup(t)
+	e.st.Limits = store.Limits{PendingQuestions: 1, KeysPerDevice: 1}
+	if _, err := e.agent.Ask(ctx, client.AskRequest{Question: "first?"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	_, err := e.agent.Ask(ctx, client.AskRequest{Question: "second?"}, "")
+	ae := apiErr(t, err, http.StatusTooManyRequests, "quota_exceeded")
+	if ae.Temporary() || !strings.Contains(ae.Message, "unanswered questions") {
+		t.Fatalf("quota error = %+v, temporary=%v", ae, ae.Temporary())
+	}
+	_, err = e.phone.CreateKey(ctx, "extra", []string{"notify"})
+	apiErr(t, err, http.StatusTooManyRequests, "quota_exceeded")
+}

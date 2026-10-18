@@ -36,6 +36,31 @@ var (
 	ErrIdempotencyMismatch = errors.New("idempotency key reused with a different request")
 )
 
+// Limits caps what one device can create; zero means unlimited. They keep a
+// public server usable when a Device Key leaks or an agent loops.
+type Limits struct {
+	KeysPerDevice    int // active (unrevoked) Device Keys
+	PendingQuestions int // questions still waiting for an answer
+	DailyMessages    int // notifications and questions in any 24 hours
+}
+
+// QuotaError reports which limit a request would exceed.
+type QuotaError struct {
+	Limit string // "keys", "pending_questions" or "daily_messages"
+	Max   int
+}
+
+func (e *QuotaError) Error() string {
+	switch e.Limit {
+	case "keys":
+		return fmt.Sprintf("this device already has %d active Device Keys; revoke one first", e.Max)
+	case "pending_questions":
+		return fmt.Sprintf("this device already has %d unanswered questions; answer or cancel some first", e.Max)
+	default:
+		return fmt.Sprintf("this device has reached its limit of %d messages in 24 hours", e.Max)
+	}
+}
+
 // Question statuses.
 const (
 	StatusPending   = "pending"
@@ -62,8 +87,9 @@ const (
 var DefaultScopes = []string{ScopeNotify, ScopeAsk}
 
 type Store struct {
-	w *sql.DB
-	r *sql.DB
+	Limits Limits
+	w      *sql.DB
+	r      *sql.DB
 	// Now is the clock used for all timestamps; tests may override it.
 	Now func() time.Time
 }
@@ -322,6 +348,10 @@ func (s *Store) CreateKey(ctx context.Context, deviceID, name string, scopes []s
 	var k APIKey
 	var secret string
 	err := s.tx(ctx, func(tx *sql.Tx) (err error) {
+		if err := s.checkQuota(ctx, tx, "keys", s.Limits.KeysPerDevice,
+			`SELECT COUNT(*) FROM api_keys WHERE device_id = ? AND revoked_at IS NULL`, deviceID); err != nil {
+			return err
+		}
 		k, secret, err = insertKey(ctx, tx, deviceID, name, scopes, s.now())
 		return err
 	})
@@ -500,6 +530,9 @@ func (s *Store) CreateNotification(ctx context.Context, nn NewNotification, idem
 	var existing string
 	err = s.tx(ctx, func(tx *sql.Tx) error {
 		if existing, err = lookupIdem(ctx, tx, nn.KeyID, idem, "notification"); err != nil || existing != "" {
+			return err
+		}
+		if err := s.checkDaily(ctx, tx, nn.DeviceID, now); err != nil {
 			return err
 		}
 		n = newNotification(nn, now)
@@ -720,6 +753,14 @@ func (s *Store) CreateQuestion(ctx context.Context, nq NewQuestion, idem Idem) (
 		if existing, err = lookupIdem(ctx, tx, nq.KeyID, idem, "question"); err != nil || existing != "" {
 			return err
 		}
+		if err := s.checkDaily(ctx, tx, nq.DeviceID, now); err != nil {
+			return err
+		}
+		if err := s.checkQuota(ctx, tx, "pending_questions", s.Limits.PendingQuestions,
+			`SELECT COUNT(*) FROM questions WHERE device_id = ? AND status = 'pending' AND expires_at > ?`,
+			nq.DeviceID, ms(now)); err != nil {
+			return err
+		}
 		var choices any
 		if nq.Choices != nil {
 			b, _ := json.Marshal(nq.Choices)
@@ -891,6 +932,42 @@ func (s *Store) ExpireDue(ctx context.Context) ([]string, error) {
 		out = append(out, id)
 	}
 	return out, rows.Err()
+}
+
+// checkQuota fails with a QuotaError when the count query already reaches max.
+// It runs inside the write transaction, so concurrent requests can't overshoot.
+func (s *Store) checkQuota(ctx context.Context, tx *sql.Tx, limit string, max int, query string, args ...any) error {
+	if max <= 0 {
+		return nil
+	}
+	var n int
+	if err := tx.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		return err
+	}
+	if n >= max {
+		return &QuotaError{Limit: limit, Max: max}
+	}
+	return nil
+}
+
+// checkDaily limits notifications, including the ones questions create, over
+// a sliding 24 hours. Pruned rows no longer count, which only matters when
+// retention is shorter than a day.
+func (s *Store) checkDaily(ctx context.Context, tx *sql.Tx, deviceID string, now time.Time) error {
+	return s.checkQuota(ctx, tx, "daily_messages", s.Limits.DailyMessages,
+		`SELECT COUNT(*) FROM notifications WHERE device_id = ? AND created_at > ?`,
+		deviceID, ms(now.Add(-24*time.Hour)))
+}
+
+// PruneInactiveDevices deletes devices not seen for longer than idle, with
+// their keys, notifications and questions. A device is seen whenever the app
+// or its notification extension talks to the server.
+func (s *Store) PruneInactiveDevices(ctx context.Context, idle time.Duration) (int64, error) {
+	res, err := s.w.ExecContext(ctx, `DELETE FROM devices WHERE last_seen_at < ?`, ms(s.now().Add(-idle)))
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // Prune deletes resolved questions and notifications older than retention, and

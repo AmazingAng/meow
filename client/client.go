@@ -44,6 +44,9 @@ func (e *Error) Error() string {
 
 // Temporary reports whether retrying the same request may succeed.
 func (e *Error) Temporary() bool {
+	if e.Code == "quota_exceeded" {
+		return false // a device limit; retrying won't help until the user acts
+	}
 	return e.Status == http.StatusTooManyRequests || e.Status >= 500
 }
 

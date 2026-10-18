@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -422,5 +423,128 @@ func TestInboxFiltersAndCounts(t *testing.T) {
 	// The other device's data is untouched.
 	if unread, pending, _ = s.InboxCounts(ctx, other.Device.ID); unread != 1 || pending != 1 {
 		t.Fatalf("other device counts = %d, %d", unread, pending)
+	}
+}
+
+func wantQuota(t *testing.T, err error, limit string) {
+	t.Helper()
+	var q *QuotaError
+	if !errors.As(err, &q) || q.Limit != limit {
+		t.Fatalf("err = %v, want QuotaError %s", err, limit)
+	}
+}
+
+func TestDailyMessageQuota(t *testing.T) {
+	s, _ := openTest(t)
+	s.Limits = Limits{DailyMessages: 3}
+	reg := register(t, s)
+	other := register(t, s)
+	nn := NewNotification{DeviceID: reg.Device.ID, KeyID: reg.Key.ID, Type: "info", Title: "x", Priority: "normal"}
+	for i := range 2 {
+		if _, _, err := s.CreateNotification(ctx, nn, Idem{Key: fmt.Sprint("k", i), RequestHash: "h"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ask(t, s, reg, nil) // a question counts as a message too
+	_, _, err := s.CreateNotification(ctx, nn, Idem{})
+	wantQuota(t, err, "daily_messages")
+	_, _, err = s.CreateQuestion(ctx, NewQuestion{
+		NewNotification: NewNotification{DeviceID: reg.Device.ID, KeyID: reg.Key.ID, Title: "q", Priority: "normal"},
+		TTL:             time.Hour,
+	}, Idem{})
+	wantQuota(t, err, "daily_messages")
+
+	// Replaying an earlier request is not a new message.
+	if _, replay, err := s.CreateNotification(ctx, nn, Idem{Key: "k0", RequestHash: "h"}); err != nil || !replay {
+		t.Fatalf("replay = %v, %v", replay, err)
+	}
+	// Other devices have their own budget.
+	if _, _, err := s.CreateNotification(ctx, NewNotification{DeviceID: other.Device.ID, KeyID: other.Key.ID, Type: "info", Title: "x", Priority: "normal"}, Idem{}); err != nil {
+		t.Fatal(err)
+	}
+	// The window slides.
+	s.Now = func() time.Time { return time.Now().Add(25 * time.Hour) }
+	if _, _, err := s.CreateNotification(ctx, nn, Idem{}); err != nil {
+		t.Fatalf("after 24h: %v", err)
+	}
+}
+
+func TestPendingQuestionQuota(t *testing.T) {
+	s, _ := openTest(t)
+	s.Limits = Limits{PendingQuestions: 2}
+	reg := register(t, s)
+	q1 := ask(t, s, reg, []string{"approve", "reject"})
+	ask(t, s, reg, nil)
+	nq := NewQuestion{
+		NewNotification: NewNotification{DeviceID: reg.Device.ID, KeyID: reg.Key.ID, Title: "third", Priority: "normal"},
+		TTL:             time.Hour,
+	}
+	_, _, err := s.CreateQuestion(ctx, nq, Idem{})
+	wantQuota(t, err, "pending_questions")
+
+	// Answering one frees a slot.
+	if _, _, err := s.Respond(ctx, q1.ID, reg.Device.ID, "approve", "r1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.CreateQuestion(ctx, nq, Idem{}); err != nil {
+		t.Fatalf("after answer: %v", err)
+	}
+	// Expired questions don't count, even before the sweeper marks them.
+	s.Now = func() time.Time { return time.Now().Add(2 * time.Hour) }
+	if _, _, err := s.CreateQuestion(ctx, nq, Idem{}); err != nil {
+		t.Fatalf("after expiry: %v", err)
+	}
+}
+
+func TestKeyQuota(t *testing.T) {
+	s, _ := openTest(t)
+	s.Limits = Limits{KeysPerDevice: 2}
+	reg := register(t, s) // registration creates the first key
+	k2, _, err := s.CreateKey(ctx, reg.Device.ID, "second", []string{"notify"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = s.CreateKey(ctx, reg.Device.ID, "third", []string{"notify"})
+	wantQuota(t, err, "keys")
+	if err := s.RevokeKey(ctx, reg.Device.ID, k2.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.CreateKey(ctx, reg.Device.ID, "third", []string{"notify"}); err != nil {
+		t.Fatalf("after revoke: %v", err)
+	}
+}
+
+func TestZeroLimitsAreUnlimited(t *testing.T) {
+	s, _ := openTest(t)
+	reg := register(t, s)
+	for range 30 {
+		ask(t, s, reg, nil)
+	}
+}
+
+func TestPruneInactiveDevices(t *testing.T) {
+	s, _ := openTest(t)
+	stale := register(t, s)
+	ask(t, s, stale, nil)
+	s.Now = func() time.Time { return time.Now().Add(100 * 24 * time.Hour) }
+	fresh := register(t, s)
+	n, err := s.PruneInactiveDevices(ctx, 90*24*time.Hour)
+	if err != nil || n != 1 {
+		t.Fatalf("pruned %d, %v", n, err)
+	}
+	if _, err := s.Device(ctx, stale.Device.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("stale device still there: %v", err)
+	}
+	if _, err := s.KeyBySecret(ctx, stale.KeySecret); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("stale key still works: %v", err)
+	}
+	var orphans int
+	s.r.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM notifications WHERE device_id = ?) + (SELECT COUNT(*) FROM questions WHERE device_id = ?)`,
+		stale.Device.ID, stale.Device.ID).Scan(&orphans)
+	if orphans != 0 {
+		t.Fatalf("%d rows left for the deleted device", orphans)
+	}
+	if _, err := s.Device(ctx, fresh.Device.ID); err != nil {
+		t.Fatalf("fresh device deleted: %v", err)
 	}
 }
