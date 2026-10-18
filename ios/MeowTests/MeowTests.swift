@@ -591,3 +591,75 @@ extension ReplyQueueTests {
         }
     }
 }
+
+final class OnboardingCommandTests: XCTestCase {
+    func testSetupCommandAlwaysNamesTheServer() throws {
+        let server = try XCTUnwrap(URL(string: "https://meow.example.com/"))
+        XCTAssertEqual(AppModel.setupCommand(server: server), "meow setup --server https://meow.example.com")
+        let local = try XCTUnwrap(URL(string: "http://127.0.0.1:8080"))
+        XCTAssertEqual(AppModel.setupCommand(server: local), "meow setup --server http://127.0.0.1:8080")
+    }
+
+    func testSetupCommandQuotesUnsafeURLs() throws {
+        let quote = try XCTUnwrap(URL(string: "https://meow.example.com/o'neil"))
+        XCTAssertEqual(AppModel.setupCommand(server: quote), #"meow setup --server 'https://meow.example.com/o'\''neil'"#)
+        // A typed space is percent-encoded by URL parsing and needs no quoting.
+        let space = try XCTUnwrap(MeowShared.serverURL(from: "https://meow.example.com/my meow"))
+        XCTAssertEqual(AppModel.setupCommand(server: space), "meow setup --server https://meow.example.com/my%20meow")
+        XCTAssertEqual(AppModel.shellQuoted("a b"), "'a b'")
+        XCTAssertEqual(AppModel.shellQuoted("$(rm -rf ~)"), "'$(rm -rf ~)'")
+        XCTAssertEqual(AppModel.shellQuoted(""), "''")
+        XCTAssertFalse(AppModel.setupCommand(server: quote).contains("meow_"), "the Device Key never goes in the command")
+    }
+
+    func testParsesServerAddresses() {
+        XCTAssertNil(MeowShared.serverURL(from: nil))
+        XCTAssertNil(MeowShared.serverURL(from: ""))
+        XCTAssertNil(MeowShared.serverURL(from: "   "))
+        XCTAssertNil(MeowShared.serverURL(from: "localhost"))
+        XCTAssertNil(MeowShared.serverURL(from: "meow.example.com"))
+        XCTAssertNil(MeowShared.serverURL(from: "ftp://meow.example.com"))
+        XCTAssertEqual(MeowShared.serverURL(from: "  https://meow.example.com/// \n")?.absoluteString, "https://meow.example.com")
+        XCTAssertEqual(MeowShared.serverURL(from: "HTTPS://meow.example.com:8443/meow/?q=1#f")?.absoluteString,
+                       "HTTPS://meow.example.com:8443/meow")
+    }
+
+    func testNoDefaultServerIsConfiguredYet() {
+        // project.yml sets MeowDefaultServer to "" until the hosted service is live.
+        XCTAssertNil(MeowShared.defaultServer)
+    }
+}
+
+extension SessionRegressionTests {
+    func testSavedServerOutlivesEmptyDefault() {
+        let snapshot = Snapshot()
+        defer { snapshot.restore() }
+        MeowShared.server = serverA
+        XCTAssertEqual(MeowShared.server, serverA, "an existing install keeps its server")
+        XCTAssertEqual(AppModel().server, serverA)
+        MeowShared.server = nil
+        XCTAssertEqual(MeowShared.server, MeowShared.defaultServer)
+    }
+
+    func testHealthCheckExplainsWhatIsWrong() async {
+        defer { ReviewURLProtocol.uninstall() }
+        var reply = (200, Data(#"{"status":"ok"}"#.utf8))
+        ReviewURLProtocol.install { req in
+            XCTAssertEqual(req.url?.path, "/healthz")
+            return reply
+        }
+        let ok = await AppModel.checkServer(" https://a.meow-review.invalid/ ")
+        XCTAssertEqual(ok, .success(serverA))
+        reply = (200, Data("<html>hello</html>".utf8))
+        let html = await AppModel.checkServer("https://a.meow-review.invalid")
+        XCTAssertEqual(html, .failure(.notMeow(host: "a.meow-review.invalid")))
+        reply = (404, Data())
+        let missing = await AppModel.checkServer("https://a.meow-review.invalid")
+        XCTAssertEqual(missing, .failure(.notMeow(host: "a.meow-review.invalid")))
+        reply = (503, Data(#"{"error":{"code":"unavailable","message":"database unavailable"}}"#.utf8))
+        let down = await AppModel.checkServer("https://a.meow-review.invalid")
+        XCTAssertEqual(down, .failure(.unreachable(host: "a.meow-review.invalid")))
+        let typo = await AppModel.checkServer("meow.example.com")
+        XCTAssertEqual(typo, .failure(.invalidAddress))
+    }
+}

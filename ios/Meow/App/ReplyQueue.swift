@@ -37,7 +37,7 @@ actor ReplyQueue {
             let server = MeowShared.server
             let token = MeowShared.deviceToken
             return { reply in
-                guard let token else {
+                guard let token, let server else {
                     throw MeowAPIError(status: 401, code: "unauthorized", message: "This device is not registered.")
                 }
                 return try await MeowAPI(server: server, token: token)

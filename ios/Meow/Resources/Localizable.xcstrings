@@ -1,12 +1,52 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ doesn't look like a Meow server. Check the address." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 看起来不是 Meow 服务器，请检查地址。"
+          }
+        }
+      }
+    },
+    "1. Run this command" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. 运行这条命令"
+          }
+        }
+      }
+    },
+    "2. Paste your Device Key when asked" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2. 出现提示时粘贴 Device Key"
+          }
+        }
+      }
+    },
     "About" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "关于"
+          }
+        }
+      }
+    },
+    "Advanced" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高级"
           }
         }
       }
@@ -114,6 +154,16 @@
         }
       }
     },
+    "Can't reach %@. Check the address and that the server is running." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法连接 %@。请检查地址，并确认服务器正在运行。"
+          }
+        }
+      }
+    },
     "Can't reach the Meow server." : {
       "localizations" : {
         "zh-Hans" : {
@@ -164,6 +214,16 @@
         }
       }
     },
+    "Changing the server registers this iPhone again with a new Device Key." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更换服务器后，这台 iPhone 会重新注册并获得新的 Device Key。"
+          }
+        }
+      }
+    },
     "Confirm the approval" : {
       "localizations" : {
         "zh-Hans" : {
@@ -174,12 +234,22 @@
         }
       }
     },
-    "Connect your agents" : {
+    "Connect your computer" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "连接你的 Agent"
+            "value" : "连接你的电脑"
+          }
+        }
+      }
+    },
+    "Connected — received “%@”" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已连接，收到“%@”"
           }
         }
       }
@@ -204,6 +274,16 @@
         }
       }
     },
+    "Continue" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续"
+          }
+        }
+      }
+    },
     "Copied" : {
       "localizations" : {
         "zh-Hans" : {
@@ -224,22 +304,22 @@
         }
       }
     },
-    "Copy CLI login command" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拷贝 CLI 登录命令"
-          }
-        }
-      }
-    },
     "Copy Device Key" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷贝 Device Key"
+          }
+        }
+      }
+    },
+    "Copy setup command" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷贝设置命令"
           }
         }
       }
@@ -468,6 +548,16 @@
         }
       }
     },
+    "In a terminal on your computer, run the command below. It checks the server, asks for your Device Key and connects Claude Code and Codex." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在电脑的终端里运行下面的命令。它会检查服务器、询问你的 Device Key，并连接 Claude Code 和 Codex。"
+          }
+        }
+      }
+    },
     "Inbox" : {
       "localizations" : {
         "zh-Hans" : {
@@ -529,6 +619,16 @@
         }
       }
     },
+    "meow setup sends one when it finishes. You can also run meow \"Hello\" in your terminal." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "meow setup 完成时会发送一条。你也可以在终端运行 meow \"Hello\"。"
+          }
+        }
+      }
+    },
     "Meow tells you when an agent finishes, fails or needs an answer, and you can reply right from the notification." : {
       "localizations" : {
         "zh-Hans" : {
@@ -565,6 +665,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已创建新的 Device Key，请在 CLI 中更新。"
+          }
+        }
+      }
+    },
+    "Next" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一步"
           }
         }
       }
@@ -659,6 +769,16 @@
         }
       }
     },
+    "Notifications are off" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知已关闭"
+          }
+        }
+      }
+    },
     "now" : {
       "localizations" : {
         "zh-Hans" : {
@@ -705,6 +825,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开通知设置"
+          }
+        }
+      }
+    },
+    "Open Settings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开设置"
           }
         }
       }
@@ -972,6 +1102,16 @@
         }
       }
     },
+    "Send a test from this iPhone" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从这台 iPhone 发送测试"
+          }
+        }
+      }
+    },
     "Send a test notification" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1033,22 +1173,22 @@
         }
       }
     },
-    "Server: %@" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "服务器：%@"
-          }
-        }
-      }
-    },
     "Settings" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "设置"
+          }
+        }
+      }
+    },
+    "Skip for now" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时跳过"
           }
         }
       }
@@ -1124,6 +1264,16 @@
         }
       }
     },
+    "The address of your Meow server. You can change it later in Settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 Meow 服务器地址，之后可以在设置中更改。"
+          }
+        }
+      }
+    },
     "The current key stops working right away. Agents and scripts that use it need the new key." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1160,6 +1310,26 @@
     },
     "The server is changing. Please try again afterward." : {
 
+    },
+    "The TLS certificate of %@ isn't trusted. Use a certificate from a public CA." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的 TLS 证书不受信任，请使用公共 CA 签发的证书。"
+          }
+        }
+      }
+    },
+    "This checks the server, not your computer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这只能检查服务器，不能检查你的电脑。"
+          }
+        }
+      }
     },
     "This iPhone is no longer registered with the server. Change or reset the server in Settings." : {
       "localizations" : {
@@ -1252,6 +1422,16 @@
         }
       }
     },
+    "Turn them on in Settings so Meow can alert you. Without them, messages still arrive in the inbox." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在设置中打开通知，以便 Meow 提醒你。不打开的话，消息仍会出现在收件箱里。"
+          }
+        }
+      }
+    },
     "Unread" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1262,22 +1442,22 @@
         }
       }
     },
+    "Use an https:// address." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用 https:// 地址。"
+          }
+        }
+      }
+    },
     "Use the hosted Meow server" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 Meow 官方服务器"
-          }
-        }
-      }
-    },
-    "Use the hosted service or connect to your own Meow server." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用托管服务，或连接你自己的 Meow 服务器。"
           }
         }
       }
@@ -1298,6 +1478,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "待回答"
+          }
+        }
+      }
+    },
+    "Waiting for a test notification from your computer…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待来自电脑的测试通知…"
           }
         }
       }

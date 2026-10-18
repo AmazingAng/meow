@@ -18,12 +18,13 @@ final class NotificationService: UNNotificationServiceExtension {
         }
         guard let meow = request.content.userInfo["meow"] as? [String: Any],
               let id = meow["id"] as? String,
-              let token = MeowShared.deviceToken
+              let token = MeowShared.deviceToken,
+              let server = MeowShared.server
         else {
             finish()
             return
         }
-        let api = MeowAPI(server: MeowShared.server, token: token)
+        let api = MeowAPI(server: server, token: token)
         task = Task { [weak self] in
             try? await api.markDelivered(id)
             self?.finish()

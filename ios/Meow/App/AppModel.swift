@@ -24,6 +24,33 @@ final class AppModel {
         }
     }
 
+    /// Why an address can't be used as the Meow server.
+    enum ServerProblem: Error, Equatable {
+        case invalidAddress
+        case insecure
+        case offline
+        case untrusted(host: String)
+        case unreachable(host: String)
+        case notMeow(host: String)
+
+        var message: String {
+            switch self {
+            case .invalidAddress:
+                String(localized: "Enter a full address such as https://meow.example.com.")
+            case .insecure:
+                String(localized: "Use an https:// address.")
+            case .offline:
+                String(localized: "You're offline.")
+            case .untrusted(let host):
+                String(localized: "The TLS certificate of \(host) isn't trusted. Use a certificate from a public CA.")
+            case .unreachable(let host):
+                String(localized: "Can't reach \(host). Check the address and that the server is running.")
+            case .notMeow(let host):
+                String(localized: "\(host) doesn't look like a Meow server. Check the address.")
+            }
+        }
+    }
+
     enum AnswerResult: Equatable {
         case sent
         case queued
@@ -41,6 +68,8 @@ final class AppModel {
     private(set) var isRegistering = false
     private(set) var isChangingServer = false
     private(set) var permission = UNAuthorizationStatus.notDetermined
+    /// Notifications this iPhone sent to itself, which say nothing about the computer.
+    private(set) var sentTestIDs: Set<String> = []
     private(set) var hasPushToken = false
     var pushRegistrationError: String?
 
@@ -88,15 +117,18 @@ final class AppModel {
         self.replies = replies
         #if DEBUG
         // Development helpers: -meowServer http://127.0.0.1:8080 -meowAutoRegister YES -meowOpen ntf_…
-        if !isRegistered, let s = UserDefaults.standard.string(forKey: "meowServer"), let url = URL(string: s) {
+        if !isRegistered, let url = MeowShared.serverURL(from: UserDefaults.standard.string(forKey: "meowServer")) {
             setServer(url)
         }
         #endif
     }
 
-    private var api: MeowAPI { MeowAPI(server: server, token: MeowShared.deviceToken) }
+    /// Only a registered device calls the API, and registering saves a server.
+    private var api: MeowAPI { MeowAPI(server: server ?? Self.noServer, token: MeowShared.deviceToken) }
+    private static let noServer = URL(string: "https://server.invalid")!
 
     var serverDisplay: String {
+        guard let server else { return "" }
         guard let host = server.host() else { return server.absoluteString }
         return server.port.map { "\(host):\($0)" } ?? host
     }
@@ -146,8 +178,7 @@ final class AppModel {
     }
 
     func register() async {
-        guard !isRegistering, !isRegistered, !isChangingServer else { return }
-        let registrationServer = server
+        guard !isRegistering, !isRegistered, !isChangingServer, let registrationServer = server else { return }
         let generation = sessionGeneration
         isRegistering = true
         defer { isRegistering = false }
@@ -201,6 +232,7 @@ final class AppModel {
         isRegistered = false
         hasFinishedOnboarding = false
         hasPushToken = false
+        sentTestIDs = []
         notifications = []
         details = [:]
         counts = InboxCounts()
@@ -217,6 +249,34 @@ final class AppModel {
     }
 
     func pendingReplyCount() async -> Int { await replies.outstandingCount }
+
+    /// Parses `text` and asks GET /healthz, so a typo or the wrong server is
+    /// caught before registering.
+    static func checkServer(_ text: String) async -> Result<URL, ServerProblem> {
+        guard let url = MeowShared.serverURL(from: text) else { return .failure(.invalidAddress) }
+        let host = url.host() ?? url.absoluteString
+        do {
+            return try await MeowAPI(server: url, token: nil).isHealthy() ? .success(url) : .failure(.notMeow(host: host))
+        } catch let e as URLError {
+            switch e.code {
+            case .notConnectedToInternet, .dataNotAllowed:
+                return .failure(.offline)
+            case .appTransportSecurityRequiresSecureConnection:
+                return .failure(.insecure)
+            case .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateHasUnknownRoot,
+                 .serverCertificateNotYetValid, .secureConnectionFailed:
+                return .failure(.untrusted(host: host))
+            default:
+                return .failure(.unreachable(host: host))
+            }
+        } catch let e as MeowAPIError where e.status >= 500 && !e.code.isEmpty {
+            // Meow's own error body: the server is there but not working.
+            return .failure(.unreachable(host: host))
+        } catch {
+            // Another error status, or a body that isn't Meow's health report.
+            return .failure(.notMeow(host: host))
+        }
+    }
 
     func finishOnboarding() async {
         hasFinishedOnboarding = true
@@ -254,30 +314,45 @@ final class AppModel {
         }
     }
 
+    /// The command onboarding recommends. The CLI prompts for the Device Key,
+    /// so the key never lands in shell history.
+    var setupCommand: String { Self.setupCommand(server: server) }
+
+    /// Always names the server: the CLI's built-in default may not be this one.
+    nonisolated static func setupCommand(server: URL?) -> String {
+        "meow setup --server \(shellQuoted(commandString(server)))"
+    }
+
     func loginCommand(for key: String) -> String {
-        var cmd = "meow login --key \(key)"
-        if server != MeowShared.defaultServer { cmd += " --server \(serverURLString)" }
-        return cmd
+        "meow login --key \(Self.shellQuoted(key)) --server \(Self.shellQuoted(Self.commandString(server)))"
     }
 
     func curlCommand(for key: String) -> String {
-        "curl -H \"Authorization: Bearer \(key)\" -d \"Hello from curl\" \(serverURLString)/v1/notifications"
+        "curl -H \"Authorization: Bearer \(key)\" -d \"Hello from curl\" \(Self.shellQuoted(Self.commandString(server) + "/v1/notifications"))"
     }
 
-    private var serverURLString: String {
-        var s = server.absoluteString
+    nonisolated private static func commandString(_ server: URL?) -> String {
+        var s = server?.absoluteString ?? ""
         while s.hasSuffix("/") { s.removeLast() }
         return s
     }
 
+    /// Single-quotes `s` for a POSIX shell unless every character is safe bare.
+    nonisolated static func shellQuoted(_ s: String) -> String {
+        let safe = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.:/@%+=,")
+        if !s.isEmpty, s.unicodeScalars.allSatisfy(safe.contains) { return s }
+        return "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     func sendTestNotification() async {
-        guard let deviceKey else { return }
+        guard let deviceKey, let server else { return }
         let generation = sessionGeneration
         do {
-            _ = try await MeowAPI(server: server, token: deviceKey).notify(
+            let sent = try await MeowAPI(server: server, token: deviceKey).notify(
                 title: String(localized: "Meow!"),
                 body: String(localized: "Your agents can reach you now."))
             guard generation == sessionGeneration else { return }
+            sentTestIDs.insert(sent.id)
             toast = Toast(message: isNotificationPermissionGranted
                 ? String(localized: "Test notification sent.")
                 : String(localized: "Sent. Notifications are off, so it's only in your inbox."))

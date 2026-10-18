@@ -74,6 +74,15 @@ struct MeowAPI: Sendable {
         let _: Empty = try await send(method, path, timeout: timeout)
     }
 
+    // MARK: Server
+
+    /// Whether the server answers GET /healthz the way a Meow server does.
+    func isHealthy() async throws -> Bool {
+        struct Health: Decodable { var status: String }
+        let health: Health = try await send("GET", "/healthz", timeout: 10)
+        return health.status == "ok"
+    }
+
     // MARK: Device
 
     /// Registers an anonymous device. Needs no token.

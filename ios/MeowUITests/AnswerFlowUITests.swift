@@ -36,6 +36,47 @@ final class AnswerFlowUITests: XCTestCase {
 }
 
 final class OnboardingRegressionUITests: XCTestCase {
+    private func send(title: String, server: String, key: String) throws {
+        var request = URLRequest(url: try XCTUnwrap(URL(string: server + "/v1/notifications")))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["title": title, "body": "UI test"])
+        let done = expectation(description: "sent")
+        var status = 0
+        URLSession.shared.dataTask(with: request) { _, response, _ in
+            status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        XCTAssertTrue((200..<300).contains(status), "server answered \(status)")
+    }
+
+    func testEmptyServerShowsSpecificError() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let address = app.textFields["server.address"]
+        guard address.waitForExistence(timeout: 10) else {
+            throw XCTSkip("this simulator is already registered; erase it to test first launch")
+        }
+        address.tap()
+        address.typeText("localhost\n")
+        XCTAssertTrue(app.staticTexts["Enter a full address such as https://meow.example.com."].waitForExistence(timeout: 5))
+        // Submitting dismisses the keyboard; relaunch for a clean, empty field.
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(address.waitForExistence(timeout: 10))
+        address.tap()
+        address.typeText("http://127.0.0.1:1\n")
+        XCTAssertTrue(app.staticTexts["Can't reach 127.0.0.1. Check the address and that the server is running."].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["Not now"].exists, "an unreachable server must not register")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "onboarding-server-error"
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
     func testSkipPermissionAndFinishLoadsInbox() throws {
         guard let server = ProcessInfo.processInfo.environment["MEOW_UITEST_SERVER"] else {
             throw XCTSkip("set MEOW_UITEST_SERVER to a disposable local server")
@@ -57,8 +98,40 @@ final class OnboardingRegressionUITests: XCTestCase {
         permissions.lifetime = .keepAlways
         add(permissions)
         skip.tap()
+        let next = app.buttons["Next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Copy Device Key"].exists)
+        XCTAssertTrue(app.staticTexts["meow setup --server \(server)"].exists,
+                      "the recommended command always names the server")
+        let connect = XCTAttachment(screenshot: app.screenshot())
+        connect.name = "onboarding-connect"
+        connect.lifetime = .keepAlways
+        add(connect)
+        let key = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'meow_'")).firstMatch.label
+        XCTAssertTrue(key.hasPrefix("meow_"), "the Device Key is shown to copy")
+        next.tap()
+        let waitingText = app.staticTexts["Waiting for a test notification from your computer…"]
+        XCTAssertTrue(waitingText.waitForExistence(timeout: 10))
+        let waiting = XCTAttachment(screenshot: app.screenshot())
+        waiting.name = "onboarding-waiting"
+        waiting.lifetime = .keepAlways
+        add(waiting)
+
+        // A test sent from the phone proves the server works, not the computer.
+        app.buttons["Send a test from this iPhone"].tap()
+        sleep(5) // more than two polls
+        XCTAssertTrue(waitingText.exists, "a test from this iPhone must not count as the computer connecting")
+
+        // Send as the computer would, with the Device Key.
+        try send(title: "From your computer", server: server, key: key)
+        let success = app.staticTexts["Connected — received “From your computer”"]
+        XCTAssertTrue(success.waitForExistence(timeout: 10), "a new notification ends the wait")
+        let connected = XCTAttachment(screenshot: app.screenshot())
+        connected.name = "onboarding-connected"
+        connected.lifetime = .keepAlways
+        add(connected)
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.staticTexts["No notifications yet"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["From your computer"].waitForExistence(timeout: 10),
                       "finishing onboarding must load the inbox without a scene phase transition")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "onboarding-inbox-loaded"

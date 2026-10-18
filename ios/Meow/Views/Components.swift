@@ -181,13 +181,15 @@ struct CopyButton: View {
 struct CommandBlock: View {
     var title: LocalizedStringKey
     var command: String
+    /// Names what is copied, for VoiceOver and UI tests.
+    var copyTitle: LocalizedStringKey = "Copy"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title).font(.subheadline.weight(.semibold))
                 Spacer()
-                CopyButton(text: command)
+                CopyButton(title: copyTitle, text: command)
                     .font(.subheadline)
                     .labelStyle(.titleAndIcon)
             }

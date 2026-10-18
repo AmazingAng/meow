@@ -43,6 +43,8 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true # lets a development build talk to http://127.0.0.1
         ITSAppUsesNonExemptEncryption: false
+        # Server suggested on first launch; empty asks the user for their own.
+        MeowDefaultServer: ""
     entitlements:
       path: Meow/Meow.entitlements
       properties:

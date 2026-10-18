@@ -1,15 +1,23 @@
 import SwiftUI
+import UIKit
 
+/// One straight path: server → notifications → connect your computer → test received.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .largeTitle) private var brandSize = 46
-    @State private var step = Step.welcome
-    @State private var showServer = false
+    @State private var step = Step.server
+    @State private var serverText = ""
+    @State private var serverProblem: AppModel.ServerProblem?
+    @State private var isCheckingServer = false
     @State private var isSendingTest = false
+    /// Inbox IDs already there when connecting began; anything newer came from the computer.
+    @State private var knownIDs: Set<String>?
+    @State private var received: MeowNotification?
+    @FocusState private var serverFocused: Bool
 
-    enum Step { case welcome, notifications, key }
+    enum Step { case server, notifications, connect, test }
 
     var body: some View {
         ZStack {
@@ -21,28 +29,31 @@ struct OnboardingView: View {
 
             Group {
                 switch step {
-                case .welcome: welcome
+                case .server: serverStep
                 case .notifications: notifications
-                case .key: keyStep
+                case .connect: connectStep
+                case .test: testStep
                 }
             }
             .transition(.opacity)
         }
         .animation(reduceMotion ? nil : .smooth, value: step)
-        .sheet(isPresented: $showServer) { ServerSheet() }
         .onAppear {
+            serverText = model.server?.absoluteString ?? ""
             if model.isRegistered {
-                step = model.permission == .notDetermined ? .notifications : .key
+                step = model.permission == .notDetermined ? .notifications : .connect
             }
         }
     }
 
-    private var welcome: some View {
+    // MARK: Server
+
+    private var serverStep: some View {
         page {
             Image("Mascot")
                 .resizable()
                 .scaledToFit()
-                .frame(maxWidth: typeSize.isAccessibilitySize ? 140 : 220)
+                .frame(maxWidth: typeSize.isAccessibilitySize ? 120 : 180)
                 .accessibilityHidden(true)
             VStack(spacing: 12) {
                 Text(verbatim: "Meow")
@@ -53,58 +64,273 @@ struct OnboardingView: View {
                 Text("Push notifications and quick replies for Claude Code, Codex and your scripts.")
                     .foregroundStyle(.secondary)
             }
-        } footer: {
-            Button {
-                Task {
-                    await model.register()
-                    if model.isRegistered { step = .notifications }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Server URL").font(.subheadline.weight(.semibold))
+                TextField(text: $serverText, prompt: Text(verbatim: "https://meow.example.com")) {
+                    Text("Server URL")
                 }
-            } label: {
+                .focused($serverFocused)
+                .keyboardType(.URL)
+                .textContentType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.go)
+                .accessibilityIdentifier("server.address")
+                .onSubmit(start)
+                .onChange(of: serverText) { serverProblem = nil }
+                .padding(12)
+                .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .disabled(isCheckingServer || model.isRegistering)
+                if let serverProblem {
+                    Label(serverProblem.message, systemImage: "exclamationmark.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                } else {
+                    Text("The address of your Meow server. You can change it later in Settings.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .multilineTextAlignment(.leading)
+        } footer: {
+            Button(action: start) {
                 ZStack {
-                    Text("Get started").opacity(model.isRegistering ? 0 : 1)
-                    if model.isRegistering { ProgressView().tint(.white) }
+                    Text("Get started").opacity(isBusy ? 0 : 1)
+                    if isBusy { ProgressView().tint(.white) }
                 }
                 .frame(maxWidth: .infinity, minHeight: 24)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(model.isRegistering)
-
-            Button { showServer = true } label: {
-                Text("Server: \(model.serverDisplay)")
-                    .font(.footnote)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .disabled(model.isRegistering || model.isChangingServer)
+            .disabled(isBusy || model.isChangingServer
+                      || serverText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
+    private var isBusy: Bool { isCheckingServer || model.isRegistering }
+
+    /// Checks the server before registering, so a typo gets a specific answer.
+    private func start() {
+        guard !isBusy else { return }
+        serverFocused = false
+        isCheckingServer = true
+        Task {
+            let result = await AppModel.checkServer(serverText)
+            isCheckingServer = false
+            switch result {
+            case .failure(let problem):
+                serverProblem = problem
+            case .success(let url):
+                model.setServer(url)
+                await model.register()
+                if model.isRegistered { step = .notifications }
+            }
+        }
+    }
+
+    // MARK: Notifications
+
     private var notifications: some View {
         page {
-            Image(systemName: "bell.badge.fill")
+            Image(systemName: model.permission == .denied ? "bell.slash.fill" : "bell.badge.fill")
                 .font(.system(size: 64))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(Color.accentColor)
                 .accessibilityHidden(true)
             VStack(spacing: 12) {
-                Text("Turn on notifications").font(.title2.bold())
-                Text("Meow tells you when an agent finishes, fails or needs an answer, and you can reply right from the notification.")
-                    .foregroundStyle(.secondary)
+                if model.permission == .denied {
+                    Text("Notifications are off").font(.title2.bold())
+                    Text("Turn them on in Settings so Meow can alert you. Without them, messages still arrive in the inbox.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Turn on notifications").font(.title2.bold())
+                    Text("Meow tells you when an agent finishes, fails or needs an answer, and you can reply right from the notification.")
+                        .foregroundStyle(.secondary)
+                }
             }
         } footer: {
-            Button {
-                Task {
-                    await model.requestNotificationPermission()
-                    step = .key
+            if model.permission == .denied {
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    Text("Open Settings").frame(maxWidth: .infinity, minHeight: 24)
                 }
-            } label: {
-                Text("Allow notifications").frame(maxWidth: .infinity, minHeight: 24)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                Button("Continue") { step = .connect }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            } else {
+                Button {
+                    Task {
+                        await model.requestNotificationPermission()
+                        // A refusal stays here to offer Settings instead of a dead end.
+                        if model.permission != .denied { step = .connect }
+                    }
+                } label: {
+                    Text("Allow notifications").frame(maxWidth: .infinity, minHeight: 24)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                Button("Not now") { step = .connect }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+        }
+        .onChange(of: model.permission) {
+            // Back from Settings with notifications on.
+            if step == .notifications, model.isNotificationPermissionGranted { step = .connect }
+        }
+    }
+
+    // MARK: Connect
+
+    private var connectStep: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Image("LogoBlue")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48)
+                        .accessibilityHidden(true)
+                    Text("Connect your computer").font(.largeTitle.bold())
+                    Text("In a terminal on your computer, run the command below. It checks the server, asks for your Device Key and connects Claude Code and Codex.")
+                        .foregroundStyle(.secondary)
+                }
+                CommandBlock(title: "1. Run this command", command: model.setupCommand)
+                if let key = model.deviceKey {
+                    VStack(alignment: .leading, spacing: 8) {
+                        CommandBlock(title: "2. Paste your Device Key when asked", command: key, copyTitle: "Copy Device Key")
+                        Text("Agents and scripts use your Device Key to send to this iPhone. The key can only send, never read or answer.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 20) {
+                            CommandBlock(title: "Log in with the Meow CLI", command: model.loginCommand(for: key))
+                            CommandBlock(title: "Or send with curl", command: model.curlCommand(for: key))
+                        }
+                        .padding(.top, 12)
+                    } label: {
+                        Text("Advanced").font(.subheadline.weight(.semibold))
+                    }
+                }
+            }
+            .frame(maxWidth: 640, alignment: .leading)
+            .padding(24)
+            .frame(maxWidth: .infinity)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button { step = .test } label: {
+                Text("Next").frame(maxWidth: .infinity, minHeight: 24)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            Button("Not now") { step = .key }
-                .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(maxWidth: 640)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .background(.bar)
         }
+        // `meow setup` sends its test as soon as it finishes, often before
+        // the user taps Next, so the baseline is taken here.
+        .task { await captureKnownIDs() }
+    }
+
+    // MARK: Test
+
+    private var testStep: some View {
+        page {
+            if let received {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 64))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.green)
+                    .accessibilityHidden(true)
+                VStack(spacing: 12) {
+                    Text("Connected — received “\(received.title.isEmpty ? received.body : received.title)”")
+                        .font(.title2.bold())
+                    Text("Your agents can reach you now.")
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                ProgressView()
+                    .controlSize(.large)
+                VStack(spacing: 12) {
+                    Text("Waiting for a test notification from your computer…")
+                        .font(.title2.bold())
+                    Text("meow setup sends one when it finishes. You can also run meow \"Hello\" in your terminal.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } footer: {
+            if received != nil {
+                Button { Task { await model.finishOnboarding() } } label: {
+                    Text("Done").frame(maxWidth: .infinity, minHeight: 24)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            } else {
+                Button {
+                    Task {
+                        isSendingTest = true
+                        await model.sendTestNotification()
+                        isSendingTest = false
+                    }
+                } label: {
+                    HStack {
+                        Label("Send a test from this iPhone", systemImage: "paperplane")
+                        if isSendingTest { ProgressView() }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 24)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(isSendingTest)
+                Text("This checks the server, not your computer.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Skip for now") { Task { await model.finishOnboarding() } }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+        }
+        // Poll faster than the inbox does while waiting; cancelled when the step goes away.
+        .task {
+            while !Task.isCancelled, received == nil {
+                if knownIDs == nil {
+                    await captureKnownIDs()
+                } else {
+                    await model.refresh()
+                    checkReceived()
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+        // Also catches a refresh triggered by a push arriving in the foreground.
+        .onChange(of: model.notifications) { checkReceived() }
+        .onChange(of: isSendingTest) { checkReceived() }
+    }
+
+    /// Only a successful load counts: a failed one would make old messages look new.
+    private func captureKnownIDs() async {
+        guard knownIDs == nil else { return }
+        await model.refresh()
+        guard knownIDs == nil, model.hasLoaded, model.loadError == nil else { return }
+        knownIDs = Set(model.notifications.map(\.id))
+    }
+
+    /// The only place that says the phone received something: a notification
+    /// that is new since connecting began and wasn't sent from this iPhone.
+    private func checkReceived() {
+        // Wait for a send from this iPhone to finish, so its ID is known.
+        guard step == .test, received == nil, !isSendingTest, let knownIDs else { return }
+        guard let n = model.notifications.first(where: {
+            !knownIDs.contains($0.id) && !model.sentTestIDs.contains($0.id)
+        }) else { return }
+        received = n
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Connected — received “\(n.title.isEmpty ? n.body : n.title)”"))
     }
 
     /// Scroll the explanation independently while keeping the next action in
@@ -122,6 +348,7 @@ struct OnboardingView: View {
                     .frame(maxWidth: .infinity, minHeight: geometry.size.height)
             }
             .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8, content: footer)
@@ -130,62 +357,6 @@ struct OnboardingView: View {
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity)
                 .background(.bar)
-        }
-    }
-
-    private var keyStep: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Image("LogoBlue")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 48)
-                        .accessibilityHidden(true)
-                    Text("Connect your agents").font(.largeTitle.bold())
-                    Text("Agents and scripts use your Device Key to send to this iPhone. The key can only send, never read or answer.")
-                        .foregroundStyle(.secondary)
-                }
-                if let key = model.deviceKey {
-                    CommandBlock(title: "Device Key", command: key)
-                    CommandBlock(title: "Log in with the Meow CLI", command: model.loginCommand(for: key))
-                    CommandBlock(title: "Or send with curl", command: model.curlCommand(for: key))
-                }
-            }
-            .frame(maxWidth: 640, alignment: .leading)
-            .padding(24)
-            .frame(maxWidth: .infinity)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 10) {
-                Button {
-                    Task {
-                        isSendingTest = true
-                        await model.sendTestNotification()
-                        isSendingTest = false
-                    }
-                } label: {
-                    HStack {
-                        Label("Send a test notification", systemImage: "paperplane")
-                        if isSendingTest { ProgressView() }
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 24)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .disabled(isSendingTest)
-
-                Button { Task { await model.finishOnboarding() } } label: {
-                    Text("Done").frame(maxWidth: .infinity, minHeight: 24)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            }
-            .frame(maxWidth: 640)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(.bar)
         }
     }
 }

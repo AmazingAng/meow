@@ -39,7 +39,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Connection")
                 } footer: {
-                    Text("Use the hosted service or connect to your own Meow server.")
+                    Text("Changing the server registers this iPhone again with a new Device Key.")
                 }
 
                 notificationSection
@@ -79,7 +79,7 @@ struct SettingsView: View {
                         .lineLimit(1)
                 }
                 CopyButton(title: "Copy Device Key", text: key)
-                CopyButton(title: "Copy CLI login command", text: model.loginCommand(for: key))
+                CopyButton(title: "Copy setup command", text: model.setupCommand)
                 Button {
                     Task {
                         isSendingTest = true
@@ -152,7 +152,7 @@ struct ServerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var text = ""
-    @State private var invalid = false
+    @State private var problem: AppModel.ServerProblem?
     @State private var confirmSwitch = false
     @State private var switchError: String?
     @State private var pendingReplyCount = 0
@@ -163,7 +163,7 @@ struct ServerSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(text: $text, prompt: Text(verbatim: MeowShared.defaultServer.absoluteString)) {
+                    TextField(text: $text, prompt: Text(verbatim: "https://meow.example.com")) {
                         Text("Server URL")
                     }
                     .focused($serverFocused)
@@ -174,21 +174,21 @@ struct ServerSheet: View {
                     .submitLabel(.go)
                     .accessibilityIdentifier("server.address")
                     .onSubmit(save)
-                    .onChange(of: text) { invalid = false }
+                    .onChange(of: text) { problem = nil }
                 } header: {
                     Text("Server URL")
                 } footer: {
-                    if invalid {
-                        Label("Enter a full address such as https://meow.example.com.", systemImage: "exclamationmark.circle")
+                    if let problem {
+                        Label(problem.message, systemImage: "exclamationmark.circle")
                             .foregroundStyle(.red)
                     } else {
                         Text("Self-hosting Meow? Enter your server's address.")
                     }
                 }
-                if parsed != MeowShared.defaultServer {
+                if let suggested = MeowShared.defaultServer, parsed != suggested {
                     Section {
                         Button("Use the hosted Meow server") {
-                            text = MeowShared.defaultServer.absoluteString
+                            text = suggested.absoluteString
                         }
                     }
                 }
@@ -238,24 +238,14 @@ struct ServerSheet: View {
         } message: {
             Text(switchError ?? "")
         }
-        .onAppear { text = model.server.absoluteString }
+        .onAppear { text = model.server?.absoluteString ?? "" }
     }
 
     private var switchTitle: LocalizedStringKey {
         pendingReplyCount > 0 ? "Discard saved replies?" : "Switch servers?"
     }
 
-    private var parsed: URL? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard var c = URLComponents(string: trimmed),
-              let scheme = c.scheme?.lowercased(), scheme == "https" || scheme == "http",
-              let host = c.host, !host.isEmpty
-        else { return nil }
-        while c.path.hasSuffix("/") { c.path.removeLast() }
-        c.query = nil
-        c.fragment = nil
-        return c.url
-    }
+    private var parsed: URL? { MeowShared.serverURL(from: text) }
 
     private func switchServer(discard: Bool) {
         guard let url = parsed else { return }
@@ -281,7 +271,7 @@ struct ServerSheet: View {
         guard !isChecking, !model.isChangingServer, !model.isRegistering else { return }
         serverFocused = false
         guard let url = parsed else {
-            invalid = true
+            problem = .invalidAddress
             return
         }
         if url == model.server {

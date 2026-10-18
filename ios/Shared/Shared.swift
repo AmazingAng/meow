@@ -5,13 +5,34 @@ import Security
 /// through the App Group.
 enum MeowShared {
     static let appGroup = "group.blue.meow.app"
-    static let defaultServer = URL(string: "https://api.meow.blue")!
+    /// The server a fresh install suggests, from the app's MeowDefaultServer
+    /// Info.plist key. Empty means there is none and onboarding asks for one.
+    static let defaultServer = serverURL(from: Bundle.main.object(forInfoDictionaryKey: "MeowDefaultServer") as? String)
 
     static var defaults: UserDefaults { UserDefaults(suiteName: appGroup) ?? .standard }
 
-    static var server: URL {
+    /// The saved server, or the default before one is chosen. Registering
+    /// saves the server, so a registered device never depends on the default.
+    static var server: URL? {
         get { defaults.string(forKey: "server").flatMap(URL.init(string:)) ?? defaultServer }
-        set { defaults.set(newValue.absoluteString, forKey: "server") }
+        set {
+            if let newValue { defaults.set(newValue.absoluteString, forKey: "server") }
+            else { defaults.removeObject(forKey: "server") }
+        }
+    }
+
+    /// Parses a typed server address: http or https with a host. Surrounding
+    /// spaces, trailing slashes, the query and the fragment are dropped.
+    static func serverURL(from text: String?) -> URL? {
+        let trimmed = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var c = URLComponents(string: trimmed),
+              let scheme = c.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              let host = c.host, !host.isEmpty
+        else { return nil }
+        while c.path.hasSuffix("/") { c.path.removeLast() }
+        c.query = nil
+        c.fragment = nil
+        return c.url
     }
 
     /// The mobile credential (mdt_…). It can answer questions, so it lives in the Keychain.
