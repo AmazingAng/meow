@@ -21,6 +21,7 @@ import (
 const setupUsage = `meow setup — connect a coding agent to Meow
 
 Usage:
+  meow setup [--server URL]    guided: check the server, log in, connect every agent found
   meow setup claude [flags]    Claude Code: Stop and Notification hooks, plus the meow skill
   meow setup codex [flags]     Codex: notify command, plus the meow skill
 
@@ -58,9 +59,12 @@ type fileChange struct {
 }
 
 func cmdSetup(args []string) int {
-	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+	if len(args) > 0 && (args[0] == "-h" || args[0] == "--help" || args[0] == "help") {
 		fmt.Fprint(os.Stderr, setupUsage)
 		return exitUsage
+	}
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return cmdSetupWizard(args)
 	}
 	agent := args[0]
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
@@ -391,8 +395,7 @@ func sameFile(a, b string) bool {
 }
 
 func confirm(prompt string) (bool, error) {
-	fi, err := os.Stdin.Stat()
-	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+	if !stdinIsTerminal() {
 		return false, errors.New("not running in a terminal; re-run with --yes to apply these changes")
 	}
 	fmt.Fprint(os.Stderr, prompt)
@@ -413,7 +416,9 @@ func sendSetupTest(cfg config.Config, name string) {
 		fmt.Fprintf(os.Stderr, "meow: test notification failed: %v (setup itself is done)\n", err)
 		return
 	}
-	fmt.Fprintln(os.Stderr, "Sent a test notification to your iPhone.")
+	// The server accepting it doesn't prove the phone showed it, and a Device
+	// Key can't read delivery status, so ask the user to look.
+	fmt.Fprintln(os.Stderr, `Meow accepted a test notification. Check that it appears on your iPhone; if it doesn't, run "meow doctor".`)
 }
 
 func tilde(path string) string {

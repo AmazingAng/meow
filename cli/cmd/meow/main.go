@@ -42,7 +42,9 @@ Usage:
   meow wait <question-id>              wait for an existing question
   meow login [--key KEY] [--server URL]  save your Device Key
   meow whoami                          show the configured key and device
+  meow setup                           guided setup: server, Device Key, agents, test
   meow setup claude|codex              notify you when an agent finishes or needs you
+  meow doctor                          check the server, Device Key, iPhone and agents
   meow version
 
 Send flags:
@@ -88,6 +90,8 @@ func run(args []string) int {
 		return cmdWhoAmI(rest)
 	case "setup":
 		return cmdSetup(rest)
+	case "doctor":
+		return cmdDoctor(rest)
 	case "hook":
 		return cmdHook(rest)
 	case "dev":
