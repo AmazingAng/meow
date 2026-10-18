@@ -1,0 +1,66 @@
+ Service meow  Building
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [meow internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.07kB done
+#1 DONE 0.0s
+
+#2 [meow internal] load metadata for docker.io/library/golang:1.27.2
+#2 ...
+
+#3 [meow internal] load metadata for gcr.io/distroless/static-debian12:nonroot
+#3 DONE 1.3s
+
+#2 [meow internal] load metadata for docker.io/library/golang:1.27.2
+#2 DONE 46.9s
+
+#4 [meow internal] load .dockerignore
+#4 transferring context: 242B done
+#4 DONE 0.0s
+
+#5 [meow build 1/7] FROM docker.io/library/golang:1.27.2@sha256:820153096fda4de6ac1b7194d12e416b7dd8f4e9a33d17e0345b111b945162d8
+#5 DONE 0.0s
+
+#6 [meow stage-1 1/3] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#6 DONE 0.0s
+
+#7 [meow internal] load build context
+#7 transferring context: 6.87kB done
+#7 DONE 0.0s
+
+#8 [meow build 2/7] WORKDIR /src
+#8 CACHED
+
+#9 [meow build 3/7] COPY go.mod go.sum ./
+#9 DONE 0.0s
+
+#10 [meow build 4/7] RUN go mod download
+#10 DONE 4.7s
+
+#11 [meow build 5/7] COPY client ./client
+#11 DONE 0.0s
+
+#12 [meow build 6/7] COPY server ./server
+#12 DONE 0.0s
+
+#13 [meow build 7/7] RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=dev"       -o /out/meow-server ./server/cmd/meow-server  && mkdir /out/data
+#13 DONE 6.3s
+ Service meow  Built
+
+#6 [meow stage-1 1/3] FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+#6 CACHED
+
+#14 [meow stage-1 2/3] COPY --from=build /out/meow-server /meow-server
+#14 DONE 0.0s
+
+#15 [meow stage-1 3/3] COPY --from=build --chown=nonroot:nonroot /out/data /data
+#15 DONE 0.0s
+
+#16 [meow] exporting to image
+#16 exporting layers 0.0s done
+#16 writing image sha256:4d50a6332e635ce1799ac54133f930265040ad50d03604aaea244acc847e2911 done
+#16 naming to docker.io/library/meow-server done
+#16 DONE 0.0s
+
+#17 [meow] resolving provenance for metadata file
+#17 DONE 0.0s

@@ -1,0 +1,29 @@
+PASS HTTPS proxy health
+PASS anonymous device registration
+PASS credential isolation
+PASS notification creation, replay, inbox counts, delivered and read
+PASS long poll, authenticated response, idempotent retry and conflict
+PASS expiry fails closed with HTTP 410
+PASS question cancellation
+
+PASS HTTPS proxy health
+PASS device credentials, answered question and notification metadata persisted
+
+PASS HTTP health
+PASS device credentials, answered question and notification metadata persisted
+
+HTTP/1.1 308 Permanent Redirect
+Connection: close
+Location: https://meow.blue/healthz
+Server: Caddy
+Date: Sun, 18 Oct 2026 09:07:59 GMT
+Content-Length: 0
+
+
+HTTP/2 200 
+alt-svc: h3=":443"; ma=2592000
+content-type: application/json
+date: Sun, 18 Oct 2026 09:07:59 GMT
+via: 1.1 Caddy
+content-length: 16
+

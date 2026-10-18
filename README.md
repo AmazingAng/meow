@@ -100,6 +100,8 @@ Push status is recorded per notification: `queued`, `accepted` (APNs accepted it
 
 ## Server configuration
 
+For a persistent Docker deployment with Caddy HTTPS, see [deploy/README.md](deploy/README.md).
+
 | Variable | Default | |
 | --- | --- | --- |
 | `MEOW_ADDR` | `:8080` | |

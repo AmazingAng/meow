@@ -2,7 +2,7 @@
 #
 #   cd deploy
 #   cp .env.example .env        # fill in your domain and APNs key details
-#   cp ~/Downloads/AuthKey_XXXXXXXXXX.p8 ./apns.p8
+#   # Set MEOW_APNS_KEY_PATH to the private key's absolute path (see README.md).
 #   docker compose up -d
 #
 # The server is only reachable through Caddy; Caddy listens on 80 and 443.
@@ -25,12 +25,19 @@ services:
       MEOW_INACTIVE_DEVICE_TTL: ${MEOW_INACTIVE_DEVICE_TTL:-0}
     volumes:
       - meow-data:/data
-      - ./apns.p8:/run/secrets/apns.p8:ro
+      - type: bind
+        source: ${MEOW_APNS_KEY_PATH:-./apns.p8}
+        target: /run/secrets/apns.p8
+        read_only: true
+        bind:
+          create_host_path: false
 
   caddy:
     image: caddy:2
     restart: unless-stopped
-    depends_on: [meow]
+    depends_on:
+      meow:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
