@@ -18,6 +18,7 @@
 //
 // "meow-server backup <path>" writes a consistent snapshot of the live database.
 // "meow-server healthcheck" exits 0 when the local server answers /healthz.
+// "meow-server check-apns" verifies the APNs credentials and exits.
 package main
 
 import (
@@ -46,12 +47,14 @@ func main() {
 	switch {
 	case len(os.Args) > 1 && os.Args[1] == "backup":
 		err = backup(os.Args[2:])
+	case len(os.Args) > 1 && os.Args[1] == "check-apns":
+		err = checkAPNsCommand()
 	case len(os.Args) > 1 && os.Args[1] == "healthcheck":
 		err = healthcheck()
 	case len(os.Args) > 1 && os.Args[1] == "version":
 		fmt.Println("meow-server", version)
 	case len(os.Args) > 1:
-		err = fmt.Errorf("unknown command %q (usage: meow-server [backup <path> | healthcheck | version])", os.Args[1])
+		err = fmt.Errorf("unknown command %q (usage: meow-server [backup <path> | check-apns | healthcheck | version])", os.Args[1])
 	default:
 		err = run()
 	}
@@ -129,6 +132,10 @@ func run() error {
 		TrustProxy: env("MEOW_TRUST_PROXY", "") == "true",
 	})
 	wg.Go(func() { maintain(bg, srv, st, retention, inactiveTTL, log) })
+	// Check APNs in the background: a wrong Key ID shows up in the log at
+	// deploy time instead of as silently missing notifications. It never
+	// stops the server, since Apple may just be unreachable for a moment.
+	wg.Go(func() { checkAPNs(bg, pusher, log) })
 
 	hs := &http.Server{
 		Addr:              env("MEOW_ADDR", ":8080"),
@@ -230,6 +237,47 @@ func optionalDuration(key string, min time.Duration) (time.Duration, error) {
 
 // healthcheck asks the server on MEOW_ADDR for /healthz. It lets a container
 // image without curl define a health check.
+// checkAPNs reports, per environment, whether Apple accepts the credentials.
+// Development builds from Xcode use sandbox; TestFlight and the App Store
+// use production.
+func checkAPNs(ctx context.Context, p push.Pusher, log *slog.Logger) (ok bool) {
+	a, isAPNs := p.(*push.APNs)
+	if !isAPNs {
+		return true
+	}
+	ok = true
+	for _, env := range []struct {
+		name    string
+		sandbox bool
+	}{{"sandbox", true}, {"production", false}} {
+		cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		err := a.Check(cctx, env.sandbox)
+		cancel()
+		if err != nil {
+			ok = false
+			log.Error("APNs credentials rejected", "environment", env.name, "err", err)
+		} else {
+			log.Info("APNs credentials accepted", "environment", env.name)
+		}
+	}
+	return ok
+}
+
+func checkAPNsCommand() error {
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	p, err := newPusher(log)
+	if err != nil {
+		return err
+	}
+	if _, isAPNs := p.(*push.APNs); !isAPNs {
+		return errors.New("APNs is not configured (MEOW_APNS_KEY_FILE is unset)")
+	}
+	if !checkAPNs(context.Background(), p, log) {
+		return errors.New("APNs check failed; see the errors above")
+	}
+	return nil
+}
+
 func healthcheck() error {
 	addr := env("MEOW_ADDR", ":8080")
 	if strings.HasPrefix(addr, ":") {

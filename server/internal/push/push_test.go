@@ -279,3 +279,37 @@ func TestBuildMessageFitsPayloadLimit(t *testing.T) {
 		})
 	}
 }
+
+func TestAPNsCheck(t *testing.T) {
+	_, p8 := testKey(t)
+	for _, tc := range []struct {
+		status    int
+		reason    string
+		wantOK    bool
+		wantInErr string
+	}{
+		{http.StatusBadRequest, "BadDeviceToken", true, ""},
+		{http.StatusForbidden, "InvalidProviderToken", false, "don't belong together"},
+		{http.StatusBadRequest, "TopicDisallowed", false, "bundle ID"},
+		{http.StatusOK, "", true, ""},
+	} {
+		var path string
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path = r.URL.Path
+			if tc.status != http.StatusOK {
+				w.WriteHeader(tc.status)
+				io.WriteString(w, `{"reason":"`+tc.reason+`"}`)
+			}
+		}))
+		a, _ := NewAPNs(p8, "K", "T", "blue.meow.app")
+		a.SandboxURL, a.HTTP = ts.URL, ts.Client()
+		err := a.Check(context.Background(), true)
+		ts.Close()
+		if (err == nil) != tc.wantOK || (tc.wantInErr != "" && !strings.Contains(err.Error(), tc.wantInErr)) {
+			t.Errorf("%s: Check = %v", tc.reason, err)
+		}
+		if !strings.HasSuffix(path, "/"+strings.Repeat("0", 64)) {
+			t.Errorf("%s: pushed to %q, want the all-zero token", tc.reason, path)
+		}
+	}
+}

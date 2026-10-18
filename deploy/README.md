@@ -33,6 +33,19 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml ps
 docker compose --env-file deploy/.env -f deploy/compose.yaml logs --tail 50
 ```
 
+At startup the server checks its APNs credentials against Apple, in the
+background, and logs `APNs credentials accepted` or `APNs credentials rejected`
+for each environment, with the likely cause (for example, Key ID, Team ID and
+key that don't belong together). To run the check on demand:
+
+```sh
+docker compose --env-file deploy/.env -f deploy/compose.yaml exec meow /meow-server check-apns
+```
+
+Builds installed from Xcode use the sandbox environment; TestFlight and App
+Store builds use production. A key limited to one environment fails the other
+check, which only matters if you install builds that use it.
+
 A machine behind a home router needs port forwarding or a tunnel. DNS pointing
 at a LAN address does not make it reachable from the Internet. Cloudflare's
 public edge certificate alone does not prove Caddy has obtained its certificate.

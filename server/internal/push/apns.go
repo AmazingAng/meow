@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -193,4 +194,40 @@ type Disabled struct{ Log *slog.Logger }
 func (d Disabled) Push(_ context.Context, m Message) error {
 	d.Log.Debug("push skipped: APNs not configured", "payload", string(m.Payload))
 	return ErrNotConfigured
+}
+
+// Check verifies the credentials against one APNs environment without
+// reaching a device: it pushes to an all-zero token, which APNs rejects as
+// BadDeviceToken only after it has accepted the provider token. Any other
+// result means the key, Key ID, Team ID or topic is wrong, or APNs is
+// unreachable.
+func (a *APNs) Check(ctx context.Context, sandbox bool) error {
+	err := a.Push(ctx, Message{
+		Token:   strings.Repeat("0", 64),
+		Sandbox: sandbox,
+		Payload: []byte(`{"aps":{"alert":"meow credential check"}}`),
+	})
+	var ae *Error
+	switch {
+	case err == nil:
+		return nil // not expected for a fake token, but nothing is wrong
+	case errors.As(err, &ae) && ae.Reason == "BadDeviceToken":
+		return nil
+	case errors.As(err, &ae):
+		return fmt.Errorf("%w (%s)", err, checkHint(ae.Reason))
+	default:
+		return err
+	}
+}
+
+func checkHint(reason string) string {
+	switch reason {
+	case "InvalidProviderToken":
+		return "MEOW_APNS_KEY_ID, MEOW_APNS_TEAM_ID and the .p8 key don't belong together"
+	case "TopicDisallowed", "BadTopic", "DeviceTokenNotForTopic":
+		return "MEOW_APNS_TOPIC must be the app's bundle ID, enabled for this key"
+	case "Forbidden":
+		return "this key isn't enabled for this APNs environment"
+	}
+	return "see Apple's APNs error reference"
 }
