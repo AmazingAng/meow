@@ -37,7 +37,7 @@ description: Reach the user on their iPhone with Meow. Use when you need the use
 
 # Meow
 
-§meow§ pushes a notification to the user's iPhone. They can answer from the lock screen, and the answer comes back to your command.
+Meow pushes a notification to the user's iPhone. They can answer from the lock screen, and the answer comes back to your command.
 
 ## Ask and wait for the answer
 
@@ -66,5 +66,5 @@ description: Reach the user on their iPhone with Meow. Use when you need the use
 %[3]s send --source "%[1]s" --title "Migration paused" "Table orders is locked; retrying in 10 minutes"
 ~~~
 
-A notification is already sent automatically when you finish a task, so use §meow send§ only for news the user should not miss in the middle of one.
+A notification is already sent automatically when you finish a task, so use §%[3]s send§ only for news the user should not miss in the middle of one.
 `

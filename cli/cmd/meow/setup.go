@@ -39,7 +39,14 @@ Flags:
 
 type setupOptions struct {
 	install, summary, skill, force bool
-	exe                            string // absolute path of this meow binary
+	exe                            string   // absolute path of this meow binary (install only)
+	known                          []string // meow binaries setup may have installed before
+}
+
+// executables lists every meow binary whose hooks belong to meow: this one
+// and any recorded by an earlier install.
+func (o setupOptions) executables() []string {
+	return append([]string{o.exe}, o.known...)
 }
 
 // fileChange is one file meow setup writes; nil data removes the file.
@@ -99,11 +106,20 @@ func cmdSetup(args []string) int {
 		o.exe, _ = meowExecutable()
 	}
 
+	// Recognise hooks written by an earlier install, wherever that binary was.
+	o.known = []string{cfg.Installed[agent]}
+	if !o.install {
+		if exe, err := meowExecutable(); err == nil {
+			o.known = append(o.known, exe)
+		}
+	}
+
 	changes, notes, err := plan(o)
 	if err != nil {
 		return fail(err)
 	}
 	if len(changes) == 0 {
+		recordInstall(agent, o) // covers installs made before setup recorded them
 		if o.install {
 			fmt.Fprintf(os.Stderr, "%s is already connected to Meow.\n", name)
 		} else {
@@ -161,6 +177,7 @@ func cmdSetup(args []string) int {
 			fmt.Fprintf(os.Stderr, "Created %s\n", tilde(c.path))
 		}
 	}
+	recordInstall(agent, o)
 	for _, n := range notes {
 		fmt.Fprintln(os.Stderr, n)
 	}
@@ -168,6 +185,34 @@ func cmdSetup(args []string) int {
 		sendSetupTest(cfg, name)
 	}
 	return exitOK
+}
+
+// recordInstall remembers which executable the agent's config runs, or
+// forgets it after an uninstall. Only the config file is updated, so MEOW_KEY
+// and MEOW_SERVER overrides are never saved. Failure only affects a later
+// uninstall of a binary not named meow, so it is a warning.
+func recordInstall(agent string, o setupOptions) {
+	cfg, err := config.LoadFile()
+	if err == nil {
+		if o.install {
+			if cfg.Installed == nil {
+				cfg.Installed = map[string]string{}
+			}
+			if cfg.Installed[agent] == o.exe {
+				return
+			}
+			cfg.Installed[agent] = o.exe
+		} else {
+			if _, ok := cfg.Installed[agent]; !ok {
+				return
+			}
+			delete(cfg.Installed, agent)
+		}
+		err = config.Save(cfg)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "meow: couldn't record the installed executable: %v\n", err)
+	}
 }
 
 func claudeDir() (string, error) {
@@ -205,7 +250,7 @@ func planClaude(o setupOptions) ([]fileChange, []string, error) {
 			notifyCmd += " --no-summary"
 		}
 	}
-	data, err := setup.ClaudeSettings(old, stopCmd, notifyCmd, o.install)
+	data, err := setup.ClaudeSettings(old, stopCmd, notifyCmd, o.install, o.executables()...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: %w", tilde(path), err)
 	}
@@ -251,8 +296,8 @@ func planCodex(o setupOptions) ([]fileChange, []string, error) {
 			argv = append(argv, "--no-summary")
 		}
 	}
-	existing, ours := setup.CodexNotify(old, o.exe)
-	data, err := setup.CodexConfig(old, argv, o.install, o.force, o.exe)
+	existing, ours := setup.CodexNotify(old, o.executables()...)
+	data, err := setup.CodexConfig(old, argv, o.install, o.force, o.executables()...)
 	var conflict *setup.NotifyConflictError
 	if errors.As(err, &conflict) {
 		return nil, nil, fmt.Errorf("%s already has\n    %s\nCodex runs only one notify command. Re-run with --force to replace it (the file is backed up first)",

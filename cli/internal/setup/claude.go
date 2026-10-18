@@ -13,6 +13,7 @@ import (
 	"io"
 	"reflect"
 	"regexp"
+	"strings"
 )
 
 // ClaudeNotifyMatcher selects the Notification events that need the user:
@@ -32,7 +33,10 @@ type member struct {
 // ClaudeSettings adds (install) or removes meow's hooks in a Claude Code
 // settings.json. Other settings and hooks are kept, and top-level keys keep
 // their order. Hooks are async so they never hold up the session.
-func ClaudeSettings(src []byte, stopCmd, notifyCmd string, install bool) ([]byte, error) {
+//
+// knownExecutables are meow binaries installed earlier; hooks that run one of
+// them are treated as meow's even if the file isn't named meow.
+func ClaudeSettings(src []byte, stopCmd, notifyCmd string, install bool, knownExecutables ...string) ([]byte, error) {
 	members, err := parseObject(src)
 	if err != nil {
 		return nil, fmt.Errorf("settings.json is not valid JSON: %w", err)
@@ -65,7 +69,7 @@ func ClaudeSettings(src []byte, stopCmd, notifyCmd string, install bool) ([]byte
 		}
 	}
 
-	removed := removeMeowHooks(hooks)
+	removed := removeMeowHooks(hooks, knownExecutables)
 	switch {
 	case !install && !removed:
 		return src, nil
@@ -104,19 +108,32 @@ func hookGroup(matcher, cmd string) map[string]any {
 	return g
 }
 
-func isMeowHook(h any) bool {
+func isMeowHook(h any, knownExecutables []string) bool {
 	m, ok := h.(map[string]any)
 	if !ok {
 		return false
 	}
 	cmd, _ := m["command"].(string)
-	return meowClaudeHook.MatchString(cmd)
+	if meowClaudeHook.MatchString(cmd) {
+		return true
+	}
+	for _, exe := range knownExecutables {
+		if exe == "" {
+			continue
+		}
+		for _, kind := range []string{"claude-stop", "claude-notify"} {
+			if strings.HasPrefix(cmd, ShellQuote(exe)+" hook "+kind) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // removeMeowHooks deletes handlers added by meow from every event, dropping
 // groups and events that become empty because of it. It reports whether
 // anything was removed.
-func removeMeowHooks(hooks map[string]any) (changed bool) {
+func removeMeowHooks(hooks map[string]any, known []string) (changed bool) {
 	for ev, v := range hooks {
 		groups, ok := v.([]any)
 		if !ok {
@@ -133,7 +150,7 @@ func removeMeowHooks(hooks map[string]any) (changed bool) {
 			}
 			var keptHandlers []any
 			for _, h := range handlers {
-				if isMeowHook(h) {
+				if isMeowHook(h, known) {
 					removed = true
 				} else {
 					keptHandlers = append(keptHandlers, h)
