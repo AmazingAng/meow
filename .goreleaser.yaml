@@ -1,0 +1,30 @@
+# Prebuilt meow CLI binaries, published to GitHub Releases when a v* tag is
+# pushed (see .github/workflows/release.yml). The server ships as a Docker
+# image built from the Dockerfile instead.
+version: 2
+
+project_name: meow
+
+builds:
+  - id: meow
+    main: ./cli/cmd/meow
+    binary: meow
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "meow_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [README.md]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+  sort: asc

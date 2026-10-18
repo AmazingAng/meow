@@ -6,3 +6,4 @@
 .DS_Store
 ios/Meow.xcodeproj/
 deploy/.env
+dist/

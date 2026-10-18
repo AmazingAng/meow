@@ -39,7 +39,9 @@ meow ask <question> [--choices a,b] [--timeout 300] [--no-wait] [--json]
 meow wait <question-id>
 meow login [--key meow_…] [--server URL]
 meow whoami
+meow setup [--server URL]
 meow setup claude|codex [--uninstall] [--no-summary] [--no-skill]
+meow doctor
 ```
 
 `meow ask` prints the answer to stdout. Exit codes: `0` answered, `3` rejected, `4` expired, `5` cancelled, `130` interrupted (Ctrl-C cancels the question). It keeps waiting through network failures and server restarts.
@@ -49,11 +51,14 @@ Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `ME
 ## Agent integrations
 
 ```sh
-go build -o ~/.local/bin/meow ./cli/cmd/meow   # any stable path on your PATH
-meow login                                       # paste the Device Key from the app
-meow setup claude                                # Claude Code
-meow setup codex                                 # Codex
+# Prebuilt (macOS / Linux, amd64 / arm64). The repo is private, so use gh:
+gh release download --repo AmazingAng/meow --pattern "meow_*_$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" -O - \
+  | tar -xz -C ~/.local/bin meow
+# Or from source: go build -o ~/.local/bin/meow ./cli/cmd/meow
+meow setup --server https://your-meow-server     # asks for the Device Key, connects every agent found
 ```
+
+`meow setup` checks the server, asks for the Device Key from the app (it is never passed as a flag, so it stays out of shell history), connects Claude Code and Codex if they are installed, and sends one test notification. `meow setup claude` or `meow setup codex` connects a single agent. `meow doctor` re-runs the checks without changing anything and says what to fix.
 
 `meow setup` shows what it will change and asks first; each edited file is backed up as `<file>.bak.<timestamp>`. Re-running is safe, and `--uninstall` removes only what meow added.
 
@@ -131,4 +136,12 @@ Notification actions: Approve requires unlocking the phone, Reject is destructiv
 
 ```sh
 go test -race ./...
+```
+
+## Releasing
+
+Push a version tag; GitHub Actions runs the tests and publishes prebuilt `meow` binaries with checksums to GitHub Releases:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
 ```
