@@ -1,0 +1,1417 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "About" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关于"
+          }
+        }
+      }
+    },
+    "Agents and scripts use your Device Key to send to this iPhone. The key can only send, never read or answer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 和脚本用你的 Device Key 给这台 iPhone 发通知。这个密钥只能发送，不能读取或回答。"
+          }
+        }
+      }
+    },
+    "Agents use the Device Key to send to this iPhone. It can only send, never read or answer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 用 Device Key 给这台 iPhone 发通知。它只能发送，不能读取或回答。"
+          }
+        }
+      }
+    },
+    "All" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部"
+          }
+        }
+      }
+    },
+    "All caught up" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "都看完了"
+          }
+        }
+      }
+    },
+    "Allow notifications" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许通知"
+          }
+        }
+      }
+    },
+    "Already sending “%@”." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已经在发送“%@”。"
+          }
+        }
+      }
+    },
+    "Answered" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已回答"
+          }
+        }
+      }
+    },
+    "Approve" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批准"
+          }
+        }
+      }
+    },
+    "Approved" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已批准"
+          }
+        }
+      }
+    },
+    "Can't change server" : {
+
+    },
+    "Can't load notifications" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法加载通知"
+          }
+        }
+      }
+    },
+    "Can't reach the Meow server." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法连接 Meow 服务器。"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
+    },
+    "Cancelled" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消"
+          }
+        }
+      }
+    },
+    "Cancelled by the agent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 已取消"
+          }
+        }
+      }
+    },
+    "Change server…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更换服务器…"
+          }
+        }
+      }
+    },
+    "Confirm the approval" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认批准"
+          }
+        }
+      }
+    },
+    "Connect your agents" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接你的 Agent"
+          }
+        }
+      }
+    },
+    "Connecting…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在连接…"
+          }
+        }
+      }
+    },
+    "Connection" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接"
+          }
+        }
+      }
+    },
+    "Copied" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已拷贝"
+          }
+        }
+      }
+    },
+    "Copy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷贝"
+          }
+        }
+      }
+    },
+    "Copy CLI login command" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷贝 CLI 登录命令"
+          }
+        }
+      }
+    },
+    "Copy Device Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷贝 Device Key"
+          }
+        }
+      }
+    },
+    "Couldn't remove the saved replies. Your server and replies have been kept. Please try again. (%@)" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法移除已保存的回复。服务器和回复均已保留，请重试。（%@）"
+          }
+        }
+      }
+    },
+    "Couldn't save this iPhone's credentials to the Keychain." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法把这台 iPhone 的凭证保存到钥匙串。"
+          }
+        }
+      }
+    },
+    "Couldn't save your answer on this iPhone. It has not been sent. Please free up storage or restart Meow and try again. (%@)" : {
+
+    },
+    "Create a new Device Key?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要创建新的 Device Key 吗？"
+          }
+        }
+      }
+    },
+    "Create new Device Key…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建新的 Device Key…"
+          }
+        }
+      }
+    },
+    "Create new key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建新密钥"
+          }
+        }
+      }
+    },
+    "Creating a new key immediately disables the current key." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建新密钥后，当前密钥会立即失效。"
+          }
+        }
+      }
+    },
+    "Delivered" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送达"
+          }
+        }
+      }
+    },
+    "Details" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "详细信息"
+          }
+        }
+      }
+    },
+    "Device" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设备"
+          }
+        }
+      }
+    },
+    "Device Key" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Key"
+          }
+        }
+      }
+    },
+    "Discard and switch" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放弃并切换"
+          }
+        }
+      }
+    },
+    "Discard replies and switch" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放弃回复并切换"
+          }
+        }
+      }
+    },
+    "Discard saved replies?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放弃已保存的回复？"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
+        }
+      }
+    },
+    "Enter a full address such as https://meow.example.com." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入完整地址，例如 https://meow.example.com。"
+          }
+        }
+      }
+    },
+    "Expired" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已过期"
+          }
+        }
+      }
+    },
+    "Expired without an answer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已过期，未回答"
+          }
+        }
+      }
+    },
+    "Expires in %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 后过期"
+          }
+        }
+      }
+    },
+    "Failed" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "失败"
+          }
+        }
+      }
+    },
+    "Get started" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始使用"
+          }
+        }
+      }
+    },
+    "High" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高"
+          }
+        }
+      }
+    },
+    "ID" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID"
+          }
+        }
+      }
+    },
+    "Inbox" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收件箱"
+          }
+        }
+      }
+    },
+    "It may have been removed by the server's retention policy." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它可能已按服务器的保留策略被清理。"
+          }
+        }
+      }
+    },
+    "Keep waiting" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续等待"
+          }
+        }
+      }
+    },
+    "Log in with the Meow CLI" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 Meow CLI 登录"
+          }
+        }
+      }
+    },
+    "Low" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低"
+          }
+        }
+      }
+    },
+    "Mark all as read" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部标为已读"
+          }
+        }
+      }
+    },
+    "Meow tells you when an agent finishes, fails or needs an answer, and you can reply right from the notification." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 完成任务、出错或需要你回答时，Meow 会通知你，你可以直接在通知里回复。"
+          }
+        }
+      }
+    },
+    "Meow!" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "喵！"
+          }
+        }
+      }
+    },
+    "Needs your answer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要你回答"
+          }
+        }
+      }
+    },
+    "New Device Key created. Update it in your CLI." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已创建新的 Device Key，请在 CLI 中更新。"
+          }
+        }
+      }
+    },
+    "No notifications yet" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有通知"
+          }
+        }
+      }
+    },
+    "Normal" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "普通"
+          }
+        }
+      }
+    },
+    "Not now" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以后再说"
+          }
+        }
+      }
+    },
+    "Not pushed" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未推送"
+          }
+        }
+      }
+    },
+    "Not set" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未设置"
+          }
+        }
+      }
+    },
+    "Nothing waiting on you" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有待处理的问题"
+          }
+        }
+      }
+    },
+    "Notification" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
+          }
+        }
+      }
+    },
+    "Notification not found" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到这条通知"
+          }
+        }
+      }
+    },
+    "Notifications" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
+          }
+        }
+      }
+    },
+    "now" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刚刚"
+          }
+        }
+      }
+    },
+    "Off" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
+          }
+        }
+      }
+    },
+    "On" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启"
+          }
+        }
+      }
+    },
+    "Open notification settings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开通知设置"
+          }
+        }
+      }
+    },
+    "Or send with curl" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "或者用 curl 发送"
+          }
+        }
+      }
+    },
+    "Pending" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待处理"
+          }
+        }
+      }
+    },
+    "Permission" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "权限"
+          }
+        }
+      }
+    },
+    "Priority" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "优先级"
+          }
+        }
+      }
+    },
+    "Push" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推送"
+          }
+        }
+      }
+    },
+    "Push notifications and quick replies for Claude Code, Codex and your scripts." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为 Claude Code、Codex 和你的脚本提供推送通知与快捷回复。"
+          }
+        }
+      }
+    },
+    "Push notifications for AI agents." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "给 AI Agent 用的推送通知。"
+          }
+        }
+      }
+    },
+    "Question ID" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "问题 ID"
+          }
+        }
+      }
+    },
+    "Questions from your agents show up here until you answer them." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 提出的问题会显示在这里，直到你回答为止。"
+          }
+        }
+      }
+    },
+    "Queued" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排队中"
+          }
+        }
+      }
+    },
+    "Read" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已读"
+          }
+        }
+      }
+    },
+    "Ready" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已就绪"
+          }
+        }
+      }
+    },
+    "Reject" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拒绝"
+          }
+        }
+      }
+    },
+    "Rejected" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已拒绝"
+          }
+        }
+      }
+    },
+    "Replies waiting to send" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有回复等待发送"
+          }
+        }
+      }
+    },
+    "Replies waiting to send: %lld. Discarding removes them from this iPhone and stops retries. Answers already processed by the old server cannot be undone. You'll register again and get a new Device Key." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 %lld 条回复等待发送。放弃后将从这台 iPhone 移除并停止重试。旧服务器已经处理的回复无法撤回。切换后需要重新注册并获取新的 Device Key。"
+          }
+        }
+      }
+    },
+    "Reply" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回复"
+          }
+        }
+      }
+    },
+    "Reply to the agent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回复 Agent"
+          }
+        }
+      }
+    },
+    "Run meow \"Hello\" in your terminal, or send a test from Settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在终端运行 meow \"Hello\"，或在设置中发送一条测试通知。"
+          }
+        }
+      }
+    },
+    "Save" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        }
+      }
+    },
+    "Saved replies to discard: %lld. You'll register on the new server. Answers already processed cannot be undone." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将移除 %lld 条已保存的回复，并在新服务器重新注册。已处理的回复无法撤回。"
+          }
+        }
+      }
+    },
+    "Search notifications" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索通知"
+          }
+        }
+      }
+    },
+    "Security" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全"
+          }
+        }
+      }
+    },
+    "Self-hosting Meow? Enter your server's address." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自托管 Meow？输入你的服务器地址。"
+          }
+        }
+      }
+    },
+    "Self-hosting? Point Meow at your own server. Changing the server registers this iPhone again." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自托管？把 Meow 指向你自己的服务器。更换服务器后，这台 iPhone 会重新注册。"
+          }
+        }
+      }
+    },
+    "Send" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送"
+          }
+        }
+      }
+    },
+    "Send a test notification" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送测试通知"
+          }
+        }
+      }
+    },
+    "Sending “%@”…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在发送“%@”…"
+          }
+        }
+      }
+    },
+    "Sent to Apple" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已交给 Apple"
+          }
+        }
+      }
+    },
+    "Sent. Notifications are off, so it's only in your inbox." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已发送。通知权限已关闭，所以它只出现在收件箱里。"
+          }
+        }
+      }
+    },
+    "Server" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务器"
+          }
+        }
+      }
+    },
+    "Server URL" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务器地址"
+          }
+        }
+      }
+    },
+    "Server: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务器：%@"
+          }
+        }
+      }
+    },
+    "Settings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置"
+          }
+        }
+      }
+    },
+    "Something went wrong" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出了点问题"
+          }
+        }
+      }
+    },
+    "Switch and register again" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更换并重新注册"
+          }
+        }
+      }
+    },
+    "Switch server" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换服务器"
+          }
+        }
+      }
+    },
+    "Switch servers?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要更换服务器吗？"
+          }
+        }
+      }
+    },
+    "Switching servers requires a new registration and Device Key. Saved replies are kept unless you choose to discard them." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换服务器后需要重新注册并获取新的 Device Key。除非你选择放弃，否则已保存的回复会保留。"
+          }
+        }
+      }
+    },
+    "Test notification sent." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "测试通知已发送。"
+          }
+        }
+      }
+    },
+    "That answer isn't one of the choices." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个回答不在可选项中。"
+          }
+        }
+      }
+    },
+    "The current key stops working right away. Agents and scripts that use it need the new key." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前密钥会立即失效，使用它的 Agent 和脚本需要换成新密钥。"
+          }
+        }
+      }
+    },
+    "The current key will stop working. Update your agents with the new key." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前密钥将失效，请为 Agent 更新为新密钥。"
+          }
+        }
+      }
+    },
+    "The new key works, but the old key could not be revoked: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新密钥已生效，但旧密钥没能吊销：%@"
+          }
+        }
+      }
+    },
+    "The server has changed." : {
+
+    },
+    "The server is changing. Please try again afterward." : {
+
+    },
+    "This iPhone is no longer registered with the server. Change or reset the server in Settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 已不在服务器上注册。请在设置中更换或重置服务器。"
+          }
+        }
+      }
+    },
+    "This iPhone will be registered on the new server with a new Device Key. Your agents will need the new key." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 iPhone 会在新服务器上重新注册，并获得新的 Device Key。你的 Agent 需要换成新密钥。"
+          }
+        }
+      }
+    },
+    "This question expired before your answer arrived." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的回答送达前，这个问题已经过期。"
+          }
+        }
+      }
+    },
+    "This question is no longer waiting for an answer." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个问题已不再等待回答。"
+          }
+        }
+      }
+    },
+    "This question no longer exists." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个问题已不存在。"
+          }
+        }
+      }
+    },
+    "This question was already answered: “%@”." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个问题已经回答过了：“%@”。"
+          }
+        }
+      }
+    },
+    "This saved reply was discarded when changing servers." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这条已保存的回复在切换服务器时被放弃。"
+          }
+        }
+      }
+    },
+    "Try again" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试"
+          }
+        }
+      }
+    },
+    "Turn on notifications" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开通知"
+          }
+        }
+      }
+    },
+    "Unread" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未读"
+          }
+        }
+      }
+    },
+    "Use the hosted Meow server" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Meow 官方服务器"
+          }
+        }
+      }
+    },
+    "Use the hosted service or connect to your own Meow server." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用托管服务，或连接你自己的 Meow 服务器。"
+          }
+        }
+      }
+    },
+    "Version" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
+          }
+        }
+      }
+    },
+    "Waiting" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待回答"
+          }
+        }
+      }
+    },
+    "Waiting for your answer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待你的回答"
+          }
+        }
+      }
+    },
+    "Waiting to send" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待发送"
+          }
+        }
+      }
+    },
+    "You answered" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的回答"
+          }
+        }
+      }
+    },
+    "You have replies waiting to send. Keep waiting, or discard them to change servers." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有回复等待发送。你可以继续等待，或放弃这些回复后切换服务器。"
+          }
+        }
+      }
+    },
+    "You'll register on the new server with a new Device Key. Update your agents to use it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将在新服务器重新注册并获取新的 Device Key。请为 Agent 更新为新密钥。"
+          }
+        }
+      }
+    },
+    "You're offline." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你目前处于离线状态。"
+          }
+        }
+      }
+    },
+    "You've read everything." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有通知都已读。"
+          }
+        }
+      }
+    },
+    "Your agents are calling." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 Agent 在呼叫你。"
+          }
+        }
+      }
+    },
+    "Your agents can reach you now." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在你的 Agent 可以找到你了。"
+          }
+        }
+      }
+    },
+    "Your answer is saved and will be sent when the connection is back." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的回答已保存，网络恢复后会自动发送。"
+          }
+        }
+      }
+    },
+    "Your answer wasn't accepted" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的回答没有被接受"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

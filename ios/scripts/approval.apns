@@ -1,0 +1,17 @@
+{
+  "Simulator Target Bundle": "blue.meow.app",
+  "aps": {
+    "alert": { "title": "Claude Code", "body": "Deploy to production?" },
+    "category": "MEOW_APPROVAL",
+    "sound": "default",
+    "thread-id": "Claude Code",
+    "interruption-level": "time-sensitive",
+    "mutable-content": 1
+  },
+  "meow": {
+    "id": "REPLACE_WITH_NOTIFICATION_ID",
+    "type": "question",
+    "question_id": "REPLACE_WITH_QUESTION_ID",
+    "choices": ["approve", "reject"]
+  }
+}

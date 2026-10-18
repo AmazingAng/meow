@@ -1,0 +1,747 @@
+{
+  "sourceHash": "3b3cc67f01b7ac16944168748f1c4b20df7aee03481682612225a4066bae4dcc",
+  "profiles": {
+    "wide": {
+      "sourceHash": "3b3cc67f01b7ac16944168748f1c4b20df7aee03481682612225a4066bae4dcc",
+      "xcode": "Xcode 26.6\nBuild version 17F113\n",
+      "go": "go version go1.27.2 darwin/arm64\n",
+      "simulator": {
+        "lastBootedAt": "2026-10-17T14:58:02Z",
+        "dataPath": "/Users/liang/Library/Developer/CoreSimulator/Devices/85F972ED-63BA-406A-A818-689B2C64364F/data",
+        "dataPathSize": 2170347520,
+        "logPath": "/Users/liang/Library/Logs/CoreSimulator/85F972ED-63BA-406A-A818-689B2C64364F",
+        "udid": "85F972ED-63BA-406A-A818-689B2C64364F",
+        "isAvailable": true,
+        "logPathSize": 524288,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
+        "state": "Booted",
+        "name": "Meow Fix Verification"
+      },
+      "goRace": "passed",
+      "unit": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "85F972ED-63BA-406A-A818-689B2C64364F",
+              "deviceName": "Meow Fix Verification",
+              "modelName": "iPhone 17 Pro",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 23,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792255895.583,
+        "passedTests": 23,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792255884.375,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 23
+      },
+      "onboarding": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "85F972ED-63BA-406A-A818-689B2C64364F",
+              "deviceName": "Meow Fix Verification",
+              "modelName": "iPhone 17 Pro",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 1,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792255908.045,
+        "passedTests": 1,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792255897.481,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 1
+      },
+      "flows": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "85F972ED-63BA-406A-A818-689B2C64364F",
+              "deviceName": "Meow Fix Verification",
+              "modelName": "iPhone 17 Pro",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 4,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792255939.596,
+        "passedTests": 4,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792255908.863,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 4
+      },
+      "realAPIAnswers": "text/approval/custom choice verified",
+      "design": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "85F972ED-63BA-406A-A818-689B2C64364F",
+              "deviceName": "Meow Fix Verification",
+              "modelName": "iPhone 17 Pro",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 6,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792256028.971,
+        "passedTests": 6,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792255940.525,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 6
+      },
+      "offline": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "85F972ED-63BA-406A-A818-689B2C64364F",
+              "deviceName": "Meow Fix Verification",
+              "modelName": "iPhone 17 Pro",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 1,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792256054.923,
+        "passedTests": 1,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792256030.056,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 1
+      },
+      "offlineRestart": "saved reply retried after restart with original identity",
+      "discard": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "85F972ED-63BA-406A-A818-689B2C64364F",
+              "deviceName": "Meow Fix Verification",
+              "modelName": "iPhone 17 Pro",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 1,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792256085.366,
+        "passedTests": 1,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792256056.538,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 1
+      },
+      "discardSwitch": "onboarding survives relaunch; durable queue empty; old server unanswered",
+      "screenshots": [
+        "approval-detail.png",
+        "approval-rejected.png",
+        "custom-choice-detail.png",
+        "discard-reply-saved.png",
+        "inbox-empty-unread.png",
+        "inbox.png",
+        "key-rotation-confirmation.png",
+        "offline-reply-saved.png",
+        "onboarding-inbox-loaded.png",
+        "onboarding-notifications.png",
+        "onboarding-welcome.png",
+        "question-answered.png",
+        "question-text-reply.png",
+        "reply-draft.png",
+        "reply-keyboard.png",
+        "server-editor.png",
+        "server-invalid-address.png",
+        "server-switch-chinese.png",
+        "server-switch-choices.png",
+        "server-switch-confirmation.png",
+        "server-switched-after-discard.png",
+        "settings.png"
+      ],
+      "coverage": {
+        "unit": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 113,
+            "executableLines": 138,
+            "lineCoverage": 0.8188405797101449
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 200,
+            "executableLines": 522,
+            "lineCoverage": 0.3831417624521073
+          }
+        ],
+        "onboarding": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 14,
+            "executableLines": 138,
+            "lineCoverage": 0.10144927536231885
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 183,
+            "executableLines": 522,
+            "lineCoverage": 0.3505747126436782
+          }
+        ],
+        "flows": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 92,
+            "executableLines": 138,
+            "lineCoverage": 0.6666666666666666
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 220,
+            "executableLines": 522,
+            "lineCoverage": 0.421455938697318
+          }
+        ],
+        "design": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 22,
+            "executableLines": 138,
+            "lineCoverage": 0.15942028985507245
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 192,
+            "executableLines": 522,
+            "lineCoverage": 0.367816091954023
+          }
+        ],
+        "offline": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 89,
+            "executableLines": 138,
+            "lineCoverage": 0.644927536231884
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 211,
+            "executableLines": 522,
+            "lineCoverage": 0.4042145593869732
+          }
+        ],
+        "discard": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 98,
+            "executableLines": 138,
+            "lineCoverage": 0.7101449275362319
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 250,
+            "executableLines": 522,
+            "lineCoverage": 0.4789272030651341
+          }
+        ]
+      },
+      "sourceHashAfter": "3b3cc67f01b7ac16944168748f1c4b20df7aee03481682612225a4066bae4dcc"
+    },
+    "compact": {
+      "sourceHash": "3b3cc67f01b7ac16944168748f1c4b20df7aee03481682612225a4066bae4dcc",
+      "xcode": "Xcode 26.6\nBuild version 17F113\n",
+      "go": "go version go1.27.2 darwin/arm64\n",
+      "simulator": {
+        "lastBootedAt": "2026-10-17T16:32:35Z",
+        "dataPath": "/Users/liang/Library/Developer/CoreSimulator/Devices/4C7A7DD5-65EC-4478-B99D-C3951FC2B65E/data",
+        "dataPathSize": 1725992960,
+        "logPath": "/Users/liang/Library/Logs/CoreSimulator/4C7A7DD5-65EC-4478-B99D-C3951FC2B65E",
+        "udid": "4C7A7DD5-65EC-4478-B99D-C3951FC2B65E",
+        "isAvailable": true,
+        "logPathSize": 339968,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation",
+        "state": "Booted",
+        "name": "Meow Fix Compact"
+      },
+      "goRace": "passed",
+      "unit": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "4C7A7DD5-65EC-4478-B99D-C3951FC2B65E",
+              "deviceName": "Meow Fix Compact",
+              "modelName": "iPhone SE (3rd generation)",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 23,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792255894.456,
+        "passedTests": 23,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792255884.375,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 23
+      },
+      "onboarding": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "4C7A7DD5-65EC-4478-B99D-C3951FC2B65E",
+              "deviceName": "Meow Fix Compact",
+              "modelName": "iPhone SE (3rd generation)",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 1,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792255907.386,
+        "passedTests": 1,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792255896.794,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 1
+      },
+      "flows": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "4C7A7DD5-65EC-4478-B99D-C3951FC2B65E",
+              "deviceName": "Meow Fix Compact",
+              "modelName": "iPhone SE (3rd generation)",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 4,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792255944.212,
+        "passedTests": 4,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792255908.166,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 4
+      },
+      "realAPIAnswers": "text/approval/custom choice verified",
+      "design": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "4C7A7DD5-65EC-4478-B99D-C3951FC2B65E",
+              "deviceName": "Meow Fix Compact",
+              "modelName": "iPhone SE (3rd generation)",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 6,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792256039.883,
+        "passedTests": 6,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792255945.049,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 6
+      },
+      "offline": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "4C7A7DD5-65EC-4478-B99D-C3951FC2B65E",
+              "deviceName": "Meow Fix Compact",
+              "modelName": "iPhone SE (3rd generation)",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 1,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792256066.316,
+        "passedTests": 1,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792256040.936,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 1
+      },
+      "offlineRestart": "saved reply retried after restart with original identity",
+      "discard": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "4C7A7DD5-65EC-4478-B99D-C3951FC2B65E",
+              "deviceName": "Meow Fix Compact",
+              "modelName": "iPhone SE (3rd generation)",
+              "osBuildNumber": "23F77",
+              "osVersion": "26.5",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 1,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792256096.272,
+        "passedTests": 1,
+        "result": "Passed",
+        "skippedTests": 0,
+        "startTime": 1792256067.755,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - Meow",
+        "topInsights": [],
+        "totalTestCount": 1
+      },
+      "discardSwitch": "onboarding survives relaunch; durable queue empty; old server unanswered",
+      "screenshots": [
+        "approval-detail.png",
+        "approval-rejected.png",
+        "custom-choice-detail.png",
+        "discard-reply-saved.png",
+        "inbox-empty-unread.png",
+        "inbox.png",
+        "key-rotation-confirmation.png",
+        "offline-reply-saved.png",
+        "onboarding-inbox-loaded.png",
+        "onboarding-notifications.png",
+        "onboarding-welcome.png",
+        "question-answered.png",
+        "question-text-reply.png",
+        "reply-draft.png",
+        "reply-keyboard.png",
+        "server-editor.png",
+        "server-invalid-address.png",
+        "server-switch-chinese.png",
+        "server-switch-choices.png",
+        "server-switch-confirmation.png",
+        "server-switched-after-discard.png",
+        "settings.png"
+      ],
+      "coverage": {
+        "unit": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 113,
+            "executableLines": 138,
+            "lineCoverage": 0.8188405797101449
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 200,
+            "executableLines": 522,
+            "lineCoverage": 0.3831417624521073
+          }
+        ],
+        "onboarding": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 14,
+            "executableLines": 138,
+            "lineCoverage": 0.10144927536231885
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 183,
+            "executableLines": 522,
+            "lineCoverage": 0.3505747126436782
+          }
+        ],
+        "flows": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 92,
+            "executableLines": 138,
+            "lineCoverage": 0.6666666666666666
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 220,
+            "executableLines": 522,
+            "lineCoverage": 0.421455938697318
+          }
+        ],
+        "design": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 22,
+            "executableLines": 138,
+            "lineCoverage": 0.15942028985507245
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 192,
+            "executableLines": 522,
+            "lineCoverage": 0.367816091954023
+          }
+        ],
+        "offline": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 89,
+            "executableLines": 138,
+            "lineCoverage": 0.644927536231884
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 211,
+            "executableLines": 522,
+            "lineCoverage": 0.4042145593869732
+          }
+        ],
+        "discard": [
+          {
+            "name": "ReplyQueue.swift",
+            "coveredLines": 98,
+            "executableLines": 138,
+            "lineCoverage": 0.7101449275362319
+          },
+          {
+            "name": "AppModel.swift",
+            "coveredLines": 250,
+            "executableLines": 522,
+            "lineCoverage": 0.4789272030651341
+          }
+        ]
+      },
+      "sourceHashAfter": "3b3cc67f01b7ac16944168748f1c4b20df7aee03481682612225a4066bae4dcc"
+    }
+  },
+  "displaySettings": {
+    "wide": {
+      "appearance": "light",
+      "contentSize": "large"
+    },
+    "compact": {
+      "appearance": "dark",
+      "contentSize": "accessibility-large"
+    }
+  },
+  "landedUnit": {
+    "devicesAndConfigurations": [
+      {
+        "device": {
+          "architecture": "arm64",
+          "deviceId": "85F972ED-63BA-406A-A818-689B2C64364F",
+          "deviceName": "Meow Fix Verification",
+          "modelName": "iPhone 17 Pro",
+          "osBuildNumber": "23F77",
+          "osVersion": "26.5",
+          "platform": "iOS Simulator"
+        },
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "passedTests": 23,
+        "skippedTests": 0,
+        "testPlanConfiguration": {
+          "configurationId": "1",
+          "configurationName": "Test Scheme Action"
+        }
+      }
+    ],
+    "environmentDescription": "Meow \u00b7 Built with macOS 26.2",
+    "expectedFailures": 0,
+    "failedTests": 0,
+    "finishTime": 1792256161.965,
+    "passedTests": 23,
+    "result": "Passed",
+    "skippedTests": 0,
+    "startTime": 1792256152.683,
+    "statistics": [],
+    "testFailures": [],
+    "title": "Test - Meow",
+    "topInsights": [],
+    "totalTestCount": 23
+  }
+}

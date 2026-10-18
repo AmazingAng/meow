@@ -1,0 +1,7 @@
+/bin/
+*.db
+*.db-wal
+*.db-shm
+*.p8
+.DS_Store
+ios/Meow.xcodeproj/
