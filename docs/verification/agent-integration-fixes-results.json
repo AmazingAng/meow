@@ -1,0 +1,65 @@
+{
+  "go": "go version go1.27.2 darwin/arm64",
+  "layers": {
+    "tests": {
+      "passed": 112,
+      "skipped": 0
+    },
+    "coverage": {
+      "covered_changed_lines": 58,
+      "missed_changed_lines": 0
+    },
+    "coverage_negative_control": "rejected zeroed counters",
+    "build": "passed",
+    "vet": "passed",
+    "gofmt": "passed",
+    "fuzz": "5-second native Go fuzz run passed; 200 deterministic round trips also run in the suite",
+    "mutation": [
+      {
+        "name": "ownership",
+        "killed_by": [
+          "TestCodexForeignHookArgumentsArePreserved"
+        ]
+      },
+      {
+        "name": "continuation",
+        "killed_by": [
+          "TestBuildClaudeStop",
+          "TestClaudeCompletionIdempotencyAfterContinuation"
+        ]
+      },
+      {
+        "name": "idempotency",
+        "killed_by": [
+          "TestClaudeCompletionIdempotencyAfterContinuation"
+        ]
+      },
+      {
+        "name": "skill-path",
+        "killed_by": [
+          "TestSkillCommandsUseInstalledExecutable"
+        ]
+      },
+      {
+        "name": "quoted-key",
+        "killed_by": [
+          "FuzzCodexConfigPreservesSettings/seed#2",
+          "FuzzCodexConfigPreservesSettings"
+        ]
+      }
+    ],
+    "real_cli": {
+      "hook_requests": 3,
+      "distinct_notifications": 2,
+      "setup_install_reinstall_uninstall": "passed"
+    },
+    "vulnerabilities": "no reachable vulnerabilities reported"
+  },
+  "source_hash": "b6075d1de99b9baa77faf22e41c128a890dd70078c029f112894d309acc709a2",
+  "limits": [
+    "independent verification not performed",
+    "no real agent session or APNs repeated",
+    "staticcheck unavailable; go vet used",
+    "Go coverage reports statement blocks, not full branch coverage"
+  ]
+}

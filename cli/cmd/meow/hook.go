@@ -115,14 +115,16 @@ func buildHookNotification(kind string, input []byte, summary bool) (req client.
 		}
 		req.Source = "Claude Code"
 		if kind == "claude-stop" {
-			if in.StopHookActive {
-				return req, "", false, nil // another hook kept Claude going; wait for the real end
-			}
+			// stop_hook_active describes a previous continuation, not whether
+			// this response is final. A nonblocking notifier must not suppress it.
 			req.Title = withProject("Task complete", in.Cwd)
 			if summary {
 				req.Body = summarize(in.LastAssistantMessage)
 			}
-			idem = hookIdemKey("claude-stop", in.SessionID, in.PromptID)
+			// One prompt can produce multiple responses after other Stop hooks
+			// request more work. Deduplicate the same notification, not the prompt.
+			body, _ := json.Marshal(req)
+			idem = hookIdemKey("claude-stop", in.SessionID, in.PromptID, string(body))
 		} else {
 			title := strings.TrimSpace(in.Title)
 			if title == "" {

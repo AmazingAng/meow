@@ -37,7 +37,7 @@ func TestBuildClaudeStop(t *testing.T) {
 	}
 
 	active := strings.Replace(in, `"stop_hook_active":false`, `"stop_hook_active":true`, 1)
-	if _, _, send, err := buildHookNotification("claude-stop", []byte(active), true); send || err != nil {
+	if _, _, send, err := buildHookNotification("claude-stop", []byte(active), true); !send || err != nil {
 		t.Fatalf("stop_hook_active: send=%v err=%v", send, err)
 	}
 }

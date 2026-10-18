@@ -94,6 +94,9 @@ func cmdSetup(args []string) int {
 		if o.exe, err = meowExecutable(); err != nil {
 			return fail(err)
 		}
+	} else {
+		// Also recognize this binary if it was installed under a custom name.
+		o.exe, _ = meowExecutable()
 	}
 
 	changes, notes, err := plan(o)
@@ -248,8 +251,8 @@ func planCodex(o setupOptions) ([]fileChange, []string, error) {
 			argv = append(argv, "--no-summary")
 		}
 	}
-	existing, ours := setup.CodexNotify(old)
-	data, err := setup.CodexConfig(old, argv, o.install, o.force)
+	existing, ours := setup.CodexNotify(old, o.exe)
+	data, err := setup.CodexConfig(old, argv, o.install, o.force, o.exe)
 	var conflict *setup.NotifyConflictError
 	if errors.As(err, &conflict) {
 		return nil, nil, fmt.Errorf("%s already has\n    %s\nCodex runs only one notify command. Re-run with --force to replace it (the file is backed up first)",
@@ -303,7 +306,7 @@ func skillChange(path, agent string, o setupOptions) (fileChange, bool, error) {
 	if !o.skill {
 		return fileChange{}, false, nil
 	}
-	data := setup.Skill(agent)
+	data := setup.Skill(agent, o.exe)
 	if bytes.Equal(old, data) {
 		return fileChange{}, false, nil
 	}

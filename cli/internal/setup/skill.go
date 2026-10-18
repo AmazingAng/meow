@@ -13,14 +13,18 @@ func IsMeowSkill(b []byte) bool { return bytes.Contains(b, []byte(skillMarker)) 
 
 // Skill returns the SKILL.md that teaches an agent to reach the user with
 // meow. agent is "claude" or "codex".
-func Skill(agent string) []byte {
+func Skill(agent string, executable ...string) []byte {
 	source, waitNote := "Codex",
 		"If your shell tool has a time limit, keep §--timeout§ below it."
 	if agent == "claude" {
 		source, waitNote = "Claude Code",
 			"Run it with the Bash tool's maximum timeout (600000 ms) and keep §--timeout§ at 540 or less."
 	}
-	s := fmt.Sprintf(skillTemplate, source, waitNote)
+	command := "meow"
+	if len(executable) > 0 && executable[0] != "" {
+		command = ShellQuote(executable[0])
+	}
+	s := fmt.Sprintf(skillTemplate, source, waitNote, command)
 	return []byte(strings.ReplaceAll(s, "§", "`"))
 }
 
@@ -38,7 +42,7 @@ description: Reach the user on their iPhone with Meow. Use when you need the use
 ## Ask and wait for the answer
 
 ~~~sh
-meow ask "Deploy v1.2.0 to production?" --choices approve,reject \
+%[3]s ask "Deploy v1.2.0 to production?" --choices approve,reject \
   --body "services/api, all tests passed" --source "%[1]s" --timeout 540
 ~~~
 
@@ -46,7 +50,7 @@ meow ask "Deploy v1.2.0 to production?" --choices approve,reject \
 - Exit codes: §0§ answered, §3§ rejected, §4§ expired without an answer, §5§ cancelled, §1§ error.
 - Leave out §--choices§ for a free-text answer. It is printed exactly as the user typed it.
 - §--choices approve,reject§ shows Approve and Reject buttons on the notification. Other choices (2 to 8 short labels) are picked in the app.
-- %[2]s If the command is cut off before the user answers, the question stays open: run §meow wait <question-id>§ (the ID is printed on stderr) to keep waiting.
+- %[2]s If the command is cut off before the user answers, the question stays open: run §%[3]s wait <question-id>§ (the ID is printed on stderr) to keep waiting.
 
 ## Rules
 
@@ -59,7 +63,7 @@ meow ask "Deploy v1.2.0 to production?" --choices approve,reject \
 ## Tell the user without waiting
 
 ~~~sh
-meow send --source "%[1]s" --title "Migration paused" "Table orders is locked; retrying in 10 minutes"
+%[3]s send --source "%[1]s" --title "Migration paused" "Table orders is locked; retrying in 10 minutes"
 ~~~
 
 A notification is already sent automatically when you finish a task, so use §meow send§ only for news the user should not miss in the middle of one.
