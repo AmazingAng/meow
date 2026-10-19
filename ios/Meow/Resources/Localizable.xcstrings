@@ -432,12 +432,42 @@
         }
       }
     },
+    "Couldn't read saved messages. (%@)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取本机保存的消息。（%@）"
+          }
+        }
+      }
+    },
+    "Couldn't remove saved messages. Your server has been kept. (%@)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法删除本机保存的消息，已保留当前服务器。（%@）"
+          }
+        }
+      }
+    },
     "Couldn't remove the saved replies. Your server and replies have been kept. Please try again. (%@)": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法移除已保存的回复。服务器和回复均已保留，请重试。（%@）"
+          }
+        }
+      }
+    },
+    "Couldn't save messages on this iPhone. (%@)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法在此 iPhone 保存消息。（%@）"
           }
         }
       }
@@ -1696,6 +1726,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "切换服务器后需要重新注册并获取新的 Device Key。除非你选择放弃，否则已保存的回复会保留。"
+          }
+        }
+      }
+    },
+    "Syncing messages…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在同步消息…"
           }
         }
       }

@@ -447,7 +447,7 @@ extension FrontendRecoveryTests {
         XCTAssertNil(model.loadError)
         XCTAssertEqual(model.notifications.count, 51)
         XCTAssertEqual(InboxPresentation(model.notifications, now: .now).pending.first?.id, "ntf_urgent")
-        XCTAssertEqual(model.nextCursor, "older", "ordinary inbox pagination must remain available")
+        XCTAssertNil(model.nextCursor, "all ordinary rows in this fixture are now synchronized locally; there is no remote display cursor")
         await model.loadMore()
         XCTAssertEqual(model.notifications.count, 51)
         XCTAssertNil(model.nextCursor)

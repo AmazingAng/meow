@@ -10,7 +10,7 @@ struct InboxView: View {
         @Bindable var model = model
         NavigationStack(path: $model.inboxPath) {
             List {
-                if let error = model.loadError, !model.notifications.isEmpty {
+                if let error = model.inboxStorageError ?? model.loadError, !model.notifications.isEmpty {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
                         .foregroundStyle(.orange)
@@ -152,9 +152,9 @@ struct InboxView: View {
     @ViewBuilder
     private var emptyState: some View {
         if model.notifications.isEmpty || (model.filter == .pending && InboxPresentation(model.notifications, now: now).pending.isEmpty) {
-            if !model.hasLoaded {
-                ProgressView()
-            } else if let error = model.loadError {
+            if model.isLoading || !model.hasLoaded {
+                ProgressView("Syncing messages…")
+            } else if let error = model.inboxStorageError ?? model.loadError {
                 ContentUnavailableView {
                     Label("Can't load notifications", systemImage: "wifi.exclamationmark")
                 } description: {

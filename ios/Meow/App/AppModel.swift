@@ -80,17 +80,32 @@ final class AppModel {
 
     // MARK: Inbox
 
-    private(set) var notifications: [MeowNotification] = []
+    private(set) var savedNotifications: [MeowNotification] = []
+    private var displayLimit = 50
+    var notifications: [MeowNotification] {
+        let matches = matchingNotifications
+        if filter == .all, search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let groups = InboxPresentation(matches, now: .now)
+            return groups.pending + Array(groups.activity.prefix(displayLimit))
+        }
+        return filter == .pending ? InboxPresentation(matches, now: .now).pending : Array(matches.prefix(displayLimit))
+    }
     private(set) var counts = InboxCounts()
-    private(set) var nextCursor: String?
+    var nextCursor: String? {
+        let matches = matchingNotifications
+        let count = filter == .all && search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? InboxPresentation(matches, now: .now).activity.count : matches.count
+        return filter != .pending && count > displayLimit ? "local-\(displayLimit)" : nil
+    }
     private(set) var isLoading = false
     private(set) var hasLoaded = false
     private(set) var loadError: String?
+    private(set) var inboxStorageError: String?
     var filter = Filter.all {
-        didSet { if filter != oldValue { reload() } }
+        didSet { if filter != oldValue { displayLimit = 50 } }
     }
     var search = "" {
-        didSet { if search != oldValue { scheduleSearch() } }
+        didSet { if search != oldValue { displayLimit = 50 } }
     }
     /// Notifications opened from a push that may not be in the current page.
     private(set) var details: [String: MeowNotification] = [:]
@@ -107,10 +122,14 @@ final class AppModel {
 
     @ObservationIgnored private let replies: ReplyQueue
     @ObservationIgnored private let pushSession: URLSession
+    @ObservationIgnored private let inboxStore: InboxStore
     @ObservationIgnored private var loadGeneration = 0
     @ObservationIgnored private var sessionGeneration = 0
-    @ObservationIgnored private var isLoadingMore = false
-    @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var hydrationTask: Task<[MeowNotification]?, Error>?
+    @ObservationIgnored private var hydratedScope: String?
+    @ObservationIgnored private var mutationRevision: UInt64 = 0
+    @ObservationIgnored private var persistenceRevision: UInt64 = 0
+    @ObservationIgnored private var itemRevisions: [String: UInt64] = [:]
     @ObservationIgnored private var retryTask: Task<Void, Never>?
     @ObservationIgnored private var apnsToken: String?
     @ObservationIgnored private var readRequests: [String: UUID] = [:]
@@ -122,9 +141,11 @@ final class AppModel {
         static let deviceKeyID = "device_key_id"
     }
 
-    init(replies: ReplyQueue = .shared, pushSession: URLSession = MeowTransport.gateway) {
+    init(replies: ReplyQueue = .shared, pushSession: URLSession = MeowTransport.gateway,
+         inboxStore: InboxStore = .shared) {
         self.replies = replies
         self.pushSession = pushSession
+        self.inboxStore = inboxStore
         #if DEBUG
         // Development helpers: -meowServer http://127.0.0.1:8080 -meowAutoRegister YES -meowOpen ntf_…
         if !isRegistered, let url = MeowShared.serverURL(from: UserDefaults.standard.string(forKey: "meowServer")) {
@@ -235,6 +256,14 @@ final class AppModel {
             }
             return false
         }
+        if let scope = inboxScope {
+            do { try await inboxStore.erase(scope: scope) }
+            catch {
+                await replies.resume()
+                alert = String(localized: "Couldn't remove saved messages. Your server has been kept. (\(error.localizedDescription))")
+                return false
+            }
+        }
         let previousGateway = MeowShared.gatewayBinding
         pushTask?.cancel()
         pushTask = nil
@@ -245,11 +274,12 @@ final class AppModel {
         if let previousGateway { Self.revokeGateway(previousGateway, session: pushSession) }
         sessionGeneration += 1
         loadGeneration += 1
-        searchTask?.cancel()
+        hydrationTask?.cancel()
+        hydrationTask = nil
+        hydratedScope = nil
         retryTask?.cancel()
         retryTask = nil
         isLoading = false
-        isLoadingMore = false
         MeowShared.deviceToken = nil
         Keychain.set(nil, for: Keys.deviceKey)
         MeowShared.defaults.removeObject(forKey: Keys.deviceKeyID)
@@ -258,12 +288,17 @@ final class AppModel {
         hasFinishedOnboarding = false
         hasPushToken = false
         sentTestIDs = []
-        notifications = []
+        savedNotifications = []
         details = [:]
         counts = InboxCounts()
-        nextCursor = nil
+        displayLimit = 50
+        filter = .all
+        search = ""
+        mutationRevision = 0
+        itemRevisions = [:]
         hasLoaded = false
         loadError = nil
+        inboxStorageError = nil
         inboxPath = []
         selectedTab = .inbox
         server = newServer
@@ -514,40 +549,121 @@ final class AppModel {
 
     // MARK: Inbox
 
+    private var inboxScope: String? {
+        guard let server, let token = MeowShared.deviceToken else { return nil }
+        return InboxStore.scope(server: server, token: token)
+    }
+
+    private var matchingNotifications: [MeowNotification] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return savedNotifications.filter { notification in
+            let inFilter: Bool
+            switch filter {
+            case .all: inFilter = true
+            case .unread: inFilter = notification.isUnread
+            case .pending: inFilter = notification.question?.isOpen() == true
+            }
+            return inFilter && (query.isEmpty || notification.title.localizedCaseInsensitiveContains(query)
+                || notification.body.localizedCaseInsensitiveContains(query)
+                || notification.source.localizedCaseInsensitiveContains(query))
+        }
+    }
+
+    private func ordered(_ items: [MeowNotification]) -> [MeowNotification] {
+        items.sorted { $0.createdAt == $1.createdAt ? $0.id > $1.id : $0.createdAt > $1.createdAt }
+    }
+
+    private func hydrateInbox() async {
+        guard isRegistered, !isChangingServer, let scope = inboxScope, hydratedScope != scope else { return }
+        let generation = sessionGeneration
+        if hydrationTask == nil {
+            let store = inboxStore
+            hydrationTask = Task { try await store.load(scope: scope) }
+        }
+        guard let task = hydrationTask else { return }
+        do {
+            let items = try await task.value
+            guard generation == sessionGeneration, !isChangingServer, hydratedScope != scope else { return }
+            savedNotifications = ordered(items ?? [])
+            hydratedScope = scope
+            if let items {
+                hasLoaded = true
+                counts = InboxCounts(unread: items.filter(\.isUnread).count,
+                                     pending: items.filter { $0.question?.isOpen() == true }.count)
+                updateBadge()
+            }
+        } catch {
+            guard generation == sessionGeneration, !isChangingServer else { return }
+            hydrationTask = nil
+            inboxStorageError = String(localized: "Couldn't read saved messages. (\(error.localizedDescription))")
+        }
+    }
+
+    private func persistInbox() {
+        guard !isChangingServer, let scope = inboxScope, hydratedScope == scope else { return }
+        let generation = sessionGeneration
+        persistenceRevision &+= 1
+        let revision = persistenceRevision
+        inboxStore.enqueueSave(savedNotifications, scope: scope) { [weak self] result in
+            Task { @MainActor in
+                guard let self, generation == self.sessionGeneration, !self.isChangingServer,
+                      revision == self.persistenceRevision else { return }
+                switch result {
+                case .success: self.inboxStorageError = nil
+                case .failure(let error):
+                    self.inboxStorageError = String(localized: "Couldn't save messages on this iPhone. (\(error.localizedDescription))")
+                }
+            }
+        }
+    }
+
+    private func changed(_ ids: [String]) {
+        mutationRevision &+= 1
+        for id in ids { itemRevisions[id] = mutationRevision }
+        persistInbox()
+    }
+
     func notification(id: String) -> MeowNotification? {
-        notifications.first { $0.id == id } ?? details[id]
+        savedNotifications.first { $0.id == id } ?? details[id]
     }
 
     func refresh() async {
-        guard isRegistered, let api else { return }
+        guard isRegistered, !isChangingServer, let api, let scope = inboxScope else { return }
         loadGeneration += 1
         let generation = loadGeneration
-        let filter = self.filter.rawValue
-        let search = self.search.trimmingCharacters(in: .whitespacesAndNewlines)
         isLoading = true
         defer { if generation == loadGeneration { isLoading = false } }
+        await hydrateInbox()
+        guard generation == loadGeneration, !isChangingServer else { return }
+        let revision = mutationRevision
+        let countRevision = countsRevision
         do {
-            async let page = api.inbox(filter: filter, search: search, cursor: nil)
-            async let counts = api.counts()
-            let (p, c) = try await (page, counts)
-            guard generation == loadGeneration else { return }
-            var snapshot = p
-            if filter == "pending" || (filter == "all" && search.isEmpty) {
-                let pending = try await api.pendingInbox(search: search, firstPage: filter == "pending" ? p : nil)
-                guard generation == loadGeneration else { return }
-                if filter == "pending" {
-                    snapshot = InboxPage(notifications: pending, nextCursor: nil)
-                } else {
-                    let known = Set(p.notifications.map(\.id))
-                    snapshot.notifications += pending.filter { !known.contains($0.id) }
-                }
+            async let remoteCounts = try? await api.counts()
+            let items = try await api.allInbox()
+            guard generation == loadGeneration, !isChangingServer else { return }
+            var merged = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let current = Dictionary(savedNotifications.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            for (id, changedAt) in itemRevisions where changedAt > revision {
+                // nil also protects a server-confirmed deletion from an older snapshot.
+                merged[id] = current[id]
             }
-            notifications = snapshot.notifications
-            nextCursor = snapshot.nextCursor
-            self.counts = c
-            countsRevision += 1
+            savedNotifications = ordered(Array(merged.values))
+            let present = Set(savedNotifications.map(\.id))
+            details = details.filter { present.contains($0.key) }
+            hydratedScope = scope
             hasLoaded = true
             loadError = nil
+            persistInbox()
+            let c = await remoteCounts
+            if generation == loadGeneration, countRevision == countsRevision {
+                if let c, mutationRevision == revision { counts = c }
+                else {
+                    counts = InboxCounts(unread: savedNotifications.filter(\.isUnread).count,
+                        pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
+                }
+                countsRevision += 1
+            }
+            guard generation == loadGeneration, !isChangingServer else { return }
             updateBadge()
         } catch {
             guard generation == loadGeneration, !Self.isCancellation(error) else { return }
@@ -557,37 +673,8 @@ final class AppModel {
     }
 
     func loadMore() async {
-        guard let cursor = nextCursor, !isLoadingMore, let api else { return }
-        isLoadingMore = true
-        defer { isLoadingMore = false }
-        let generation = loadGeneration
-        do {
-            let page = try await api.inbox(
-                filter: filter.rawValue,
-                search: search.trimmingCharacters(in: .whitespacesAndNewlines),
-                cursor: cursor)
-            guard generation == loadGeneration else { return }
-            let known = Set(notifications.map(\.id))
-            notifications += page.notifications.filter { !known.contains($0.id) }
-            nextCursor = page.nextCursor
-        } catch {
-            guard generation == loadGeneration, !Self.isCancellation(error) else { return }
-            loadError = Self.describe(error)
-            nextCursor = nil // stop the spinner; pull to refresh starts over
-        }
-    }
-
-    private func reload() {
-        Task { await refresh() }
-    }
-
-    private func scheduleSearch() {
-        searchTask?.cancel()
-        searchTask = Task {
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            await refresh()
-        }
+        guard nextCursor != nil else { return }
+        displayLimit += 50
     }
 
     func refreshCounts() async {
@@ -602,12 +689,21 @@ final class AppModel {
     func loadDetail(_ id: String) async -> Bool {
         guard let api else { return false }
         let generation = sessionGeneration
+        await hydrateInbox()
+        guard generation == sessionGeneration, !isChangingServer else { return false }
         do {
             let notification = try await api.notification(id)
             guard generation == sessionGeneration else { return false }
             upsert(notification)
             return true
+        } catch let error as MeowAPIError where error.status == 404 {
+            guard generation == sessionGeneration, !isChangingServer else { return false }
+            savedNotifications.removeAll { $0.id == id }
+            details[id] = nil
+            changed([id])
+            return false
         } catch {
+            guard generation == sessionGeneration, !isChangingServer else { return false }
             return notification(id: id) != nil
         }
     }
@@ -648,8 +744,8 @@ final class AppModel {
             try await api.markAllRead()
             guard generation == sessionGeneration else { return }
             readRequests = [:]
-            for i in notifications.indices where notifications[i].readAt == nil {
-                notifications[i].readAt = .now
+            for i in savedNotifications.indices where savedNotifications[i].readAt == nil {
+                savedNotifications[i].readAt = .now
             }
             for (id, var n) in details where n.readAt == nil {
                 n.readAt = .now
@@ -657,8 +753,8 @@ final class AppModel {
             }
             counts.unread = 0
             countsRevision += 1
+            changed(savedNotifications.map(\.id))
             updateBadge()
-            if filter == .unread { await refresh() }
         } catch {
             alert = Self.describe(error)
         }
@@ -671,17 +767,21 @@ final class AppModel {
     }
 
     private func upsert(_ n: MeowNotification) {
-        if let i = notifications.firstIndex(where: { $0.id == n.id }) {
-            notifications[i] = n
+        if let i = savedNotifications.firstIndex(where: { $0.id == n.id }) {
+            savedNotifications[i] = n
+        } else {
+            savedNotifications.append(n)
+            savedNotifications = ordered(savedNotifications)
         }
         details[n.id] = n
+        changed([n.id])
     }
 
     private func update(_ q: MeowQuestion) {
-        for i in notifications.indices where notifications[i].question?.id == q.id {
-            readRequests[notifications[i].id] = nil
-            notifications[i].question?.apply(q)
-            if notifications[i].readAt == nil { notifications[i].readAt = q.resolvedAt ?? .now }
+        for i in savedNotifications.indices where savedNotifications[i].question?.id == q.id {
+            readRequests[savedNotifications[i].id] = nil
+            savedNotifications[i].question?.apply(q)
+            if savedNotifications[i].readAt == nil { savedNotifications[i].readAt = q.resolvedAt ?? .now }
         }
         if var n = details[q.notificationId] {
             readRequests[n.id] = nil
@@ -689,6 +789,7 @@ final class AppModel {
             if n.readAt == nil { n.readAt = q.resolvedAt ?? .now }
             details[n.id] = n
         }
+        changed([q.notificationId])
     }
 
     private func updateBadge() {
@@ -699,6 +800,7 @@ final class AppModel {
     // MARK: Answers
 
     func answer(_ questionID: String, with answer: String, identity expectedIdentity: NotificationIdentity? = nil) async -> AnswerResult {
+        await hydrateInbox()
         guard isRegistered, !isChangingServer else {
             return .refused(String(localized: "The server is changing. Please try again afterward."))
         }
@@ -735,6 +837,8 @@ final class AppModel {
     func flushReplies() async {
         guard isRegistered, !isChangingServer else { return }
         let generation = sessionGeneration
+        await hydrateInbox()
+        guard generation == sessionGeneration, !isChangingServer else { return }
         let results = await replies.flush()
         let pending = await replies.pending
         let failures = await replies.failed

@@ -31,3 +31,7 @@ Add ios/Meow/App/InboxStore.swift, ios/MeowTests/LocalInboxTests.swift, ios/scri
 ## Verification
 
 Observe failing assertions before implementing each new behavior. Run the complete native Swift regression harness, new SQLite/model tests, full Go race/shuffle tests and vet/build, iOS build-for-testing and Release archive. Collect changed executable-line coverage with a failing gate and run at least 3 meaningful manual mutants in an isolated verification copy. Use an isolated real HTTP/Go process for synchronization execution. Record source hashes, tool versions, secret/capability review, failures, skips and no fresh physical/simulator execution. Existing unrelated tests remain intact; any assertion change must map to the local-pagination contract above.
+
+## Refinement: rate limits during complete history synchronization
+
+Full pagination may hit the existing per-device API limiter, especially on fast LAN connections with large histories. Preserve the current page cursor and honor the API's delay-seconds Retry-After header on HTTP 429, with three retries per page and cancellable waits. Other errors retain the complete previous cache. This changes only internal Swift error metadata and retry handling, not the server HTTP contract. Add a measured delay/resume test and a bounded-exhaustion test. The user was informed before implementation; spec approval remains not obtained (autonomous execution).

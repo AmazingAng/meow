@@ -39,10 +39,15 @@ def package(output):
     model = model.replace('UNUserNotificationCenter.current()', 'RecoveryNotificationCenter.current()')
     model = model.replace('UNAuthorizationStatus', 'RecoveryAuthorizationStatus')
     (path / 'Sources/AppModel.swift').write_text(model)
+    shutil.copy2(ROOT / 'ios/Meow/App/InboxStore.swift', path / 'Sources/InboxStore.swift')
+    cache = path / 'Sources/InboxStore.swift'
+    cache.write_text(cache.read_text().replace(
+        'FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]',
+        'URL(fileURLWithPath: ' + json.dumps(str(output / 'isolated-storage'), ensure_ascii=False) + ')'))
     shutil.copy2(ROOT / 'ios/scripts/frontend_recovery/Platform.swift', path / 'Sources/Platform.swift')
     shutil.copy2(ROOT / 'ios/MeowTests/FrontendRecoveryTests.swift', path / 'Tests/FrontendRecoveryTests.swift')
     shutil.copy2(ROOT / 'ios/Meow/Views/InboxPresentation.swift', path / 'Sources/InboxPresentation.swift')
-    for name in ['InboxPresentationTests.swift', 'PendingInboxTests.swift']:
+    for name in ['InboxPresentationTests.swift', 'PendingInboxTests.swift', 'LocalInboxTests.swift']:
         shutil.copy2(ROOT / 'ios/MeowTests' / name, path / 'Tests' / name)
     original = (ROOT / 'ios/MeowTests/MeowTests.swift').read_text()
     header = r'^(?:private final class ReviewURLProtocol[^\n]+|final class SessionRegressionTests: XCTestCase|extension SessionRegressionTests|final class OnboardingCommandTests: XCTestCase) \{'

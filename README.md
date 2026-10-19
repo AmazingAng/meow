@@ -52,6 +52,25 @@ meow doctor
 
 Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `MEOW_SERVER` and `MEOW_SOURCE` override it. No server address is assumed: setup/login use the address supplied by the app or your existing configuration.
 
+## Local inbox and search
+
+The iOS app saves synchronized messages in a local SQLite database. Search,
+All / Unread / Pending filters, and display pagination use those saved messages
+without network requests, including history beyond the first visible page.
+Saved history remains searchable after restarting the app while offline.
+
+On foreground entry or pull-to-refresh, the app loads saved messages first and
+fetches every page of retained server history in the background. Only a complete
+snapshot reconciles deletions; a failed page preserves the previous cache. This
+uses the existing API and needs no server upgrade. The first synchronization can
+take longer; empty results show progress while synchronization is outstanding.
+The notification extension does not open this database: background notifications
+enter the cache when the main app fetches them. Switching servers or re-registering
+clears the old credential's cache.
+
+Question expiry, authorization, idempotency, and acceptance of replies are still
+enforced by the server. Cached question state does not grant permission to approve.
+
 ## Notifications during Focus / Do Not Disturb
 
 | Priority | iOS behavior |

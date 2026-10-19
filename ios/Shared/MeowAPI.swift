@@ -7,6 +7,7 @@ struct MeowAPIError: LocalizedError, Sendable {
     var message: String
     /// The question's current state, sent with 409 already_resolved and 410 expired.
     var question: MeowQuestion?
+    var retryAfter: Duration?
 
     var errorDescription: String? { message.isEmpty ? "HTTP \(status)" : message }
 
@@ -61,8 +62,11 @@ struct MeowAPI: Sendable {
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         guard (200..<300).contains(http.statusCode) else {
             let e = try? MeowJSON.decoder.decode(ErrorBody.self, from: data)
+            let seconds = http.value(forHTTPHeaderField: "Retry-After")
+                .flatMap { Int64($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            let delay = seconds.flatMap { $0 >= 0 ? Duration.seconds($0) : nil }
             throw MeowAPIError(status: http.statusCode, code: e?.error?.code ?? "",
-                               message: e?.error?.message ?? "", question: e?.question)
+                               message: e?.error?.message ?? "", question: e?.question, retryAfter: delay)
         }
         if T.self == Empty.self, data.isEmpty, let empty = Empty() as? T {
             return empty
@@ -149,6 +153,34 @@ struct MeowAPI: Sendable {
             result += page.notifications.filter { seenIDs.insert($0.id).inserted }
         }
         return result
+    }
+
+    /// Synchronize history independently of the current local display query.
+    /// A failed page throws without returning a misleading partial snapshot.
+    func allInbox() async throws -> [MeowNotification] {
+        var cursor: String?
+        var cursors = Set<String>()
+        var seen = Set<String>()
+        var items: [MeowNotification] = []
+        repeat {
+            try Task.checkCancellation()
+            let page = try await historyPage(cursor: cursor)
+            items += page.notifications.filter { seen.insert($0.id).inserted }
+            cursor = page.nextCursor
+            if let cursor, !cursors.insert(cursor).inserted { throw URLError(.badServerResponse) }
+        } while cursor != nil
+        return items
+    }
+
+    private func historyPage(cursor: String?) async throws -> InboxPage {
+        var retries = 0
+        while true {
+            do { return try await inbox(filter: "all", search: "", cursor: cursor, limit: 200) }
+            catch let error as MeowAPIError where error.status == 429 && retries < 3 {
+                retries += 1
+                try await Task.sleep(for: error.retryAfter ?? .seconds(1))
+            }
+        }
     }
 
     func counts(timeout: TimeInterval = 30) async throws -> InboxCounts {

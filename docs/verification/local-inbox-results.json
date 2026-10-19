@@ -1,0 +1,261 @@
+{
+  "source_sha256": {
+    "cli/cmd/meow/hook.go": "653124a98da59308ec1a2cd86bf2c7d639b497cd0f331b44b7db2cdc7ce0b5c7",
+    "cli/cmd/meow/hook_test.go": "b3654316538ad41b6f0bc23408d6993d66686d5a5d3c6864bf5676bd348de546",
+    "cli/cmd/meow/main.go": "ffed05b28cebf7ded2173b8a549750f931e259f099e7fd05148a9c159c61aedf",
+    "cli/cmd/meow/main_test.go": "d415afcbde6a2246bc1c5e66ef1120fbb54b7e162dc6b94b9cf16d1b7334f633",
+    "cli/cmd/meow/remove_temporary_test.go": "24508f808d3f366c3bc89a86e390987282fec96bdf600f462e6b069a9dc9f356",
+    "cli/cmd/meow/setup.go": "1e93b114f9022c4cd6d04de51bdbb50d537ec1a9abae7c0ea01fea9edc0c2591",
+    "cli/cmd/meow/setup_record_test.go": "40e4427f9225e342516cf2b2cd0ae81d16702150a4e28fe1c37f519fa1e36528",
+    "cli/cmd/meow/setup_regression_test.go": "81582684d8feaa834ab2c5868fadefd943f2b43445d18305d233adf9298c0a7e",
+    "cli/cmd/meow/wizard.go": "399cd0a3f350089784fe6d0157849dc633677071f106c26b80f64ac0f461b289",
+    "cli/cmd/meow/wizard_test.go": "9e12cfb7ad3bd00bd0555b12eaf547d500b4f05500afa3e5eef48aa334082ad6",
+    "cli/internal/config/config.go": "782ea142df655e0daae8c4332c8021edd485daa5671e2a7f33d5a076af1f0bc0",
+    "cli/internal/setup/claude.go": "8ec94e27088c65d2af4b543fb8ccda93b1431c2a4ff8e848f5196d7a43e9d6b9",
+    "cli/internal/setup/codex.go": "27619112b6ca01885cf25c7df8b85475e96a510b85b4e124c1677e429979824c",
+    "cli/internal/setup/files.go": "723867fe38550db23a2c507c0dc829929de5120fcd60eee3bcf12eb4f71439d2",
+    "cli/internal/setup/review_regression_test.go": "6eb6ecfa9ee6d63215701b4045930cfa1d0184838c0744a787112550d2f9a589",
+    "cli/internal/setup/setup_test.go": "e2f27cd92504e9196bc4cc2bb4c99e271cc867aa2bc00bddf236017e8ad63be6",
+    "cli/internal/setup/skill.go": "79b5e02d58cc655d751cacd97085efc638dcb3c8362a021134d4712db6848829",
+    "client/client.go": "03fe4257bb0393868f1992e78f22c36498eca0d9f98f7c7475ae0bb86e611266",
+    "client/client_test.go": "03b8030be749ef0a525b4ea55052dced11a38787e5197753a730aa4b4ae1dbd3",
+    "go.mod": "5b0732bfb3191cfd516c92feaebe02ac10a048a41480372d881ea459b5583de8",
+    "go.sum": "3509434c0898f71244e58d3e56cd09f2d4a1def2b2d7b4a46bd09b9af339120b",
+    "ios/Meow/App/AppModel.swift": "caf4ba47b12c94f50ea2ea8b7ce7bd130512f3108ae2b80e4a420aab5812de4c",
+    "ios/Meow/App/InboxStore.swift": "6cd814cd7d9442817162ab3dcf6e6fe8d628cc25eff99880df493d8e83240604",
+    "ios/Meow/App/MeowApp.swift": "3197be90a74008484237df03c960ab62053818faaea6677b336a1ff492a81532",
+    "ios/Meow/App/ReplyQueue.swift": "ae3bb24792aecf5321bc069e1b90c2b5a6e47d7c70b5398f2fd36e7501b5431d",
+    "ios/Meow/Meow.entitlements": "23cd53f568cc1883272c47f684ae39cc060f7e0467bab872fc1e9b873626e21d",
+    "ios/Meow/Resources/InfoPlist.xcstrings": "9a7f647928946626b6d662f9d5af581bcd05b8b62fdd0d644f59985955f0dbf6",
+    "ios/Meow/Resources/Localizable.xcstrings": "a3512f8969a7eb7dffe82ceb23dd3f7f96ed5f76b118b35268f1213faa765285",
+    "ios/Meow/Views/Components.swift": "9435d09c0fa75f29ec974a939d23f2fdce27b6dd0eabd86469b43fd461a29a62",
+    "ios/Meow/Views/DetailView.swift": "b06e9965025427cea0697e4319d77ab92e6de2c01d2fc86839b84aeaf1b80287",
+    "ios/Meow/Views/FailedRepliesView.swift": "ccfda6fe04959b5789318b946c31165322e9b8f82d0d5e7d5d1ba03257b1ef65",
+    "ios/Meow/Views/InboxPresentation.swift": "56eb56fd23d62e3c08ab338957dc6c0ca0ba3d0c2d1e7cf182e9125ef06a5918",
+    "ios/Meow/Views/InboxView.swift": "9ef921fdc5c929bb89a8687a7fd1f34631088df32cc60126370f6f5c6bd879a1",
+    "ios/Meow/Views/OnboardingView.swift": "7c3348e49b3225a2950c729da1a59a3a5511bc0094384106046d51ae38b3b469",
+    "ios/Meow/Views/RootView.swift": "b55e95548c0376e461dd64d0ffa6f26de1870e791205623fb05eb1858a1ca1d5",
+    "ios/Meow/Views/SettingsView.swift": "0e6297a4726c482c309d7979827cfb18b097dc04b1a446473f9b07f643946b87",
+    "ios/Meow/Views/SetupHelpView.swift": "ca91a3fe1e46131b8c0fe39727c7ca13ec08adfd04ab49d183dc3cf46d27b537",
+    "ios/MeowTests/FrontendRecoveryTests.swift": "264815097aec73fc5b4c19b81064e4307fda4a0ddb6e23b5d8bea7f66de3a336",
+    "ios/MeowTests/GatewaySessionTests.swift": "ec309b621ca7909712e54f73d184d47503a28f6d1cd2188d552640cb0e71fa59",
+    "ios/MeowTests/GatewayTests.swift": "f412f97fea6f01f17fc9a7a9bd4473d5fd490b1cdec340fd21569ff45d645284",
+    "ios/MeowTests/InboxPresentationTests.swift": "80a418b9376c27c299559e8ae3e4b422417e8ce6e5f12893d11173df7a447b17",
+    "ios/MeowTests/LocalInboxTests.swift": "bb47252031170fb86bc2db967868231b54c811ac2cac0a6845a6540b18c8946c",
+    "ios/MeowTests/MeowTests.swift": "88079a00501ede105a966d1ea314284a97dd5d68502eebd3f407a30a58b5ce92",
+    "ios/MeowTests/NotificationCallbackTests.swift": "2ab4772f9b42bd128d5b72144d7ba8f9c65f2669a3bf973cbc3b7d331d71252c",
+    "ios/MeowTests/NotificationFailureTests.swift": "4a1734a38b98d350e7aa0dfe6cee7c3ce66ea91ff6ac8b6b3442d6886c367196",
+    "ios/MeowTests/NotificationSoundTests.swift": "f62a3e1c526af0268bfbcf3bf66558f00b19dce11316dc1efcbd092251a89796",
+    "ios/MeowTests/PendingInboxTests.swift": "62c4827f92cee46382287784d18ae3aa7436047b195a432c9ab0eb80470761b2",
+    "ios/MeowTests/ReplyFailureTests.swift": "bfa0fee8b993648ff3d9f50fd78b4f0ab57705dedaac86d6f63e795e5ea1bbb2",
+    "ios/MeowUITests/AnswerFlowUITests.swift": "22aaa9efc02435ab4b5ce0bf9942be6d991d2e2fea420d24c67337d31fb7bee5",
+    "ios/MeowUITests/FocusNotificationUITests.swift": "cb6874c82688e925c4d1df268eb2e85844b2759bf0fe79fd8d1dadaa34458857",
+    "ios/MeowUITests/GatewayUITests.swift": "cdac014c818f6557ebc95dcb2282a2a61dbe5849f30b0bde202318f531cba6ba",
+    "ios/MeowUITests/UIOptimizationTests.swift": "a125b6ede050554bf8e00e8673ef2f13230dac024bd01c039648afbe7e3f9009",
+    "ios/NotificationService/NotificationService.entitlements": "b1f4645c491caabf627a5378944883ca7b37c69612fa593977ad7c8883033231",
+    "ios/NotificationService/NotificationService.swift": "f75efcde815d15ace457ddea937ac0040965ac49e76550ea7ee85383f5af81a6",
+    "ios/Shared/Gateway.swift": "bf15fc142a507d961757140d9a4d769961bfcab88167685b8685ec32de5fcddb",
+    "ios/Shared/MeowAPI.swift": "1e9c8c2c253272b09b383c40f453b851f39bf7eec145407361e56e80b2a613ff",
+    "ios/Shared/Models.swift": "84386444cbaf7dfc6f72aa3cfbea1adfb2d1c63d0524b45ff894e0bff2858cc7",
+    "ios/Shared/NotificationCallback.swift": "21a615b4675c94b9c37199cd89d3aedeec607a0854144b5716766cb16908de27",
+    "ios/Shared/NotificationContent.swift": "da6f0843a8271457692f45af94b92477173a17f04c01e202501cefeda60bcad2",
+    "ios/Shared/NotificationDelivery.swift": "bfac9b7aedf32049d515e0b4c77382831b100b4e3681603aa688a65b27261c57",
+    "ios/Shared/PrivacyInfo.xcprivacy": "ead212c1e52779ea62a577083107e7b4be828872968482b5d88ac7923e37578b",
+    "ios/Shared/Shared.swift": "48ec0e8c71e29eafba5d5a78b6dccd30be8310c7b3cad81a0157605063c5c212",
+    "ios/project.yml": "59851a618531068b1a28693e08d69f50c23d9b705b1f339f926221636d2fef48",
+    "ios/scripts/frontend_recovery/LiveIntegrationTests.swift": "8e70beb0be0fd74320fa914d8b1f180c639678614cdef02bb7d7e936ebae46c7",
+    "ios/scripts/frontend_recovery/LocalInboxIntegrationTests.swift": "167d2deb6187e247fe334516216aafb81a9deb9a4848c97daa68a14c2d494f56",
+    "ios/scripts/frontend_recovery/Platform.swift": "4c05c0d5244ed1f32d49d3827a9e4ffb54b3b70d515af1bda2e75bf920e34c12",
+    "ios/scripts/make_assets.py": "b3f31ddc802a83d1b6f78a636273603b3a1f22aac518da0881194c993911edf0",
+    "ios/scripts/verify_distribution.py": "c01dce45ee26943f10d49ced8a86061e576e2835af5e670f0ed9d6e09dc6e5cc",
+    "ios/scripts/verify_frontend_recovery.py": "4b66d4495de0c6784653f9499be67501437a88171aadd318c64a013ca053826a",
+    "ios/scripts/verify_local_inbox.py": "dcf7e1ea9364179c100cf4df906f30476823241ffd63b9bae60aedd7c8633b36",
+    "ios/scripts/verify_notification_failures.py": "7c1ac2d7233c4c51dcedaf44a2471b4571cb40878c2dd11ffa7f0f5972fb2dfb",
+    "ios/scripts/verify_review_fixes.py": "0c98b03a2cd4c436af3ef336670a189ef9ee8713a997bd2c5e507d488adcf70b",
+    "ios/scripts/verify_ui_optimization.py": "d37c865078e14103ca22470bb62fa38ebee529d6a9a128242ed9b89f55f42cb1",
+    "server/cmd/meow-server/main.go": "e101702c42af37f6cadcc584a0dcc0ffdfbde8f7cc4d1656fdfd4fecdce20e89",
+    "server/internal/api/agent.go": "9409856876a8a556f50986301f62ba68c1f2629a5a19308f48b5e35e09cd7519",
+    "server/internal/api/api.go": "82cb66d27d281b919a42911e4ba527bfa65b1352a1922fb0955f0c35a018bc33",
+    "server/internal/api/api_test.go": "21160c2e78fa90de9d00d1e0ad9e16a20337f4523bb749f742e48fe2ee1d36ba",
+    "server/internal/api/broker.go": "b968dcab12c5e205044e689418bd09f7f55d2567242430947f112c26cb97e127",
+    "server/internal/api/gateway.go": "5e6b5f735811d398af94de804431f9489063edd416b4ef973e360ec9d1ac0b00",
+    "server/internal/api/gateway_integration_test.go": "171411895b2842321adbd9dfcb29c3e2041fd5159bccd18b9f96f9283bd16953",
+    "server/internal/api/gateway_mobile_test.go": "3a399a6cda8c00ead09fed75c54fb221b13ab25088de5547cd277ab2e797ffdf",
+    "server/internal/api/gateway_test.go": "46c34e6f8d4e8922569ad5b11fcc4f3c30536c65afb409b22024e7981a9d8922",
+    "server/internal/api/json.go": "debba94585248669c56f717d4151f8f5f33b8dd9815f1b70f2acc5db3b180d53",
+    "server/internal/api/limit.go": "2db66d0da290902fea2727c306a9202dadea6f87146548306b9c9daef8deb524",
+    "server/internal/api/mobile.go": "7aeee17c0721cb1056370e2270b2c6e294127cf28af2e8fcda6d02dbda314b91",
+    "server/internal/api/question_scope_test.go": "67d5b27bc62301232446ea9dc792c574101a3ca5ed3df8feae0bf1bb1a955cd9",
+    "server/internal/api/response_failure_test.go": "032e97d3809d48cb5aeae80d16538525714a453c8e6e05b7b3f19d0c20164e10",
+    "server/internal/ids/ids.go": "7dde9f9dfeeb07ac9ae3da1a243786191485917c4a91d851f13b57b18d5374ff",
+    "server/internal/push/apns.go": "bd5135b06d822a7765cdbee2f43ed5160535d47434d5fd833d4e0e1ae5c24962",
+    "server/internal/push/dispatcher.go": "a1e1de39b2192d3a57256324bd2defa6dc4e9ac0240025a02b49a754126d5184",
+    "server/internal/push/gateway.go": "207cd499380e4460d894f90a54f500ded5329b4dc6578cf0aebd3e176df035e4",
+    "server/internal/push/gateway_test.go": "a496fff7ecafaff844caf450ca65665c6ca276c05785307f1c6c100cadbd3a9e",
+    "server/internal/push/payload.go": "289a141c86217f7c9a8416f15ded95b5bd272c9b5ce999759556fde26bb859c7",
+    "server/internal/push/push_test.go": "fae59a6d3b12e4e48d6e4a5893ad744fa6ca36dcd5603e236fcd8efb82aad994",
+    "server/internal/push/review_regression_test.go": "96bd56dccc14f44202ea3221fd82d7f3c028cacec0e1063a79b4b04092d0ff9a",
+    "server/internal/store/gateway.go": "54b112fba60ef8bb38e4b851c1bd5a710cdd48b3e8ef57d534869d6f6d566a9e",
+    "server/internal/store/gateway.sql": "350b42a5fd562116aabdfebbfca6bbc42fcfec5ffcdd31d4f864216b3527ed0e",
+    "server/internal/store/gateway_test.go": "f0fc8c0df8bb7c2d1a86fa0169fb8ae50a4880d6c3c0c271ccaa369261cd91e1",
+    "server/internal/store/schema.sql": "339f41c7a2ea23049c65fda7a5aae6e9da8cd26e39fc47dd5f206ac055413637",
+    "server/internal/store/store.go": "b21e03835c4469a01e22b098ff79573f1fc092ae6a406dd736a790fc2e26b23e",
+    "server/internal/store/store_test.go": "a34d9b4d051016c2dc23214c1ba984fbe5da8f18730e4c0dc81655cb12e38a9d"
+  },
+  "completed": [
+    "native_with_real_http",
+    "coverage",
+    "coverage_controls",
+    "shuffled",
+    "mutations",
+    "restored_native",
+    "final_coverage",
+    "go",
+    "go_vet",
+    "go_build",
+    "ios_compile",
+    "format_and_localization",
+    "source_stability"
+  ],
+  "tools": {
+    "swift": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)\nTarget: arm64-apple-macosx26.0",
+    "xcode": "Xcode 26.6\nBuild version 17F113",
+    "go": "go version go1.27.2 darwin/arm64"
+  },
+  "native_with_real_http": {
+    "exit": 0,
+    "tests": 123,
+    "failures": []
+  },
+  "coverage": {
+    "ios/Meow/App/AppModel.swift": {
+      "covered_executable_lines": 143,
+      "changed_executable_lines": 143
+    },
+    "ios/Meow/App/InboxStore.swift": {
+      "covered_executable_lines": 118,
+      "changed_executable_lines": 118
+    },
+    "ios/Shared/MeowAPI.swift": {
+      "covered_executable_lines": 24,
+      "changed_executable_lines": 24
+    }
+  },
+  "coverage_controls": {
+    "missing_profile_rejected": true,
+    "zero_counts_rejected": true,
+    "disabled_checker_detected": true
+  },
+  "shuffled": {
+    "seed": 20261020,
+    "passed": 30,
+    "scope": "new local inbox tests, one XCTest process per case",
+    "order": [
+      "LocalInboxModelTests.testCacheDeletionFailureKeepsCurrentServerAndMessages",
+      "LocalInboxModelTests.testLocalMatchesAppearWhileNetworkCountsAreStillPending",
+      "LocalInboxModelTests.testFailedBackgroundCacheWriteIsVisibleWithoutLosingTheOnlineMessage",
+      "InboxStoreTests.testUnwritableDatabaseLocationReportsFailure",
+      "LocalInboxModelTests.testSearchingAndFilteringSavedMessagesAreImmediateAndMakeNoHTTPRequests",
+      "InboxStoreTests.testSnapshotSurvivesRestartAndRetainsCompleteQuestionAndReadState",
+      "InboxStoreTests.testSQLiteFailureHalfwayThroughSnapshotRollsBackInsertsAndPruning",
+      "InboxStoreTests.testInvalidDatabaseIsReportedWithoutDeletingItsOriginalBytes",
+      "LocalInboxModelTests.testContinuousRateLimitingStopsAfterBoundedRetriesAndKeepsCache",
+      "LocalInboxModelTests.testPendingAndUnreadFiltersUseSavedQuestionStateWhileOffline",
+      "LocalInboxModelTests.testLaterPageFailureKeepsLastCompleteCacheAndNeverStoresPartialSnapshot",
+      "LocalInboxModelTests.testAuthoritative404CannotBeReintroducedByOlderSyncSnapshot",
+      "LocalInboxModelTests.testSlowCountResponseCannotUndoAnOptimisticLocalRead",
+      "InboxStoreTests.testInvalidSnapshotDoesNotDestroyPreviousTransaction",
+      "LocalInboxModelTests.testUnreadableSavedMessageReportsStorageFailureEvenWhenOffline",
+      "LocalInboxModelTests.testResetErasesOldScopeAndLateSyncCannotWriteItBack",
+      "LocalInboxModelTests.testReadAndMarkAllReadArePersistedAndFilterOfflineWithoutRefresh",
+      "LocalInboxModelTests.testNewMessagesRenderBeforeSlowCountRequestCompletes",
+      "InboxStoreTests.testGeneratedUnicodeRecordsRoundTripAndConcurrentScopesDoNotMix",
+      "InboxStoreTests.testCompleteSnapshotRemovesStaleRowsAndDistinguishesEmptyFromNeverSynced",
+      "LocalInboxModelTests.testAcceptedAnswerSurvivesAnOlderInflightSyncAndPersists",
+      "LocalInboxModelTests.testLocalSearchTreatsUnicodePunctuationAndSQLSyntaxLiterally",
+      "InboxStoreTests.testScopesAreStableNormalizedAndIsolatedWithoutStoringSecrets",
+      "LocalInboxModelTests.testRateLimitedHistoryPageWaitsThenResumesWithoutLosingTheSnapshot",
+      "LocalInboxModelTests.testOfflineRestartSearchesSavedHistoryBeyondFirstDisplayPage",
+      "InboxStoreTests.testDirectoryCannotBeOpenedAsDatabase",
+      "LocalInboxModelTests.testOfflineDetailIsLoadedFromDisk",
+      "LocalInboxModelTests.testAllPagesSyncIndependentlyOfSearchAndDisplayPaginationIsLocal",
+      "LocalInboxModelTests.testCancellingRateLimitWaitKeepsSavedHistory",
+      "LocalInboxModelTests.testRepeatedCursorFailsWithoutReplacingSavedHistory"
+    ]
+  },
+  "mutations": [
+    {
+      "name": "scope",
+      "source_sha256": "b58bbd6b52227fa059b627670f3edd80b87ad1cd1f073f8ff2e98756ef74038f",
+      "failed_tests": [
+        "MeowFailureTests.InboxStoreTests testScopesAreStableNormalizedAndIsolatedWithoutStoringSecrets"
+      ]
+    },
+    {
+      "name": "search",
+      "source_sha256": "f6eb5d594cdbdc203cd2712065de7dc65441e61fb6e3c29923d2dfd211a1a635",
+      "failed_tests": [
+        "MeowFailureTests.LocalInboxModelTests testAllPagesSyncIndependentlyOfSearchAndDisplayPaginationIsLocal",
+        "MeowFailureTests.LocalInboxModelTests testLocalSearchTreatsUnicodePunctuationAndSQLSyntaxLiterally",
+        "MeowFailureTests.LocalInboxModelTests testOfflineRestartSearchesSavedHistoryBeyondFirstDisplayPage",
+        "MeowFailureTests.LocalInboxModelTests testSearchingAndFilteringSavedMessagesAreImmediateAndMakeNoHTTPRequests"
+      ]
+    },
+    {
+      "name": "local-mutations",
+      "source_sha256": "4b8301f2c83767130ab5c9d3c75ed504cc5eaeb0318fa64493a1a49abf2fb488",
+      "failed_tests": [
+        "MeowFailureTests.LocalInboxModelTests testAcceptedAnswerSurvivesAnOlderInflightSyncAndPersists",
+        "MeowFailureTests.LocalInboxModelTests testAuthoritative404CannotBeReintroducedByOlderSyncSnapshot",
+        "MeowFailureTests.LocalInboxModelTests testSlowCountResponseCannotUndoAnOptimisticLocalRead"
+      ]
+    },
+    {
+      "name": "late-session",
+      "source_sha256": "62e066e037c94622bdaac828ec3e53945d5d023537a1724fe713e75f8b792cbc",
+      "failed_tests": [
+        "MeowFailureTests.LocalInboxModelTests testResetErasesOldScopeAndLateSyncCannotWriteItBack"
+      ]
+    },
+    {
+      "name": "rollback",
+      "source_sha256": "80bd8e1b5100c1d272230714572fcb3d257111ab6562375aa8e08f3a86b56d54",
+      "failed_tests": [
+        "MeowFailureTests.InboxStoreTests testSQLiteFailureHalfwayThroughSnapshotRollsBackInsertsAndPruning"
+      ]
+    }
+  ],
+  "restored_native": {
+    "exit": 0,
+    "tests": 123,
+    "failures": []
+  },
+  "final_coverage": {
+    "ios/Meow/App/AppModel.swift": {
+      "covered_executable_lines": 143,
+      "changed_executable_lines": 143
+    },
+    "ios/Meow/App/InboxStore.swift": {
+      "covered_executable_lines": 118,
+      "changed_executable_lines": 118
+    },
+    "ios/Shared/MeowAPI.swift": {
+      "covered_executable_lines": 24,
+      "changed_executable_lines": 24
+    }
+  },
+  "go": {
+    "passed_including_subtests": 185,
+    "race": true,
+    "shuffle": true
+  },
+  "go_vet": "passed",
+  "go_build": "passed",
+  "ios_compile": "main app, notification extension, all unit and UI test targets",
+  "format_and_localization": "diff whitespace and JSON parsing passed; no Swift formatter installed",
+  "source_stability": "unchanged",
+  "physical_execution": "not performed",
+  "simulator_started": false,
+  "independent_verification": "not performed",
+  "spec_approval": "not obtained (autonomous run)"
+}
