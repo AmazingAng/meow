@@ -3,41 +3,53 @@ import SwiftUI
 struct InboxView: View {
     @Environment(AppModel.self) private var model
     @State private var now = Date.now
+    @State private var isSearching = false
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         @Bindable var model = model
         NavigationStack(path: $model.inboxPath) {
-            VStack(spacing: 0) {
-                FilterBar(pendingCount: pendingCount)
-                List {
-                    if let error = model.loadError, !model.notifications.isEmpty {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
-                    }
-                    inboxRows(now: now)
-                    if model.nextCursor != nil {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .listRowSeparator(.hidden)
-                            .task(id: model.nextCursor) { await model.loadMore() }
-                    }
+            List {
+                if let error = model.loadError, !model.notifications.isEmpty {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
                 }
-                .listStyle(.plain)
-                .overlay { emptyState }
-                .scrollDismissesKeyboard(.interactively)
-                .refreshable { await model.refresh() }
+                inboxRows(now: now)
+                if model.nextCursor != nil {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .listRowSeparator(.hidden)
+                        .task(id: model.nextCursor) { await model.loadMore() }
+                }
+            }
+            .listStyle(.plain)
+            .overlay { emptyState }
+            .scrollDismissesKeyboard(.interactively)
+            .refreshable { await model.refresh() }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if isSearching { searchField }
             }
             .navigationTitle("Inbox")
-            .searchable(text: $model.search, prompt: Text("Search notifications"))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    InboxMenu(pendingCount: pendingCount)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await model.markAllRead() }
-                    } label: {
-                        Label("Mark all as read", systemImage: "envelope.open")
+                    if isSearching {
+                        Button("Cancel") {
+                            searchFocused = false
+                            isSearching = false
+                            model.search = ""
+                        }
+                        .accessibilityIdentifier("inbox.cancelSearch")
+                    } else {
+                        Button { isSearching = true } label: {
+                            Label("Search notifications", systemImage: "magnifyingglass")
+                        }
+                        .accessibilityIdentifier("inbox.search")
                     }
-                    .disabled(model.counts.unread == 0)
                 }
             }
             .navigationDestination(for: String.self) { id in
@@ -61,6 +73,28 @@ struct InboxView: View {
         }
     }
 
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField("Search notifications", text: Bindable(model).search)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($searchFocused)
+                .accessibilityIdentifier("inbox.searchField")
+                .onSubmit { searchFocused = false }
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 44)
+        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.bar)
+        .task { searchFocused = true }
+    }
+
     @ViewBuilder
     private func inboxRows(now: Date) -> some View {
         let groups = InboxPresentation(model.notifications, now: now)
@@ -73,24 +107,21 @@ struct InboxView: View {
                     }
                 } header: {
                     Button { model.filter = .pending } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Label("Needs your answer: \(pendingCount)",
-                                  systemImage: "bubble.left.and.bubble.right.fill")
-                                .font(.headline)
-                            Text("Soonest expiry first").font(.caption).foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
+                        Label("Needs your answer: \(pendingCount)",
+                              systemImage: "bubble.left.and.bubble.right.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
                     .accessibilityIdentifier("inbox.pendingSummary")
+                    .accessibilityHint(Text("Soonest expiry first"))
                 }
+                .textCase(nil)
             }
 
-            if !groups.activity.isEmpty {
-                Section("Other notifications") { rows(groups.activity, now: now) }
-            }
+            rows(groups.activity, now: now)
         } else if model.filter == .pending {
             rows(groups.pending, now: now)
         } else {
@@ -180,88 +211,60 @@ private struct MascotEmptyState: View {
     }
 }
 
-private struct FilterBar: View {
+private struct InboxMenu: View {
     var pendingCount: Int
     @Environment(AppModel.self) private var model
-    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        Group {
-            if typeSize.isAccessibilitySize {
-                Menu {
-                    ForEach(AppModel.Filter.allCases) { filter in
-                        Button { model.filter = filter } label: {
-                            if model.filter == filter {
-                                Label(filter.title, systemImage: "checkmark")
-                            } else {
-                                Text(filter.title)
-                            }
+        Menu {
+            Section("Filter notifications") {
+                ForEach(AppModel.Filter.allCases) { filter in
+                    Button { model.filter = filter } label: {
+                        if model.filter == filter {
+                            Label { filterTitle(filter) } icon: { Image(systemName: "checkmark") }
+                        } else {
+                            filterTitle(filter)
                         }
-                        .accessibilityIdentifier("filter.\(filter.rawValue)")
                     }
-                } label: {
-                    HStack {
-                        Text(model.filter.title)
-                        Spacer()
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                    }
-                    .font(.headline)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("filter.\(filter.rawValue)")
                 }
-                .accessibilityIdentifier("inbox.filterMenu")
-                .accessibilityLabel(Text("Filter notifications"))
-                .accessibilityValue(Text(model.filter.title))
-                .padding(.horizontal, 16)
-            } else {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 8) {
-                        ForEach(AppModel.Filter.allCases) { filter in chip(filter) }
-                    }
-                    .padding(.horizontal, 16)
-                }
-                .scrollIndicators(.hidden)
             }
+            Section {
+                Button("Mark all as read") { Task { await model.markAllRead() } }
+                    .disabled(model.counts.unread == 0)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text("Inbox").font(.headline)
+                if model.filter != .all {
+                    Text(model.filter.title)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .lineLimit(1)
+            .frame(minWidth: 44, minHeight: 44)
+            .foregroundStyle(Color.primary)
         }
-        .padding(.vertical, 8)
-        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("inbox.filterMenu")
+        .accessibilityLabel(Text("Inbox") + Text(verbatim: ", ") + Text("Filter notifications"))
+        .accessibilityValue(Text(model.filter.title) + Text(verbatim: " \(count(model.filter).formatted())"))
     }
 
-    private func chip(_ filter: AppModel.Filter) -> some View {
-        let selected = model.filter == filter
-        let count = switch filter {
+    private func count(_ filter: AppModel.Filter) -> Int {
+        switch filter {
         case .all: 0
         case .unread: model.counts.unread
         case .pending: pendingCount
         }
-        return Button {
-            model.filter = filter
-        } label: {
-            HStack(spacing: 6) {
-                if selected {
-                    Image(systemName: "checkmark")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.accentColor)
-                }
-                Text(filter.title)
-                if count > 0 {
-                    Text(count, format: .number)
-                        .font(.caption.weight(.bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1)
-                        .background(selected ? Color.white.opacity(0.25) : Color.accentColor.opacity(0.15), in: Capsule())
-                }
-            }
-            .font(.subheadline.weight(.medium))
-            .padding(.horizontal, 14)
-            .frame(minHeight: 44)
-            .fixedSize(horizontal: true, vertical: false)
-            .foregroundStyle(Color.primary)
-            .background(selected ? Color.accentColor.opacity(0.16) : Color(.secondarySystemFill), in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("filter.\(filter.rawValue)")
-        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func filterTitle(_ filter: AppModel.Filter) -> Text {
+        let value = count(filter)
+        return value > 0 ? Text(filter.title) + Text(verbatim: " \(value.formatted())") : Text(filter.title)
     }
 }
 

@@ -149,6 +149,13 @@ final class UIOptimizationTests: XCTestCase {
         wait(for: [done], timeout: 5)
     }
 
+    private func selectFilter(_ name: String, in app: XCUIApplication) {
+        let menu = app.buttons["inbox.filterMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10))
+        menu.tap()
+        app.buttons["filter.\(name)"].tap()
+    }
+
     func test06UrgentQuestionBeyondFirstPageAppearsFirst() {
         scenario("pagination")
         let app = open()
@@ -163,8 +170,7 @@ final class UIOptimizationTests: XCTestCase {
     func test07PendingFilterUpdatesAfterAnswerAndExpiry() {
         scenario("answer")
         var app = open()
-        XCTAssertTrue(app.buttons["filter.pending"].waitForExistence(timeout: 10))
-        app.buttons["filter.pending"].tap()
+        selectFilter("pending", in: app)
         let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_soon").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10)); row.tap()
         XCTAssertTrue(app.buttons["Reject"].waitForExistence(timeout: 5)); app.buttons["Reject"].tap()
@@ -177,13 +183,45 @@ final class UIOptimizationTests: XCTestCase {
 
         scenario("expiry")
         app = open()
-        XCTAssertTrue(app.buttons["filter.pending"].waitForExistence(timeout: 10))
-        app.buttons["filter.pending"].tap()
+        selectFilter("pending", in: app)
         let expiring = app.descendants(matching: .any).matching(identifier: "notification.ntf_soon").firstMatch
         XCTAssertTrue(expiring.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Nothing waiting on you"].waitForExistence(timeout: 25))
         XCTAssertFalse(expiring.exists)
-        XCTAssertFalse(app.buttons["filter.pending"].label.contains("1"), "the expired question must leave the filter count too")
+        XCTAssertEqual(app.buttons["inbox.filterMenu"].value as? String, "Pending 0", "the expired question must leave the filter count too")
         capture("pending-after-expiry", app)
+    }
+
+    func test08CompactHeaderSearchAndUnreadMenu() {
+        scenario("activity")
+        let app = open()
+        let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_info").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        let navigation = app.navigationBars.firstMatch
+        XCTAssertLessThan(row.frame.minY - navigation.frame.maxY, 48,
+                          "the first message should follow the compact navigation bar")
+        XCTAssertFalse(app.staticTexts["Other notifications"].exists)
+        XCTAssertFalse(app.textFields["inbox.searchField"].exists)
+        XCTAssertFalse(app.buttons["Mark all as read"].exists)
+        capture("compact-inbox", app)
+
+        app.buttons["inbox.search"].tap()
+        let field = app.textFields["inbox.searchField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.typeText("unmatched search")
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: row)
+        wait(for: [gone], timeout: 10)
+        capture("compact-inbox-search", app)
+        app.buttons["inbox.cancelSearch"].tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertFalse(field.exists)
+
+        app.buttons["inbox.filterMenu"].tap()
+        app.buttons["Mark all as read"].tap()
+        selectFilter("unread", in: app)
+        XCTAssertTrue(app.staticTexts["All caught up"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["inbox.filterMenu"].isHittable)
+        selectFilter("all", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
     }
 }

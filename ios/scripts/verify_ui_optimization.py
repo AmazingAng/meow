@@ -70,6 +70,8 @@ class Fixture(BaseHTTPRequestHandler):
             if scenario == 'pagination':
                 soon['question']['expires_at'] = timestamp(datetime.now(timezone.utc) + timedelta(seconds=120))
                 self.items[:] = [later] + [dict(info, id=f'ntf_info_{i}') for i in range(49)] + [soon]
+            elif scenario == 'activity':
+                self.items[:] = [info]
             else:
                 soon['body'] = 'Choose an answer.'
                 if scenario == 'expiry':

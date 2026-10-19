@@ -396,16 +396,22 @@ extension DesignRegressionUITests {
     func testFilterTargetsAndEmptyStateStayUsable() throws {
         let app = try openSettings()
         app.tabBars.buttons["Inbox"].tap()
+        let menu = app.buttons["inbox.filterMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(menu.frame.height, 44)
+        menu.tap()
         for name in ["all", "unread", "pending"] {
             let filter = app.buttons["filter.\(name)"]
             XCTAssertTrue(filter.waitForExistence(timeout: 5))
             XCTAssertGreaterThanOrEqual(filter.frame.height, 44)
         }
         app.buttons["Mark all as read"].tap()
+        menu.tap()
         app.buttons["filter.unread"].tap()
         XCTAssertTrue(app.staticTexts["All caught up"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["filter.all"].isHittable, "the empty view must not cover the filters")
+        XCTAssertTrue(menu.isHittable, "the empty view must not cover the filter menu")
         capture("inbox-empty-unread", in: app)
+        menu.tap()
         app.buttons["filter.all"].tap()
         XCTAssertTrue(app.staticTexts["UI test: build completed"].waitForExistence(timeout: 10))
     }
