@@ -15,10 +15,10 @@ import (
 	"time"
 )
 
-const DefaultServer = "https://api.meow.blue"
+var ErrNoServer = errors.New("no Meow server configured; use the server address shown in the Meow app")
 
 type Client struct {
-	Server string // base URL; DefaultServer when empty
+	Server string // explicitly configured base URL
 	Token  string // a Device Key (meow_…) or, for mobile calls, a device token (mdt_…)
 	HTTP   *http.Client
 }
@@ -115,7 +115,7 @@ func (c *Client) do(ctx context.Context, method, path string, idemKey string, in
 	}
 	server := strings.TrimRight(c.Server, "/")
 	if server == "" {
-		server = DefaultServer
+		return ErrNoServer
 	}
 	req, err := http.NewRequestWithContext(ctx, method, server+path, body)
 	if err != nil {
@@ -221,7 +221,7 @@ func (c *Client) Wait(ctx context.Context, id string, onRetry func(error)) (*Que
 			return nil, ctx.Err()
 		}
 		var ae *Error
-		if errors.As(err, &ae) && !ae.Temporary() {
+		if errors.Is(err, ErrNoServer) || (errors.As(err, &ae) && !ae.Temporary()) {
 			return nil, err
 		}
 		if onRetry != nil {
@@ -242,8 +242,17 @@ func (c *Client) Cancel(ctx context.Context, id string) (*Question, error) {
 }
 
 type WhoAmI struct {
-	Key    Key    `json:"key"`
-	Device Device `json:"device"`
+	PushRegistered *bool  `json:"push_registered"` // nil on older API versions
+	Key            Key    `json:"key"`
+	Device         Device `json:"device"`
+}
+
+// HasPushRegistration reports registration for the API's current transport.
+func (w WhoAmI) HasPushRegistration() bool {
+	if w.PushRegistered != nil {
+		return *w.PushRegistered
+	}
+	return w.Device.HasAPNsToken
 }
 
 func (c *Client) WhoAmI(ctx context.Context) (*WhoAmI, error) {

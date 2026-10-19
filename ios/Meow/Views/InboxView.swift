@@ -2,28 +2,25 @@ import SwiftUI
 
 struct InboxView: View {
     @Environment(AppModel.self) private var model
+    @State private var now = Date.now
 
     var body: some View {
         @Bindable var model = model
         NavigationStack(path: $model.inboxPath) {
             VStack(spacing: 0) {
-                FilterBar()
+                FilterBar(pendingCount: pendingCount)
                 List {
                     if let error = model.loadError, !model.notifications.isEmpty {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
                             .font(.footnote)
                             .foregroundStyle(.orange)
                     }
-                    ForEach(model.notifications) { n in
-                        NavigationLink(value: n.id) {
-                            NotificationRow(notification: n)
-                        }
-                    }
+                    inboxRows(now: now)
                     if model.nextCursor != nil {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                             .listRowSeparator(.hidden)
-                            .task { await model.loadMore() }
+                            .task(id: model.nextCursor) { await model.loadMore() }
                     }
                 }
                 .listStyle(.plain)
@@ -46,12 +43,84 @@ struct InboxView: View {
             .navigationDestination(for: String.self) { id in
                 DetailView(id: id)
             }
+            .task {
+                if !model.hasLoaded { await model.refresh() }
+            }
+            .task(id: model.notifications) {
+                now = .now
+                // Only update the list when a pending question actually expires.
+                while let expiry = model.notifications.compactMap({ notification -> Date? in
+                    guard let question = notification.question, question.isOpen() else { return nil }
+                    return question.expiresAt
+                }).min() {
+                    do { try await Task.sleep(for: .seconds(max(0, expiry.timeIntervalSinceNow) + 0.1)) }
+                    catch { return }
+                    now = .now
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func inboxRows(now: Date) -> some View {
+        let groups = InboxPresentation(model.notifications, now: now)
+        if model.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, model.filter == .all {
+            if pendingCount > 0 {
+                Section {
+                    rows(groups.pending, now: now)
+                    if groups.pending.isEmpty {
+                        Button("View all pending questions") { model.filter = .pending }
+                    }
+                } header: {
+                    Button { model.filter = .pending } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label("Needs your answer: \(pendingCount)",
+                                  systemImage: "bubble.left.and.bubble.right.fill")
+                                .font(.headline)
+                            Text("Soonest expiry first").font(.caption).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityIdentifier("inbox.pendingSummary")
+                }
+            }
+
+            if !groups.activity.isEmpty {
+                Section("Other notifications") { rows(groups.activity, now: now) }
+            }
+        } else if model.filter == .pending {
+            rows(groups.pending, now: now)
+        } else {
+            rows(model.notifications, now: now)
+        }
+    }
+
+    private var pendingCount: Int {
+        // These views now hold the complete pending set, so local answers and
+        // expiry can update the count without waiting for another network poll.
+        if model.hasLoaded, model.loadError == nil,
+           model.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           model.filter == .all || model.filter == .pending {
+            return InboxPresentation(model.notifications, now: now).pending.count
+        }
+        return max(model.counts.pending, InboxPresentation(model.notifications, now: now).pending.count)
+    }
+
+    private func rows(_ notifications: [MeowNotification], now: Date) -> some View {
+        ForEach(notifications) { notification in
+            NavigationLink(value: notification.id) {
+                NotificationRow(notification: notification, now: now)
+            }
+            .accessibilityIdentifier("notification.\(notification.id)")
         }
     }
 
     @ViewBuilder
     private var emptyState: some View {
-        if model.notifications.isEmpty {
+        if model.notifications.isEmpty || (model.filter == .pending && InboxPresentation(model.notifications, now: now).pending.isEmpty) {
             if !model.hasLoaded {
                 ProgressView()
             } else if let error = model.loadError {
@@ -112,19 +181,49 @@ private struct MascotEmptyState: View {
 }
 
 private struct FilterBar: View {
+    var pendingCount: Int
     @Environment(AppModel.self) private var model
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(AppModel.Filter.allCases) { filter in
-                    chip(filter)
+        Group {
+            if typeSize.isAccessibilitySize {
+                Menu {
+                    ForEach(AppModel.Filter.allCases) { filter in
+                        Button { model.filter = filter } label: {
+                            if model.filter == filter {
+                                Label(filter.title, systemImage: "checkmark")
+                            } else {
+                                Text(filter.title)
+                            }
+                        }
+                        .accessibilityIdentifier("filter.\(filter.rawValue)")
+                    }
+                } label: {
+                    HStack {
+                        Text(model.filter.title)
+                        Spacer()
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                    }
+                    .font(.headline)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
+                .accessibilityIdentifier("inbox.filterMenu")
+                .accessibilityLabel(Text("Filter notifications"))
+                .accessibilityValue(Text(model.filter.title))
+                .padding(.horizontal, 16)
+            } else {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(AppModel.Filter.allCases) { filter in chip(filter) }
+                    }
+                    .padding(.horizontal, 16)
+                }
+                .scrollIndicators(.hidden)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
         }
-        .scrollIndicators(.hidden)
+        .padding(.vertical, 8)
         .accessibilityElement(children: .contain)
     }
 
@@ -133,7 +232,7 @@ private struct FilterBar: View {
         let count = switch filter {
         case .all: 0
         case .unread: model.counts.unread
-        case .pending: model.counts.pending
+        case .pending: pendingCount
         }
         return Button {
             model.filter = filter
@@ -168,65 +267,64 @@ private struct FilterBar: View {
 
 struct NotificationRow: View {
     var notification: MeowNotification
+    var now: Date
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
+        row(now: now)
+    }
+
+    private func row(now: Date) -> some View {
         let n = notification
-        HStack(alignment: .top, spacing: 12) {
-            SourceAvatar(source: n.source)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(n.source.isEmpty ? n.title : n.source)
+        let needsAnswer = n.question?.isOpen(at: now) == true
+        return HStack(alignment: .top, spacing: 12) {
+            if !typeSize.isAccessibilitySize {
+                SourceAvatar(source: n.source, size: 32)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(n.title)
                         .font(.headline)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
-                    RelativeTime(date: n.createdAt)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                HStack(alignment: .top, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if !n.source.isEmpty {
-                            Text(n.title)
-                                .font(.subheadline)
-                                .fontWeight(n.isUnread ? .semibold : .regular)
-                                .lineLimit(2)
-                        }
-                        if let line = firstLine(of: n.body) {
-                            Text(line)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        if let q = n.question {
-                            QuestionStatusTag(question: q).padding(.top, 2)
-                        }
+                        .fontWeight(needsAnswer || n.isUnread ? .semibold : .regular)
+                        .lineLimit(typeSize.isAccessibilitySize ? nil : 3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if n.isUnread {
+                        Circle().fill(Color.accentColor).frame(width: 8, height: 8)
+                            .accessibilityHidden(true)
                     }
-                    Spacer(minLength: 0)
-                    statusDot.padding(.top, 5)
+                }
+                if typeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 4) { metadata }
+                } else {
+                    HStack(alignment: .firstTextBaseline) { metadata }
+                }
+                if let line = firstLine(of: n.body) {
+                    Text(line)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+                }
+                if let question = n.question {
+                    QuestionStatusTag(question: question)
                 }
             }
         }
         .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(accessibilityStatus)
+        .accessibilityValue(needsAnswer ? Text("Needs your answer") : (n.isUnread ? Text("Unread") : Text(verbatim: "")))
     }
 
-    /// Red: waiting for your answer. Blue: unread.
     @ViewBuilder
-    private var statusDot: some View {
-        if notification.question?.isOpen() == true {
-            Circle().fill(.red).frame(width: 10, height: 10)
-        } else if notification.isUnread {
-            Circle().fill(Color.accentColor).frame(width: 10, height: 10)
-        } else {
-            Color.clear.frame(width: 10, height: 10)
-        }
-    }
-
-    private var accessibilityStatus: Text {
-        if notification.question?.isOpen() == true { return Text("Needs your answer") }
-        if notification.isUnread { return Text("Unread") }
-        return Text(verbatim: "")
+    private var metadata: some View {
+        Text(notification.source.isEmpty ? "Meow" : notification.source)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
+        RelativeTime(date: notification.createdAt)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func firstLine(of body: String) -> String? {

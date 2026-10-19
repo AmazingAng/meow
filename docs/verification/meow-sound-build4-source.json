@@ -1,0 +1,11 @@
+{
+  "title": "Cat Purr & Meow — cat_mewfood.wav",
+  "author": "Kerzoven",
+  "source_page": "https://opengameart.org/content/cat-purr-meow",
+  "source_file": "https://opengameart.org/sites/default/files/cat_mewfood.wav",
+  "license": "CC0-1.0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source_sha256": "3550f080882b52e236c8810a353756b2e0395fb7dadf0aeface0a06893cd181f",
+  "processed_sha256": "c2698ce96d3572236b54975a9e1bacd59702603cd6989a210f3e509c99cdb329",
+  "processing": "ffmpeg: highpass=f=120,lowpass=f=9000,loudnorm=I=-18:TP=-3:LRA=7,afade=t=in:st=0:d=0.008,afade=t=out:st=1.087:d=0.04; mono, 44100 Hz, PCM signed 16-bit WAV"
+}

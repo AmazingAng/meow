@@ -1,49 +1,28 @@
 import UserNotifications
 
-/// Reports to the server that a push reached the device, so "accepted by APNs"
-/// and "delivered" stay distinct. The notification is shown unchanged.
+/// A visible, mutable APNs alert provides the safe fallback if iOS cannot run
+/// the extension. Message content and response actions are filled by the phone.
 final class NotificationService: UNNotificationServiceExtension {
-    private let lock = NSLock()
-    private var contentHandler: ((UNNotificationContent) -> Void)?
-    private var content: UNNotificationContent?
-    private var task: Task<Void, Never>?
+    private var delivery: NotificationDelivery?
 
     override func didReceive(
         _ request: UNNotificationRequest,
         withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void
     ) {
-        lock.withLock {
-            self.contentHandler = contentHandler
-            self.content = request.content
-        }
-        guard let meow = request.content.userInfo["meow"] as? [String: Any],
-              let id = meow["id"] as? String,
-              let token = MeowShared.deviceToken,
-              let server = MeowShared.server
-        else {
-            finish()
-            return
-        }
-        let api = MeowAPI(server: server, token: token)
-        task = Task { [weak self] in
-            try? await api.markDelivered(id)
-            self?.finish()
-        }
+        let delivery = NotificationDelivery(original: request.content, fetch: { id, identity in
+            try await Self.api(identity).notification(id, timeout: 12)
+        }, report: { id, identity in
+            try await Self.api(identity).markDelivered(id, timeout: 3)
+        }, counts: { identity in
+            try await Self.api(identity).counts(timeout: 3).unread
+        }, handler: contentHandler)
+        self.delivery = delivery
+        delivery.start()
     }
 
-    override func serviceExtensionTimeWillExpire() {
-        task?.cancel()
-        finish()
-    }
+    override func serviceExtensionTimeWillExpire() { delivery?.expire() }
 
-    /// Hands the content to the system exactly once.
-    private func finish() {
-        let pending: (((UNNotificationContent) -> Void)?, UNNotificationContent?) = lock.withLock {
-            defer { contentHandler = nil }
-            return (contentHandler, content)
-        }
-        if let handler = pending.0, let content = pending.1 {
-            handler(content)
-        }
+    private static func api(_ identity: NotificationIdentity) -> MeowAPI {
+        MeowAPI(server: identity.server, token: identity.token, session: MeowTransport.gateway)
     }
 }

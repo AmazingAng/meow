@@ -1,0 +1,13 @@
+{
+  "submitted_at": "2026-10-19T20:17:11.274550+08:00",
+  "bundle_id": "blue.meow.app",
+  "capability": "Critical Alerts",
+  "request_id": "P636PY9XD8",
+  "submission_confirmed": true,
+  "apple_confirmation": "Thank you for your submission. We’ll review your request and contact you soon with a status update.",
+  "approval_status": "pending; submission is not entitlement approval",
+  "app_type": "Other: Developer tools and self-hosted operational notifications",
+  "frequency": "Rarely",
+  "intended_use": "Explicit opt-in urgent operational alerts; routine notifications are not automatically elevated.",
+  "request_url": "https://developer.apple.com/contact/request/notifications-critical-alerts-entitlement/"
+}

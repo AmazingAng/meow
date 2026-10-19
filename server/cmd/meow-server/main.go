@@ -11,7 +11,8 @@
 //	MEOW_MAX_DAILY_MESSAGES       notifications and questions per device per 24h (default 1000, 0 = unlimited)
 //	MEOW_INACTIVE_DEVICE_TTL      delete devices the app hasn't contacted for this long, e.g. 2160h (default off)
 //	MEOW_LOG_LEVEL      debug | info | warn | error (default info)
-//	MEOW_APNS_KEY_FILE  path to the APNs .p8 auth key; push is disabled when unset
+//	MEOW_PUSH_GATEWAY_URL  use a wake gateway instead of direct APNs
+//	MEOW_APNS_KEY_FILE  path to the APNs .p8 auth key; direct push is disabled when unset
 //	MEOW_APNS_KEY_ID    APNs key ID
 //	MEOW_APNS_TEAM_ID   Apple developer team ID
 //	MEOW_APNS_TOPIC     iOS app bundle identifier
@@ -45,6 +46,8 @@ var version = "dev"
 func main() {
 	var err error
 	switch {
+	case len(os.Args) > 1 && os.Args[1] == "gateway":
+		err = run(true)
 	case len(os.Args) > 1 && os.Args[1] == "backup":
 		err = backup(os.Args[2:])
 	case len(os.Args) > 1 && os.Args[1] == "check-apns":
@@ -54,9 +57,9 @@ func main() {
 	case len(os.Args) > 1 && os.Args[1] == "version":
 		fmt.Println("meow-server", version)
 	case len(os.Args) > 1:
-		err = fmt.Errorf("unknown command %q (usage: meow-server [backup <path> | check-apns | healthcheck | version])", os.Args[1])
+		err = fmt.Errorf("unknown command %q (usage: meow-server [gateway | backup <path> | check-apns | healthcheck | version])", os.Args[1])
 	default:
-		err = run()
+		err = run(false)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "meow-server:", err)
@@ -80,6 +83,13 @@ func newLogger() *slog.Logger {
 }
 
 func newPusher(log *slog.Logger) (push.Pusher, error) {
+	if raw := env("MEOW_PUSH_GATEWAY_URL", ""); raw != "" {
+		return push.NewGatewayClient(raw)
+	}
+	return newAPNsPusher(log)
+}
+
+func newAPNsPusher(log *slog.Logger) (push.Pusher, error) {
 	keyFile := env("MEOW_APNS_KEY_FILE", "")
 	if keyFile == "" {
 		log.Warn("MEOW_APNS_KEY_FILE not set: notifications are stored but not pushed")
@@ -92,17 +102,29 @@ func newPusher(log *slog.Logger) (push.Pusher, error) {
 	return push.NewAPNs(p8, env("MEOW_APNS_KEY_ID", ""), env("MEOW_APNS_TEAM_ID", ""), env("MEOW_APNS_TOPIC", ""))
 }
 
-func run() error {
+func run(gatewayMode bool) error {
 	log := newLogger()
 	retention, err := time.ParseDuration(env("MEOW_RETENTION", "720h"))
 	if err != nil || retention < time.Hour {
 		return fmt.Errorf("MEOW_RETENTION must be a duration of at least 1h, e.g. 720h")
 	}
-	pusher, err := newPusher(log)
+	var pusher push.Pusher
+	if gatewayMode {
+		pusher, err = newAPNsPusher(log)
+	} else {
+		pusher, err = newPusher(log)
+	}
 	if err != nil {
 		return err
 	}
-	dbPath := env("MEOW_DB", "meow.db")
+	defaultDB := "meow.db"
+	if gatewayMode {
+		defaultDB = "gateway.db"
+		if _, ok := pusher.(*push.APNs); !ok {
+			return errors.New("gateway requires APNs credentials")
+		}
+	}
+	dbPath := env("MEOW_DB", defaultDB)
 	st, err := store.Open(dbPath)
 	if err != nil {
 		return err
@@ -113,25 +135,34 @@ func run() error {
 	defer stopBG()
 	var wg sync.WaitGroup
 
-	dispatcher := push.NewDispatcher(st, pusher, log)
-	wg.Go(func() { dispatcher.Run(bg, 4) })
-
 	const maxWait = 60 * time.Second
-	if st.Limits, err = limitsFromEnv(); err != nil {
-		return err
-	}
-	inactiveTTL, err := optionalDuration("MEOW_INACTIVE_DEVICE_TTL", 24*time.Hour)
-	if err != nil {
-		return err
-	}
-	log.Info("device limits", "keys", st.Limits.KeysPerDevice, "pending_questions", st.Limits.PendingQuestions,
-		"daily_messages", st.Limits.DailyMessages, "inactive_device_ttl", inactiveTTL.String())
+	var handler http.Handler
+	closeHandler := func() {}
+	if gatewayMode {
+		handler = api.NewGateway(api.GatewayConfig{Store: st, Push: pusher, TrustProxy: env("MEOW_TRUST_PROXY", "") == "true"})
+	} else {
+		dispatcher := push.NewDispatcher(st, pusher, log)
+		wg.Go(func() { dispatcher.Run(bg, 4) })
 
-	srv := api.New(api.Config{
-		Store: st, Push: dispatcher, Log: log, MaxWait: maxWait,
-		TrustProxy: env("MEOW_TRUST_PROXY", "") == "true",
-	})
-	wg.Go(func() { maintain(bg, srv, st, retention, inactiveTTL, log) })
+		if st.Limits, err = limitsFromEnv(); err != nil {
+			return err
+		}
+		inactiveTTL, err := optionalDuration("MEOW_INACTIVE_DEVICE_TTL", 24*time.Hour)
+		if err != nil {
+			return err
+		}
+		log.Info("device limits", "keys", st.Limits.KeysPerDevice, "pending_questions", st.Limits.PendingQuestions,
+			"daily_messages", st.Limits.DailyMessages, "inactive_device_ttl", inactiveTTL.String())
+
+		srv := api.New(api.Config{
+			Store: st, Push: dispatcher, Log: log, MaxWait: maxWait,
+			TrustProxy: env("MEOW_TRUST_PROXY", "") == "true",
+			GatewayURL: gatewayURL(pusher),
+		})
+		wg.Go(func() { maintain(bg, srv, st, retention, inactiveTTL, log) })
+		handler = srv
+		closeHandler = srv.Close
+	}
 	// Check APNs in the background: a wrong Key ID shows up in the log at
 	// deploy time instead of as silently missing notifications. It never
 	// stops the server, since Apple may just be unreachable for a moment.
@@ -139,13 +170,13 @@ func run() error {
 
 	hs := &http.Server{
 		Addr:              env("MEOW_ADDR", ":8080"),
-		Handler:           srv,
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      maxWait + 30*time.Second, // must outlast long polls
 		IdleTimeout:       2 * time.Minute,
 	}
-	hs.RegisterOnShutdown(srv.Close) // release long polls so shutdown is quick
+	hs.RegisterOnShutdown(closeHandler) // release long polls so shutdown is quick
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -312,4 +343,11 @@ func backup(args []string) error {
 	}
 	fmt.Println("backup written to", args[0])
 	return nil
+}
+
+func gatewayURL(p push.Pusher) string {
+	if g, ok := p.(*push.GatewayClient); ok {
+		return g.BaseURL
+	}
+	return ""
 }

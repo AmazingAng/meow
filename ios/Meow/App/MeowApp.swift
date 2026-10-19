@@ -14,42 +14,6 @@ struct MeowApp: App {
     }
 }
 
-/// Notification categories and actions. The category identifiers match the
-/// ones the server puts in each push (server/internal/push/payload.go).
-enum NotificationCategory {
-    static let info = "MEOW_INFO"
-    static let reply = "MEOW_REPLY"
-    static let approval = "MEOW_APPROVAL"
-    static let choice = "MEOW_CHOICE" // custom choices are answered in the app
-
-    static let approveAction = "APPROVE"
-    static let rejectAction = "REJECT"
-    static let replyAction = "REPLY"
-
-    static var all: Set<UNNotificationCategory> {
-        let approveButton = UNNotificationAction(
-            identifier: approveAction, title: String(localized: "Approve"),
-            // The phone must be unlocked to approve, so no one can approve from a locked screen.
-            options: [.authenticationRequired],
-            icon: UNNotificationActionIcon(systemImageName: "checkmark.circle"))
-        let rejectButton = UNNotificationAction(
-            identifier: rejectAction, title: String(localized: "Reject"),
-            options: [.destructive],
-            icon: UNNotificationActionIcon(systemImageName: "xmark.circle"))
-        let replyField = UNTextInputNotificationAction(
-            identifier: replyAction, title: String(localized: "Reply"), options: [],
-            icon: UNNotificationActionIcon(systemImageName: "arrowshape.turn.up.left"),
-            textInputButtonTitle: String(localized: "Send"),
-            textInputPlaceholder: String(localized: "Reply to the agent"))
-        return [
-            UNNotificationCategory(identifier: info, actions: [], intentIdentifiers: []),
-            UNNotificationCategory(identifier: reply, actions: [replyField], intentIdentifiers: []),
-            UNNotificationCategory(identifier: approval, actions: [approveButton, rejectButton], intentIdentifiers: []),
-            UNNotificationCategory(identifier: choice, actions: [], intentIdentifiers: []),
-        ]
-    }
-}
-
 @MainActor
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     let model = AppModel()
@@ -75,38 +39,54 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        await model.refresh()
-        return [.banner, .list, .sound, .badge]
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        NotificationCallback.run { () -> UNNotificationPresentationOptions in
+            // An unreachable API must not hold up the system presentation.
+            Task { await self.model.refresh() }
+            return [.banner, .list, .sound, .badge]
+        } completion: { completionHandler($0) }
     }
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
-        let meow = response.notification.request.content.userInfo["meow"] as? [String: Any]
-        await handle(
-            action: response.actionIdentifier,
-            notificationID: meow?["id"] as? String,
-            questionID: meow?["question_id"] as? String,
-            choices: meow?["choices"] as? [String] ?? [],
-            text: (response as? UNTextInputNotificationResponse)?.userText)
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        NotificationCallback.run {
+            await self.handle(response)
+        } completion: { _ in completionHandler() }
     }
 
-    private func handle(action: String, notificationID: String?, questionID: String?, choices: [String], text: String?) async {
+    private func handle(_ response: UNNotificationResponse) async {
+        let meow = response.notification.request.content.userInfo["meow"] as? [String: Any]
+        guard let meow, let identity = NotificationIdentity.current, identity.accepts(meow) else { return }
+        let isDefault = response.actionIdentifier == UNNotificationDefaultActionIdentifier
+        guard isDefault || NotificationContent.canRespond(meow, identity: identity) else { return }
+        await handle(
+            action: response.actionIdentifier,
+            notificationID: meow["id"] as? String,
+            questionID: meow["question_id"] as? String,
+            choices: meow["choices"] as? [String] ?? [],
+            text: (response as? UNTextInputNotificationResponse)?.userText,
+            identity: identity)
+    }
+
+    private func handle(action: String, notificationID: String?, questionID: String?, choices: [String], text: String?, identity: NotificationIdentity) async {
+        guard NotificationIdentity.current == identity else { return }
         // Send the question's own spelling of the choice.
         func choice(_ name: String) -> String {
             choices.first { $0.lowercased() == name } ?? name
         }
         switch action {
         case NotificationCategory.approveAction:
-            if let questionID { await model.answerFromNotification(questionID, with: choice("approve")) }
+            if let questionID { await model.answerFromNotification(questionID, with: choice("approve"), identity: identity) }
         case NotificationCategory.rejectAction:
-            if let questionID { await model.answerFromNotification(questionID, with: choice("reject")) }
+            if let questionID { await model.answerFromNotification(questionID, with: choice("reject"), identity: identity) }
         case NotificationCategory.replyAction:
             let reply = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if let questionID, !reply.isEmpty { await model.answerFromNotification(questionID, with: reply) }
+            if let questionID, !reply.isEmpty { await model.answerFromNotification(questionID, with: reply, identity: identity) }
         case UNNotificationDefaultActionIdentifier:
             if let notificationID { model.open(notificationID) }
         default:

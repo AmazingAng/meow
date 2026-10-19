@@ -1,0 +1,85 @@
+{
+  "source_hash": "cd15284245a08c09e742125428c4f2a33299c54fe400bcd2997d5161bfd44839",
+  "output": "/tmp/meow-gateway-final-v3",
+  "spec_approval": "not obtained (autonomous run)",
+  "tools": {
+    "go": "go version go1.27.2 darwin/arm64",
+    "xcode": "Xcode 26.6\nBuild version 17F113",
+    "xcodegen": "Version: 2.46.0"
+  },
+  "checker_negative_controls": 5,
+  "compose_config_checks": [
+    "relay",
+    "gateway"
+  ],
+  "mutations": [
+    {
+      "mutant": "owner-can-wake",
+      "test": "TestGatewayWakePrivacyAndIsolation",
+      "killed": true
+    },
+    {
+      "mutant": "allow-content-fields",
+      "test": "TestGatewayWakePrivacyAndIsolation",
+      "killed": true
+    },
+    {
+      "mutant": "accept-http-202",
+      "test": "TestGatewayClientExplicitAcceptance",
+      "killed": true
+    },
+    {
+      "mutant": "quota-overrun",
+      "test": "TestGatewayConcurrentQuota",
+      "killed": true
+    },
+    {
+      "mutant": "revocation-noop",
+      "test": "TestGatewayManagementAndRevocation",
+      "killed": true
+    }
+  ],
+  "go_passed": 141,
+  "go_core_coverage": {
+    "server/internal/api/gateway.go": {
+      "covered": 84,
+      "total": 93
+    },
+    "server/internal/push/gateway.go": {
+      "covered": 42,
+      "total": 46
+    },
+    "server/internal/store/gateway.go": {
+      "covered": 36,
+      "total": 39
+    }
+  },
+  "swift_core_coverage": {
+    "Gateway.swift": {
+      "covered": 12,
+      "total": 13
+    },
+    "NotificationDelivery.swift": {
+      "covered": 112,
+      "total": 114
+    },
+    "NotificationContent.swift": {
+      "covered": 96,
+      "total": 100
+    }
+  },
+  "final_source_hash": "cd15284245a08c09e742125428c4f2a33299c54fe400bcd2997d5161bfd44839",
+  "ios_unit": {
+    "passedTests": 46,
+    "failedTests": 0,
+    "skippedTests": 0
+  },
+  "ui": {
+    "passedTests": 1,
+    "gateway_events": [
+      "enrolled",
+      "revoked"
+    ],
+    "origin_contains_only_wake_capability": true
+  }
+}

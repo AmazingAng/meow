@@ -1,0 +1,158 @@
+{
+  "server": "https://api.meow.blue",
+  "device_id": "dev_yb2q75s2glvgkcsl",
+  "user_confirmed_cellular_and_locked": true,
+  "started_at": "2026-10-19T19:54:01.020729+00:00",
+  "checks": {
+    "approval": {
+      "marker": "PUB-APPROVAL-01",
+      "question": {
+        "id": "qst_v4w7gz5wimvpmgkv",
+        "status": "pending",
+        "question": "公网蜂窝网络审批测试",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": null,
+        "created_at": "2026-10-19T19:54:00.915Z",
+        "expires_at": "2026-10-19T20:04:00.915Z",
+        "resolved_at": null,
+        "notification_id": "ntf_s4pfdugnsj7qsdx7"
+      },
+      "physical_result": "passed",
+      "user_confirmed_full_body_and_approval": true,
+      "server_result": {
+        "id": "qst_v4w7gz5wimvpmgkv",
+        "status": "answered",
+        "question": "公网蜂窝网络审批测试",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": "approve",
+        "created_at": "2026-10-19T19:54:00.915Z",
+        "expires_at": "2026-10-19T20:04:00.915Z",
+        "resolved_at": "2026-10-19T19:54:18.39Z",
+        "notification_id": "ntf_s4pfdugnsj7qsdx7"
+      },
+      "cli_result": {
+        "id": "qst_v4w7gz5wimvpmgkv",
+        "status": "answered",
+        "question": "公网蜂窝网络审批测试",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": "approve",
+        "created_at": "2026-10-19T19:54:00.915Z",
+        "expires_at": "2026-10-19T20:04:00.915Z",
+        "resolved_at": "2026-10-19T19:54:18.39Z",
+        "notification_id": "ntf_s4pfdugnsj7qsdx7"
+      },
+      "cli_exit": 0
+    },
+    "text_reply": {
+      "marker": "PUB-REPLY-01",
+      "question": {
+        "id": "qst_5vt7iq5oasuilliu",
+        "status": "pending",
+        "question": "公网中文回复测试",
+        "choices": null,
+        "answer": null,
+        "created_at": "2026-10-19T19:54:37.139Z",
+        "expires_at": "2026-10-19T20:04:37.139Z",
+        "resolved_at": null,
+        "notification_id": "ntf_xtir64255thwrulh"
+      },
+      "expected_answer": "公网中文回复成功 😺",
+      "physical_result": "passed",
+      "server_result": {
+        "id": "qst_5vt7iq5oasuilliu",
+        "status": "answered",
+        "question": "公网中文回复测试",
+        "choices": null,
+        "answer": "回复成功",
+        "created_at": "2026-10-19T19:54:37.139Z",
+        "expires_at": "2026-10-19T20:04:37.139Z",
+        "resolved_at": "2026-10-19T19:54:46.532Z",
+        "notification_id": "ntf_xtir64255thwrulh"
+      },
+      "cli_result": {
+        "id": "qst_5vt7iq5oasuilliu",
+        "status": "answered",
+        "question": "公网中文回复测试",
+        "choices": null,
+        "answer": "回复成功",
+        "created_at": "2026-10-19T19:54:37.139Z",
+        "expires_at": "2026-10-19T20:04:37.139Z",
+        "resolved_at": "2026-10-19T19:54:46.532Z",
+        "notification_id": "ntf_xtir64255thwrulh"
+      },
+      "cli_exit": 0,
+      "actual_answer": "回复成功",
+      "sample_answer_match": false,
+      "user_confirmed_original_answer": "回复成功",
+      "exact_original_text_match": true
+    },
+    "expiry": {
+      "marker": "PUB-EXPIRY-01",
+      "question": {
+        "id": "qst_vco25ifghckivn2x",
+        "status": "pending",
+        "question": "公网过期审批测试（30秒）",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": null,
+        "created_at": "2026-10-19T19:56:04.49Z",
+        "expires_at": "2026-10-19T19:56:34.49Z",
+        "resolved_at": null,
+        "notification_id": "ntf_bodqgtqklutjd6au"
+      },
+      "physical_result": "passed",
+      "server_result": {
+        "id": "qst_vco25ifghckivn2x",
+        "status": "expired",
+        "question": "公网过期审批测试（30秒）",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": null,
+        "created_at": "2026-10-19T19:56:04.49Z",
+        "expires_at": "2026-10-19T19:56:34.49Z",
+        "resolved_at": "2026-10-19T19:56:34.501Z",
+        "notification_id": "ntf_bodqgtqklutjd6au"
+      },
+      "cli_exit": 4,
+      "cli_result": {
+        "id": "qst_vco25ifghckivn2x",
+        "status": "expired",
+        "question": "公网过期审批测试（30秒）",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": null,
+        "created_at": "2026-10-19T19:56:04.49Z",
+        "expires_at": "2026-10-19T19:56:34.49Z",
+        "resolved_at": "2026-10-19T19:56:34.501Z",
+        "notification_id": "ntf_bodqgtqklutjd6au"
+      },
+      "backend_expiry_verified": true,
+      "user_confirmed_expired_and_unable_to_approve": true
+    }
+  },
+  "result": "passed_for_listed_cellular_flows",
+  "completed_at": "2026-10-20T03:57:53.073657+08:00",
+  "limits": [
+    "Physical app version not independently read in this run.",
+    "Screens/UI observations confirmed by the user; no screenshots captured.",
+    "This run did not independently recheck the biometric challenge.",
+    "Chinese input verified as 回复成功; the example emoji was not entered, so emoji delivery was not tested.",
+    "Remote response rows and transport request counts were not inspected; server API state and actual CLI results were checked."
+  ],
+  "input_discrepancy": "An initial comparison against the suggested text failed. The server and CLI both returned 回复成功. The user explicitly confirmed that this was the actual input; the suggested sample and mismatch are retained."
+}

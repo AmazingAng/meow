@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-20",
+  "native": {
+    "exit": 0,
+    "tests": 91,
+    "failures": []
+  },
+  "ios": {
+    "verified": {
+      "result": "Passed",
+      "passedTests": 98,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "path": "dist/ui-review-fixes/verified/results.json",
+      "scope": "91 iOS unit tests and 7 UI flows, before the final local pending-count display adjustment."
+    },
+    "expiry-count": {
+      "result": "Passed",
+      "passedTests": 1,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "path": "dist/ui-review-fixes/expiry-count/results.json",
+      "scope": "Final UI source: answer and expiry removal, empty state, and expired filter badge removal; 1 focused UI flow passed."
+    }
+  },
+  "github_releases_count": 0,
+  "cli_installation": "Fresh authenticated clone of AmazingAng/meow default main branch; go build and --version passed (meow dev).",
+  "sha256": {
+    "README.md": "34b602f14b9b4749371072d91aa847d9c5740ece22daddba6d185912161d0868",
+    "ios/Shared/MeowAPI.swift": "17f08b81839c8f83d6b783a248eb1db430af7353bc4e7b32dd03f3086a040112",
+    "ios/Meow/App/AppModel.swift": "c96566e748e0624dd4b641f4fb165fa3eee6c49e2e412e49e27c61670f1b1990",
+    "ios/Meow/Views/InboxView.swift": "06faec2770305eb3462e453433f3b2178e0815f62d82ec312c3247b07ff375b2",
+    "ios/Meow/Views/SetupHelpView.swift": "ca91a3fe1e46131b8c0fe39727c7ca13ec08adfd04ab49d183dc3cf46d27b537",
+    "ios/Meow/Resources/Localizable.xcstrings": "3ea580b9f53f4ba1506c6d0b8679b60d37e6cdf4fb5eac6c5ff2b4f14040be03",
+    "ios/MeowTests/FrontendRecoveryTests.swift": "96d51d69fc099ba030fbb710dba992cd4858353435ec99158f226cade299e523",
+    "ios/MeowTests/PendingInboxTests.swift": "62c4827f92cee46382287784d18ae3aa7436047b195a432c9ab0eb80470761b2",
+    "ios/MeowUITests/UIOptimizationTests.swift": "701b0c6ceb4f7090d7e97efab9c5146c796306ef36307b843a673d163f16a2b8",
+    "ios/scripts/verify_ui_optimization.py": "e544a8e8b2465aa15b8a1e889a15777c95a67ed15ef630b78dae1018d3d4aed5",
+    "ios/scripts/verify_frontend_recovery.py": "a20913e02cca159c94122acb0f88abcc3bf77d1bc516fae8f9ed8a870d09be56"
+  }
+}

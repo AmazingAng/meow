@@ -1,0 +1,36 @@
+# Self-hosted API using the operator's wake gateway.
+# No Apple credentials or private-key mounts on this host.
+# docker compose -p meow-relay -f compose.relay.yaml up -d
+services:
+  meow:
+    build:
+      context: ..
+    image: meow-server
+    restart: unless-stopped
+    environment:
+      MEOW_TRUST_PROXY: "true"
+      MEOW_PUSH_GATEWAY_URL: ${MEOW_PUSH_GATEWAY_URL:?set the HTTPS gateway URL}
+      MEOW_MAX_KEYS_PER_DEVICE: ${MEOW_MAX_KEYS_PER_DEVICE:-10}
+      MEOW_MAX_PENDING_QUESTIONS: ${MEOW_MAX_PENDING_QUESTIONS:-20}
+      MEOW_MAX_DAILY_MESSAGES: ${MEOW_MAX_DAILY_MESSAGES:-1000}
+      MEOW_INACTIVE_DEVICE_TTL: ${MEOW_INACTIVE_DEVICE_TTL:-0}
+    volumes:
+      - meow-data:/data
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      meow:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      MEOW_DOMAIN: ${MEOW_DOMAIN:?set the self-hosted API domain}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+volumes:
+  meow-data:
+  caddy-data:

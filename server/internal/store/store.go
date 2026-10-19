@@ -26,7 +26,10 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
-const schemaVersion = 1
+//go:embed gateway.sql
+var gatewaySQL string
+
+const schemaVersion = 2
 
 var (
 	ErrNotFound            = errors.New("not found")
@@ -141,8 +144,15 @@ func (s *Store) migrate(ctx context.Context) error {
 		return fmt.Errorf("database schema v%d is newer than this server supports (v%d)", v, schemaVersion)
 	}
 	return s.tx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, schemaSQL); err != nil {
-			return err
+		if v == 0 {
+			if _, err := tx.ExecContext(ctx, schemaSQL); err != nil {
+				return err
+			}
+		}
+		if v < 2 {
+			if _, err := tx.ExecContext(ctx, gatewaySQL); err != nil {
+				return err
+			}
 		}
 		_, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion))
 		return err

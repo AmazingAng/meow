@@ -20,6 +20,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"meow.blue/meow/server/internal/store"
 )
 
 const (
@@ -33,7 +35,9 @@ const (
 
 // Message is one APNs request.
 type Message struct {
-	Token      string // hex device token
+	Binding    *store.GatewayBinding // relay only; never serialized to APNs
+	Wake       *WakeRequest          // relay only; contains no message content
+	Token      string                // hex device token
 	Sandbox    bool
 	Priority   string // low | normal | high
 	CollapseID string
@@ -48,10 +52,11 @@ type Pusher interface {
 // ErrNotConfigured is returned by Disabled; such notifications are recorded as skipped.
 var ErrNotConfigured = errors.New("APNs is not configured")
 
-// Error is a non-200 APNs response.
+// Error is a non-200 APNs or push gateway response.
 type Error struct {
-	Status int
-	Reason string
+	Status     int
+	Reason     string
+	RetryAfter time.Duration // minimum delay requested by the upstream
 }
 
 func (e *Error) Error() string { return fmt.Sprintf("apns: %d %s", e.Status, e.Reason) }

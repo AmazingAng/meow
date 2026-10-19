@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -377,7 +378,7 @@ func meowExecutable() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if strings.Contains(exe, "go-build") {
+	if isGoRunExecutable(exe) {
 		return "", errors.New(`meow is running from a temporary "go run" build; install it (go install ./cli/cmd/meow) and run "meow setup" from the installed binary`)
 	}
 	if p, err := exec.LookPath("meow"); err == nil {
@@ -428,3 +429,7 @@ func tilde(path string) string {
 	}
 	return path
 }
+
+var goRunExecutable = regexp.MustCompile(`(?:^|/)go-build[0-9]+/b[0-9]+/exe/[^/]+$`)
+
+func isGoRunExecutable(path string) bool { return goRunExecutable.MatchString(filepath.ToSlash(path)) }

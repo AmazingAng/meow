@@ -1,0 +1,78 @@
+{
+  "ios/Shared/NotificationContent.swift": {
+    "67": "        } else {",
+    "70": "            guard let deviceID, metadata[\"device_id\"] as? String == deviceID else { return false }",
+    "81": "        guard let m = original.userInfo[\"meow\"] as? [String: Any] else { return content }",
+    "82": "        let accepted = identity.map { $0.accepts(m) } == true",
+    "83": "        let relay = m[\"relay\"] as? Bool == true",
+    "84": "        if !relay && accepted { return content }",
+    "92": "        if relay && accepted {",
+    "135": "        let updated = fallback(content, identity: identity)",
+    "138": "        if let m = content.userInfo[\"meow\"] as? [String: Any],",
+    "139": "           m[\"relay\"] as? Bool == true, m[\"hydrated\"] as? Bool == true,",
+    "140": "           identity.map({ $0.accepts(m) }) == true {",
+    "141": "            return displayVerified(content, identity: identity, now: now)",
+    "142": "        }",
+    "143": "        return displayVerified(updated, identity: identity, now: now)",
+    "144": "    }",
+    "146": "    private static func displayVerified(_ content: UNNotificationContent, identity: NotificationIdentity?, now: Date) -> UNNotificationContent {",
+    "151": "        guard var m = content.userInfo[\"meow\"] as? [String: Any],"
+  },
+  "ios/Meow/App/ReplyQueue.swift": {
+    "51": "    private let currentIdentity: @Sendable () -> NotificationIdentity?",
+    "59": "    init(fileURL: URL, currentIdentity: @escaping @Sendable () -> NotificationIdentity? = { NotificationIdentity.current }, send: @escaping Sender) {",
+    "60": "        self.init(fileURL: fileURL, currentIdentity: currentIdentity, makeSender: { send })",
+    "63": "    init(fileURL: URL, currentIdentity: @escaping @Sendable () -> NotificationIdentity? = { NotificationIdentity.current }, makeSender: @escaping @Sendable () -> Sender) {",
+    "66": "        self.currentIdentity = currentIdentity",
+    "83": "    func submit(questionID: String, answer: String, identity: NotificationIdentity? = nil) async -> ReplyOutcome {",
+    "86": "        if let identity, currentIdentity() != identity { return .discarded }"
+  },
+  "ios/Meow/App/AppModel.swift": {
+    "655": "    func answer(_ questionID: String, with answer: String, identity expectedIdentity: NotificationIdentity? = nil) async -> AnswerResult {",
+    "659": "        guard let identity = NotificationIdentity.current,",
+    "660": "              expectedIdentity == nil || expectedIdentity == identity else {",
+    "661": "            return .refused(String(localized: \"The server has changed.\"))",
+    "662": "        }",
+    "663": "        let generation = sessionGeneration",
+    "664": "        let outcome = await replies.submit(questionID: questionID, answer: answer, identity: identity)",
+    "675": "    func answerFromNotification(_ questionID: String, with answer: String, identity: NotificationIdentity) async {",
+    "676": "        guard NotificationIdentity.current == identity else { return }",
+    "677": "        guard case .refused(let reason) = await self.answer(questionID, with: answer, identity: identity),",
+    "678": "              NotificationIdentity.current == identity else { return }"
+  },
+  "ios/Meow/App/MeowApp.swift": {
+    "42": "        willPresent notification: UNNotification,",
+    "43": "        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void",
+    "44": "    ) {",
+    "45": "        NotificationCallback.run { () -> UNNotificationPresentationOptions in",
+    "47": "            Task { await self.model.refresh() }",
+    "48": "            return [.banner, .list, .sound, .badge]",
+    "49": "        } completion: { completionHandler($0) }",
+    "54": "        didReceive response: UNNotificationResponse,",
+    "55": "        withCompletionHandler completionHandler: @escaping () -> Void",
+    "56": "    ) {",
+    "57": "        NotificationCallback.run {",
+    "58": "            await self.handle(response)",
+    "59": "        } completion: { _ in completionHandler() }",
+    "60": "    }",
+    "62": "    private func handle(_ response: UNNotificationResponse) async {",
+    "84": "            if let questionID { await model.answerFromNotification(questionID, with: choice(\"approve\"), identity: identity) }",
+    "86": "            if let questionID { await model.answerFromNotification(questionID, with: choice(\"reject\"), identity: identity) }",
+    "89": "            if let questionID, !reply.isEmpty { await model.answerFromNotification(questionID, with: reply, identity: identity) }"
+  },
+  "ios/Shared/NotificationDelivery.swift": {
+    "84": "                stale.threadIdentifier = \"\""
+  },
+  "ios/Shared/NotificationCallback.swift": {
+    "1": "import Foundation",
+    "5": "enum NotificationCallback {",
+    "6": "    static func run<Value>(_ operation: @escaping @MainActor () async -> Value,",
+    "7": "                           completion: @escaping (Value) -> Void) {",
+    "8": "        Task { @MainActor in",
+    "9": "            let value = await operation()",
+    "10": "            completion(value)",
+    "11": "        }",
+    "12": "    }",
+    "13": "}"
+  }
+}

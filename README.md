@@ -9,26 +9,30 @@ client/   Go client for the HTTP API (used by the CLI and the server tests)
 ios/      SwiftUI app (iOS 17+) and its notification service extension
 ```
 
-## Quick start (local, no iPhone needed)
+## Quick start
 
 ```sh
 go build -o bin/meow-server ./server/cmd/meow-server
 go build -o bin/meow ./cli/cmd/meow
-
-MEOW_ADDR=127.0.0.1:8080 bin/meow-server &
-
-# Stand in for the iOS app: registers a device and logs the CLI in with its Device Key.
-eval "$(bin/meow dev register --server http://127.0.0.1:8080)"
-
-bin/meow "Build completed"
-bin/meow ask "Deploy to production?" --choices approve,reject   # blocks…
-
-# in another terminal (same MEOW_DEVICE_TOKEN):
-bin/meow dev inbox
-bin/meow dev reply qst_… approve
+MEOW_ADDR=:8080 bin/meow-server
 ```
 
-Without APNs credentials, notifications are stored and shown in the inbox but marked `skipped` instead of pushed.
+Open the iOS app and enter this server's address. On a physical phone, use the
+computer's LAN address, such as `http://192.168.31.235:8080`, while connected to
+the same Wi-Fi. The app creates the device and Device Key automatically.
+
+In another terminal, run the setup command copied from the app, or:
+
+```sh
+bin/meow setup --server http://127.0.0.1:8080
+bin/meow "Build completed"
+bin/meow ask "Deploy to production?" --choices approve,reject
+```
+
+Setup asks for the Device Key shown in the app. Answer questions in the iOS app
+or the notification. For push delivery, configure direct APNs or the
+[wake gateway](docs/wake-gateway.md); without a provider, messages still appear
+in the inbox and push is recorded as `skipped`.
 
 ## CLI
 
@@ -46,17 +50,54 @@ meow doctor
 
 `meow ask` prints the answer to stdout. Exit codes: `0` answered, `3` rejected, `4` expired, `5` cancelled, `130` interrupted (Ctrl-C cancels the question). It keeps waiting through network failures and server restarts.
 
-Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `MEOW_SERVER` and `MEOW_SOURCE` override it.
+Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `MEOW_SERVER` and `MEOW_SOURCE` override it. No server address is assumed: setup/login use the address supplied by the app or your existing configuration.
+
+## Notifications during Focus / Do Not Disturb
+
+| Priority | iOS behavior |
+| --- | --- |
+| `low` | Passive; no sound or screen wake. |
+| `normal` | Standard notification; respects Focus. Default for `meow send`. |
+| `high` | Time Sensitive; can interrupt Focus when allowed. Default for `meow ask`. |
+
+In iPhone Settings → Notifications → Meow, enable **Time Sensitive Notifications**.
+Also enable Time Sensitive Notifications in Settings → Focus → your Focus → Apps.
+Meow's Settings shows the app's permission and has a time-sensitive test button;
+it cannot inspect or change each Focus's allowlist. From the CLI, use
+`meow send --priority high "Your decision is needed"`.
+Both direct APNs and the wake gateway use the same priority mapping.
+
+Audible notifications use the bundled `meow.wav` cat sound. Tap
+**Notification sound → Meow** in the app's Settings to preview it. Low-priority
+notifications remain silent. The sound is bundled with both the app and its
+notification extension; the extension also applies it to older servers' default
+sounds. Existing iOS sound, silent-mode and Focus settings still apply.
+The recording is `kitten10.wav` by Department64, available under CC0 from
+[Freesound](https://freesound.org/people/Department64/sounds/64005/).
+
+Time Sensitive notifications respect the Ring/Silent switch. Bark's stronger
+Critical Alerts can also sound in silent mode, but require an Apple-approved
+[Critical Alerts entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.usernotifications.critical-alerts)
+and separate user consent. Meow does not currently claim this capability.
 
 ## Agent integrations
 
 ```sh
-# Prebuilt (macOS / Linux, amd64 / arm64). The repo is private, so use gh:
-gh release download --repo AmazingAng/meow --pattern "meow_*_$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" -O - \
-  | tar -xz -C ~/.local/bin meow
-# Or from source: go build -o ~/.local/bin/meow ./cli/cmd/meow
+# Build from source on macOS / Linux. Install Go and GitHub CLI first.
+# Repository access is required. Skip cloning if already in this checkout.
+gh auth login
+gh repo clone AmazingAng/meow
+cd meow
+mkdir -p "$HOME/.local/bin"
+go build -o "$HOME/.local/bin/meow" ./cli/cmd/meow
+export PATH="$HOME/.local/bin:$PATH"
+meow --version
 meow setup --server https://your-meow-server     # asks for the Device Key, connects every agent found
 ```
+
+No prebuilt GitHub Release is currently available. If you cannot access the
+repository, ask your server administrator for the CLI. The release workflow can
+produce binaries when a version tag is published.
 
 `meow setup` checks the server, asks for the Device Key from the app (it is never passed as a flag, so it stays out of shell history), connects Claude Code and Codex if they are installed, and sends one test notification. `meow setup claude` or `meow setup codex` connects a single agent. `meow doctor` re-runs the checks without changing anything and says what to fix.
 
@@ -85,7 +126,7 @@ Only SHA-256 hashes of both are stored.
 | --- | --- | --- |
 | `POST /v1/notifications` | Device Key | JSON `{title, body, source, priority, type}` or a plain-text body |
 | `POST /v1/questions` | Device Key | `{question, body, source, choices, timeout}` → `{id, status, expires_at, …}` |
-| `GET /v1/questions/{id}` | either | current state |
+| `GET /v1/questions/{id}` | Device Key with `ask`, or device token | current state |
 | `GET /v1/questions/{id}/wait?timeout=30` | Device Key | long poll until resolved, at most 60s |
 | `POST /v1/questions/{id}/cancel` | Device Key | |
 | `POST /v1/questions/{id}/responses` | device token | `{answer}`; `Idempotency-Key` required |
@@ -94,7 +135,7 @@ Only SHA-256 hashes of both are stored.
 | `GET /v1/inbox`, `POST /v1/notifications/{id}/read`, `…/delivered` | device token | |
 
 ```sh
-curl -H "Authorization: Bearer $MEOW_KEY" -d "Build completed" https://api.meow.blue/v1/notifications
+curl -H "Authorization: Bearer $MEOW_KEY" -d "Build completed" "$MEOW_SERVER/v1/notifications"
 ```
 
 Question lifecycle: `pending` → `answered` | `rejected` | `expired` | `cancelled`. Exactly one response is accepted per question. A retry with the same `Idempotency-Key` and answer returns the stored result. Any other second response gets `409`, and a response after expiry gets `410`. Expiry never approves anything.
@@ -145,3 +186,7 @@ Push a version tag; GitHub Actions runs the tests and publishes prebuilt `meow` 
 ```sh
 git tag v0.1.0 && git push origin v0.1.0
 ```
+
+### Self-hosting without Apple credentials
+
+The optional [wake gateway](docs/wake-gateway.md) keeps the APNs key on the gateway host. Set `MEOW_PUSH_GATEWAY_URL` on your server; the iOS app registers automatically and fetches message content directly from your server. No invitation, additional account or manual gateway setup is required. Direct APNs remains the default.

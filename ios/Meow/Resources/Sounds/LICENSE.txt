@@ -1,0 +1,9 @@
+Meow notification sound
+
+Source: kitten10.wav by Department64
+https://freesound.org/people/Department64/sounds/64005/
+
+License: CC0 1.0 Universal Public Domain Dedication
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The user-provided original recording is packaged without audio processing, renamed to meow.wav.

@@ -1,0 +1,134 @@
+{
+  "version": "0.1.0",
+  "build": "4",
+  "sound_source": "docs/verification/meow-sound-build4-source.json",
+  "duration_seconds": 1.1270521541950114,
+  "go_push_tests": "passed",
+  "ios_unit": {
+    "devicesAndConfigurations": [
+      {
+        "device": {
+          "architecture": "arm64",
+          "deviceId": "AF7E516E-5A30-4CE1-ABCB-45D117CD076C",
+          "deviceName": "Meow Gateway Verification",
+          "modelName": "iPhone 17 Pro",
+          "osBuildNumber": "23C54",
+          "osVersion": "26.2",
+          "platform": "iOS Simulator"
+        },
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "passedTests": 51,
+        "skippedTests": 0,
+        "testPlanConfiguration": {
+          "configurationId": "1",
+          "configurationName": "Test Scheme Action"
+        }
+      }
+    ],
+    "environmentDescription": "Meow · Built with macOS 26.2",
+    "expectedFailures": 0,
+    "failedTests": 0,
+    "finishTime": 1792414945.971,
+    "passedTests": 51,
+    "result": "Passed",
+    "skippedTests": 0,
+    "startTime": 1792414932.946,
+    "statistics": [],
+    "testFailures": [],
+    "title": "Test - Meow",
+    "topInsights": [],
+    "totalTestCount": 51
+  },
+  "ios_ui": {
+    "devicesAndConfigurations": [
+      {
+        "device": {
+          "architecture": "arm64",
+          "deviceId": "AF7E516E-5A30-4CE1-ABCB-45D117CD076C",
+          "deviceName": "Meow Gateway Verification",
+          "modelName": "iPhone 17 Pro",
+          "osBuildNumber": "23C54",
+          "osVersion": "26.2",
+          "platform": "iOS Simulator"
+        },
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "passedTests": 1,
+        "skippedTests": 0,
+        "testPlanConfiguration": {
+          "configurationId": "1",
+          "configurationName": "Test Scheme Action"
+        }
+      }
+    ],
+    "environmentDescription": "Meow · Built with macOS 26.2",
+    "expectedFailures": 0,
+    "failedTests": 0,
+    "finishTime": 1792415015.013,
+    "passedTests": 1,
+    "result": "Passed",
+    "skippedTests": 0,
+    "startTime": 1792414987.439,
+    "statistics": [],
+    "testFailures": [],
+    "title": "Test - Meow",
+    "topInsights": [],
+    "totalTestCount": 1
+  },
+  "ipa_inspection": {
+    "artifact": "/Users/liang/Documents/Fight for PHD/vibe/meow/repo/meow-repo/dist/testflight/0.1.0-4/export/Meow.ipa",
+    "distribution_signed": true,
+    "uploaded_to_testflight": "not checked",
+    "bundles": [
+      {
+        "bundle": "blue.meow.app",
+        "version": "0.1.0",
+        "build": "4",
+        "privacy_manifest": true,
+        "signature_verified": true,
+        "app_group": "group.blue.meow.app",
+        "aps_environment": "production",
+        "time_sensitive": true,
+        "notification_sound": {
+          "file": "meow.wav",
+          "duration": 1.1270521541950114,
+          "sha256": "c2698ce96d3572236b54975a9e1bacd59702603cd6989a210f3e509c99cdb329"
+        },
+        "debuggable": false,
+        "executable_sha256": "3e7c56874868848dde1ff637385a8a443c8a8e32141c01a7d764b8e41bf707bf"
+      },
+      {
+        "bundle": "blue.meow.app.NotificationService",
+        "version": "0.1.0",
+        "build": "4",
+        "privacy_manifest": true,
+        "signature_verified": true,
+        "app_group": "group.blue.meow.app",
+        "aps_environment": null,
+        "time_sensitive": false,
+        "notification_sound": {
+          "file": "meow.wav",
+          "duration": 1.1270521541950114,
+          "sha256": "c2698ce96d3572236b54975a9e1bacd59702603cd6989a210f3e509c99cdb329"
+        },
+        "debuggable": false,
+        "executable_sha256": "8b5b7e90817f98d3d4afcefe801baf16dfde852786a2b867a681a5d6bd5f5cae"
+      }
+    ]
+  },
+  "testflight_upload": {
+    "status": "succeeded",
+    "confirmed_at": "2026-10-19T21:13:44+08:00",
+    "apple_processing": "started; installation readiness not checked",
+    "log": "dist/testflight/0.1.0-4/upload.log"
+  },
+  "physical_phone_meow_sound_verified": false,
+  "test_services": {
+    "origin_port": 8182,
+    "gateway_port": 8181,
+    "binary": "dist/testflight/0.1.0-4/meow-server",
+    "health": "both 200 after update"
+  },
+  "ipa_sha256": "c4fda2c77c2fafb90f18b0dd9b5fcd14bacfea7273cc4e7cd84a45ae9fc4bad5"
+}

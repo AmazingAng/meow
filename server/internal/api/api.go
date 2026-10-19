@@ -28,6 +28,7 @@ const maxBody = 64 << 10
 type Enqueuer interface{ Enqueue(notificationID string) }
 
 type Config struct {
+	GatewayURL string // fixed operator-configured gateway; empty selects direct APNs
 	Store      *store.Store
 	Push       Enqueuer
 	Log        *slog.Logger
@@ -36,6 +37,7 @@ type Config struct {
 }
 
 type Server struct {
+	gatewayURL string
 	st         *store.Store
 	push       Enqueuer
 	log        *slog.Logger
@@ -55,7 +57,7 @@ func New(c Config) *Server {
 		c.Log = slog.New(slog.DiscardHandler)
 	}
 	s := &Server{
-		st: c.Store, push: c.Push, log: c.Log, trustProxy: c.TrustProxy, maxWait: c.MaxWait,
+		st: c.Store, push: c.Push, log: c.Log, trustProxy: c.TrustProxy, maxWait: c.MaxWait, gatewayURL: c.GatewayURL,
 		waits:    newBroker(),
 		ipLimit:  newLimiter(20, 200),     // all requests, per client IP
 		regLimit: newLimiter(1.0/360, 10), // device registrations: 10/hour per IP
@@ -76,6 +78,8 @@ func New(c Config) *Server {
 
 	// Mobile API (device token).
 	m.HandleFunc("POST /v1/devices", s.registerDevice)
+	m.HandleFunc("GET /v1/push-config", s.withDevice(s.pushConfig))
+	m.HandleFunc("PUT /v1/device/push-gateway", s.withDevice(s.bindGateway))
 	m.HandleFunc("GET /v1/device", s.withDevice(s.getDevice))
 	m.HandleFunc("PATCH /v1/device", s.withDevice(s.updateDevice))
 	m.HandleFunc("GET /v1/keys", s.withDevice(s.listKeys))
@@ -134,8 +138,10 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (s *Server) clientIP(r *http.Request) string {
-	if s.trustProxy {
+func (s *Server) clientIP(r *http.Request) string { return clientIP(r, s.trustProxy) }
+
+func clientIP(r *http.Request, trustProxy bool) string {
+	if trustProxy {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			hops := strings.Split(xff, ",")
 			return strings.TrimSpace(hops[len(hops)-1])

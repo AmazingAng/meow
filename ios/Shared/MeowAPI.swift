@@ -90,8 +90,38 @@ struct MeowAPI: Sendable {
         try await send("POST", "/v1/devices", body: ["name": name])
     }
 
+    func device() async throws -> MeowDevice { try await send("GET", "/v1/device") }
+
     func updateDevice(apnsToken: String, apnsEnv: String) async throws -> MeowDevice {
         try await send("PATCH", "/v1/device", body: ["apns_token": apnsToken, "apns_env": apnsEnv])
+    }
+
+    // MARK: Wake gateway
+
+    func pushConfiguration() async throws -> PushConfiguration {
+        do { return try await send("GET", "/v1/push-config") }
+        catch let e as MeowAPIError where e.status == 404 {
+            return PushConfiguration(mode: "direct") // compatible with pre-gateway servers
+        }
+    }
+
+    func bindGateway(_ binding: GatewayBinding) async throws {
+        let _: Empty = try await send("PUT", "/v1/device/push-gateway", body: [
+            "gateway_device_id": binding.routeID, "push_token": binding.pushToken, "binding_id": binding.bindingID])
+    }
+
+    func enrollGateway(apnsToken: String, environment: String, bindingID: String) async throws -> GatewayRegistration {
+        try await send("POST", "/v1/gateway/devices", body: [
+            "apns_token": apnsToken, "apns_env": environment, "binding_id": bindingID])
+    }
+
+    func updateGateway(_ routeID: String, apnsToken: String, environment: String) async throws {
+        let _: Empty = try await send("PATCH", "/v1/gateway/devices/\(routeID)", body: [
+            "apns_token": apnsToken, "apns_env": environment])
+    }
+
+    func revokeGateway(_ routeID: String) async throws {
+        try await sendEmpty("DELETE", "/v1/gateway/devices/\(routeID)")
     }
 
     // MARK: Inbox
@@ -103,12 +133,30 @@ struct MeowAPI: Sendable {
         return try await send("GET", "/v1/inbox", query: q)
     }
 
-    func counts() async throws -> InboxCounts {
-        try await send("GET", "/v1/inbox/counts")
+    /// Read the complete pending set before sorting by urgency. Ordinary inbox
+    /// pagination is chronological and can hide an older, more urgent question.
+    func pendingInbox(search: String = "", firstPage: InboxPage? = nil) async throws -> [MeowNotification] {
+        var page: InboxPage
+        if let firstPage { page = firstPage }
+        else { page = try await inbox(filter: "pending", search: search, cursor: nil, limit: 200) }
+        var result = page.notifications
+        var seenIDs = Set(result.map(\.id))
+        var cursors = Set<String>()
+        while let cursor = page.nextCursor {
+            try Task.checkCancellation()
+            guard cursors.insert(cursor).inserted else { throw URLError(.badServerResponse) }
+            page = try await inbox(filter: "pending", search: search, cursor: cursor, limit: 200)
+            result += page.notifications.filter { seenIDs.insert($0.id).inserted }
+        }
+        return result
     }
 
-    func notification(_ id: String) async throws -> MeowNotification {
-        try await send("GET", "/v1/notifications/\(id)")
+    func counts(timeout: TimeInterval = 30) async throws -> InboxCounts {
+        try await send("GET", "/v1/inbox/counts", timeout: timeout)
+    }
+
+    func notification(_ id: String, timeout: TimeInterval = 30) async throws -> MeowNotification {
+        try await send("GET", "/v1/notifications/\(id)", timeout: timeout)
     }
 
     func markRead(_ id: String) async throws {
@@ -119,8 +167,8 @@ struct MeowAPI: Sendable {
         try await sendEmpty("POST", "/v1/inbox/read")
     }
 
-    func markDelivered(_ id: String) async throws {
-        try await sendEmpty("POST", "/v1/notifications/\(id)/delivered", timeout: 10)
+    func markDelivered(_ id: String, timeout: TimeInterval = 10) async throws {
+        try await sendEmpty("POST", "/v1/notifications/\(id)/delivered", timeout: timeout)
     }
 
     // MARK: Questions
@@ -147,7 +195,7 @@ struct MeowAPI: Sendable {
 
     // MARK: Sending (Device Key)
 
-    func notify(title: String, body: String) async throws -> MeowNotification {
-        try await send("POST", "/v1/notifications", body: ["title": title, "body": body])
+    func notify(title: String, body: String, priority: String = "normal") async throws -> MeowNotification {
+        try await send("POST", "/v1/notifications", body: ["title": title, "body": body, "priority": priority])
     }
 }

@@ -60,7 +60,7 @@ final class AppModel {
     // MARK: Registration
 
     private(set) var server = MeowShared.server
-    private(set) var isRegistered = MeowShared.deviceToken != nil
+    private(set) var isRegistered = MeowShared.deviceToken != nil && MeowShared.server != nil
     var hasFinishedOnboarding = MeowShared.defaults.bool(forKey: Keys.onboarded) {
         didSet { MeowShared.defaults.set(hasFinishedOnboarding, forKey: Keys.onboarded) }
     }
@@ -68,10 +68,15 @@ final class AppModel {
     private(set) var isRegistering = false
     private(set) var isChangingServer = false
     private(set) var permission = UNAuthorizationStatus.notDetermined
+    private(set) var timeSensitiveSetting = UNNotificationSetting.notSupported
     /// Notifications this iPhone sent to itself, which say nothing about the computer.
     private(set) var sentTestIDs: Set<String> = []
     private(set) var hasPushToken = false
     var pushRegistrationError: String?
+    private(set) var gatewayURL: URL?
+    private(set) var isConfiguringPush = false
+    @ObservationIgnored private var pushTask: Task<Void, Never>?
+
 
     // MARK: Inbox
 
@@ -91,6 +96,7 @@ final class AppModel {
     private(set) var details: [String: MeowNotification] = [:]
     /// Answers saved on the device and not yet accepted, by question ID.
     private(set) var queuedReplies: [String: PendingReply] = [:]
+    private(set) var failedReplies: [PendingReply] = []
 
     // MARK: Navigation and messages
 
@@ -100,12 +106,15 @@ final class AppModel {
     var alert: String?
 
     @ObservationIgnored private let replies: ReplyQueue
+    @ObservationIgnored private let pushSession: URLSession
     @ObservationIgnored private var loadGeneration = 0
     @ObservationIgnored private var sessionGeneration = 0
     @ObservationIgnored private var isLoadingMore = false
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var retryTask: Task<Void, Never>?
     @ObservationIgnored private var apnsToken: String?
+    @ObservationIgnored private var readRequests: [String: UUID] = [:]
+    @ObservationIgnored private var countsRevision = 0
 
     private enum Keys {
         static let onboarded = "onboarded"
@@ -113,8 +122,9 @@ final class AppModel {
         static let deviceKeyID = "device_key_id"
     }
 
-    init(replies: ReplyQueue = .shared) {
+    init(replies: ReplyQueue = .shared, pushSession: URLSession = MeowTransport.gateway) {
         self.replies = replies
+        self.pushSession = pushSession
         #if DEBUG
         // Development helpers: -meowServer http://127.0.0.1:8080 -meowAutoRegister YES -meowOpen ntf_…
         if !isRegistered, let url = MeowShared.serverURL(from: UserDefaults.standard.string(forKey: "meowServer")) {
@@ -123,9 +133,10 @@ final class AppModel {
         #endif
     }
 
-    /// Only a registered device calls the API, and registering saves a server.
-    private var api: MeowAPI { MeowAPI(server: server ?? Self.noServer, token: MeowShared.deviceToken) }
-    private static let noServer = URL(string: "https://server.invalid")!
+    private var api: MeowAPI? {
+        guard let server, let token = MeowShared.deviceToken else { return nil }
+        return MeowAPI(server: server, token: token)
+    }
 
     var serverDisplay: String {
         guard let server else { return "" }
@@ -146,6 +157,7 @@ final class AppModel {
                 await register()
                 hasFinishedOnboarding = isRegistered
             }
+            if let token = UserDefaults.standard.string(forKey: "meowAPNsToken") { didReceiveAPNsToken(token) }
             if let id = UserDefaults.standard.string(forKey: "meowOpen") { open(id) }
             #endif
             await refreshPermission()
@@ -193,6 +205,7 @@ final class AppModel {
                 return
             }
             MeowShared.server = registrationServer
+            MeowShared.deviceID = reg.device.id
             store(key: reg.key)
             await replies.resume()
             isRegistered = true
@@ -215,9 +228,21 @@ final class AppModel {
                 return false
             }
         } else if !(await replies.pauseIfIdle()) {
-            alert = String(localized: "You have replies waiting to send. Keep waiting, or discard them to change servers.")
+            if await replies.outstandingCount > 0 {
+                alert = String(localized: "You have replies waiting to send. Keep waiting, or discard them to change servers.")
+            } else {
+                alert = String(localized: "Couldn't prepare saved reply records. Your server and records have been kept. Check available storage and try again.")
+            }
             return false
         }
+        let previousGateway = MeowShared.gatewayBinding
+        pushTask?.cancel()
+        pushTask = nil
+        MeowShared.saveGatewayBinding(nil)
+        MeowShared.deviceID = nil
+        gatewayURL = nil
+        isConfiguringPush = false
+        if let previousGateway { Self.revokeGateway(previousGateway, session: pushSession) }
         sessionGeneration += 1
         loadGeneration += 1
         searchTask?.cancel()
@@ -244,6 +269,9 @@ final class AppModel {
         server = newServer
         MeowShared.server = newServer
         queuedReplies = [:]
+        failedReplies = []
+        readRequests = [:]
+        countsRevision += 1
         Task { try? await UNUserNotificationCenter.current().setBadgeCount(0) }
         return true
     }
@@ -294,7 +322,7 @@ final class AppModel {
     /// Creates a new Device Key and revokes the current one.
     func rotateKey() async {
         let generation = sessionGeneration
-        let api = self.api
+        guard let api else { return }
         do {
             let key = try await api.createKey(name: "Default", scopes: ["notify", "ask"])
             guard generation == sessionGeneration else { return }
@@ -318,9 +346,10 @@ final class AppModel {
     /// so the key never lands in shell history.
     var setupCommand: String { Self.setupCommand(server: server) }
 
-    /// Always names the server: the CLI's built-in default may not be this one.
+    /// Includes the configured server so setup needs no second address entry.
     nonisolated static func setupCommand(server: URL?) -> String {
-        "meow setup --server \(shellQuoted(commandString(server)))"
+        guard let server else { return "meow setup" }
+        return "meow setup --server \(shellQuoted(commandString(server)))"
     }
 
     func loginCommand(for key: String) -> String {
@@ -344,13 +373,13 @@ final class AppModel {
         return "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    func sendTestNotification() async {
+    func sendTestNotification(priority: String = "normal") async {
         guard let deviceKey, let server else { return }
         let generation = sessionGeneration
         do {
             let sent = try await MeowAPI(server: server, token: deviceKey).notify(
                 title: String(localized: "Meow!"),
-                body: String(localized: "Your agents can reach you now."))
+                body: String(localized: "Your agents can reach you now."), priority: priority)
             guard generation == sessionGeneration else { return }
             sentTestIDs.insert(sent.id)
             toast = Toast(message: isNotificationPermissionGranted
@@ -370,7 +399,9 @@ final class AppModel {
     }
 
     func refreshPermission() async {
-        permission = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        permission = settings.authorizationStatus
+        timeSensitiveSetting = settings.timeSensitiveSetting
         if isNotificationPermissionGranted {
             UIApplication.shared.registerForRemoteNotifications()
         }
@@ -382,23 +413,102 @@ final class AppModel {
     }
 
     private func sendAPNsToken(_ token: String) {
+        pushTask = Task { await configurePush() }
+    }
+
+    /// Device registration and binding are automatic; existing routes use
+    /// their device-scoped management credential for token updates.
+    func configurePush() async {
+        guard !isConfiguringPush, !isChangingServer, isRegistered,
+              let token = apnsToken, let server, let mobileToken = MeowShared.deviceToken else { return }
+        let generation = sessionGeneration
+        let api = MeowAPI(server: server, token: mobileToken, session: pushSession)
+        isConfiguringPush = true
+        defer {
+            if generation == sessionGeneration {
+                isConfiguringPush = false
+                if let latest = apnsToken, latest != token { sendAPNsToken(latest) }
+            }
+        }
         #if DEBUG
-        let environment = "sandbox" // builds run from Xcode use the APNs sandbox
+        let environment = "sandbox"
         #else
         let environment = "production"
         #endif
-        let api = self.api
-        let generation = sessionGeneration
+        do {
+            let config = try await api.pushConfiguration()
+            guard generation == sessionGeneration, !Task.isCancelled else { return }
+            if config.mode == "direct" {
+                let device = try await api.updateDevice(apnsToken: token, apnsEnv: environment)
+                guard generation == sessionGeneration, !Task.isCancelled else { return }
+                MeowShared.deviceID = device.id
+                gatewayURL = nil
+                if let old = MeowShared.gatewayBinding {
+                    MeowShared.saveGatewayBinding(nil)
+                    Self.revokeGateway(old, session: pushSession)
+                }
+            } else if config.mode == "gateway", let raw = config.gatewayUrl,
+                      let gateway = MeowTransport.gatewayURL(raw) {
+                gatewayURL = gateway
+                if MeowShared.deviceID == nil {
+                    let device = try await api.device()
+                    guard generation == sessionGeneration, !Task.isCancelled else { return }
+                    MeowShared.deviceID = device.id
+                }
+                guard let deviceID = MeowShared.deviceID else { throw URLError(.userAuthenticationRequired) }
+                var binding = MeowShared.gatewayBinding
+                if binding?.serverURL != server || binding?.gatewayURL != gateway || binding?.deviceID != deviceID {
+                    binding = nil
+                }
+                if let current = binding {
+                    do {
+                        try await MeowAPI(server: gateway, token: current.managementToken, session: pushSession)
+                            .updateGateway(current.routeID, apnsToken: token, environment: environment)
+                    } catch let e as MeowAPIError where e.status == 401 || e.status == 404 || e.status == 410 {
+                        guard generation == sessionGeneration else { return }
+                        MeowShared.saveGatewayBinding(nil)
+                        binding = nil
+                    }
+                }
+                guard generation == sessionGeneration, !Task.isCancelled else { return }
+                if binding == nil {
+                    let bindingID = UUID().uuidString
+                    let registration = try await MeowAPI(server: gateway, token: nil, session: pushSession)
+                        .enrollGateway(apnsToken: token, environment: environment, bindingID: bindingID)
+                    let fresh = GatewayBinding(gatewayURL: gateway, serverURL: server, deviceID: deviceID,
+                                               routeID: registration.id, managementToken: registration.managementToken,
+                                               pushToken: registration.pushToken, bindingID: registration.bindingId)
+                    guard generation == sessionGeneration, !Task.isCancelled else { Self.revokeGateway(fresh, session: pushSession); return }
+                    guard registration.bindingId == bindingID, registration.id.hasPrefix("gwd_"),
+                          registration.managementToken.hasPrefix("gwm_"), registration.pushToken.hasPrefix("gwp_") else {
+                        Self.revokeGateway(fresh, session: pushSession)
+                        throw URLError(.badServerResponse)
+                    }
+                    let old = MeowShared.gatewayBinding
+                    guard MeowShared.saveGatewayBinding(fresh) else {
+                        Self.revokeGateway(fresh, session: pushSession)
+                        throw URLError(.cannotWriteToFile)
+                    }
+                    if let old { Self.revokeGateway(old, session: pushSession) }
+                    binding = fresh
+                }
+                guard let binding else { return }
+                try await api.bindGateway(binding)
+                guard generation == sessionGeneration, !Task.isCancelled else { return }
+                    } else { throw URLError(.badServerResponse) }
+            hasPushToken = true
+            pushRegistrationError = nil
+        } catch {
+            guard generation == sessionGeneration else { return }
+            hasPushToken = false
+            pushRegistrationError = Self.describe(error)
+        }
+    }
+
+    nonisolated private static func revokeGateway(_ binding: GatewayBinding, session: URLSession) {
         Task {
-            do {
-                _ = try await api.updateDevice(apnsToken: token, apnsEnv: environment)
-                guard generation == sessionGeneration else { return }
-                hasPushToken = true
-                pushRegistrationError = nil
-            } catch {
-                guard generation == sessionGeneration else { return }
-                pushRegistrationError = Self.describe(error)
-            }
+            try? await MeowAPI(server: binding.gatewayURL, token: binding.managementToken, session: session)
+                .revokeGateway(binding.routeID)
         }
     }
 
@@ -409,10 +519,9 @@ final class AppModel {
     }
 
     func refresh() async {
-        guard isRegistered else { return }
+        guard isRegistered, let api else { return }
         loadGeneration += 1
         let generation = loadGeneration
-        let api = self.api
         let filter = self.filter.rawValue
         let search = self.search.trimmingCharacters(in: .whitespacesAndNewlines)
         isLoading = true
@@ -422,9 +531,21 @@ final class AppModel {
             async let counts = api.counts()
             let (p, c) = try await (page, counts)
             guard generation == loadGeneration else { return }
-            notifications = p.notifications
-            nextCursor = p.nextCursor
+            var snapshot = p
+            if filter == "pending" || (filter == "all" && search.isEmpty) {
+                let pending = try await api.pendingInbox(search: search, firstPage: filter == "pending" ? p : nil)
+                guard generation == loadGeneration else { return }
+                if filter == "pending" {
+                    snapshot = InboxPage(notifications: pending, nextCursor: nil)
+                } else {
+                    let known = Set(p.notifications.map(\.id))
+                    snapshot.notifications += pending.filter { !known.contains($0.id) }
+                }
+            }
+            notifications = snapshot.notifications
+            nextCursor = snapshot.nextCursor
             self.counts = c
+            countsRevision += 1
             hasLoaded = true
             loadError = nil
             updateBadge()
@@ -436,7 +557,7 @@ final class AppModel {
     }
 
     func loadMore() async {
-        guard let cursor = nextCursor, !isLoadingMore else { return }
+        guard let cursor = nextCursor, !isLoadingMore, let api else { return }
         isLoadingMore = true
         defer { isLoadingMore = false }
         let generation = loadGeneration
@@ -471,13 +592,15 @@ final class AppModel {
 
     func refreshCounts() async {
         let generation = sessionGeneration
-        guard isRegistered, let c = try? await api.counts(), generation == sessionGeneration else { return }
+        guard isRegistered, let api, let c = try? await api.counts(), generation == sessionGeneration else { return }
         counts = c
+        countsRevision += 1
         updateBadge()
     }
 
     /// Fetches one notification; returns whether it is available to show.
     func loadDetail(_ id: String) async -> Bool {
+        guard let api else { return false }
         let generation = sessionGeneration
         do {
             let notification = try await api.notification(id)
@@ -489,21 +612,42 @@ final class AppModel {
         }
     }
 
-    func markRead(_ id: String) {
-        guard var n = notification(id: id), n.isUnread else { return }
-        n.readAt = .now
+    func markRead(_ id: String) async {
+        guard readRequests[id] == nil, var n = notification(id: id), n.isUnread, let api else { return }
+        let generation = sessionGeneration
+        let revision = countsRevision
+        let request = UUID()
+        let readAt = Date.now
+        let unreadDelta = min(1, counts.unread)
+        readRequests[id] = request
+        n.readAt = readAt
         upsert(n)
-        counts.unread = max(0, counts.unread - 1)
+        counts.unread -= unreadDelta
         updateBadge()
-        let api = self.api
-        Task { try? await api.markRead(id) }
+        defer { if readRequests[id] == request { readRequests[id] = nil } }
+        do {
+            try await api.markRead(id)
+        } catch {
+            guard generation == sessionGeneration, readRequests[id] == request else { return }
+            if var current = notification(id: id), current.readAt == readAt {
+                current.readAt = nil
+                upsert(current)
+                if revision == countsRevision { counts.unread += unreadDelta }
+                updateBadge()
+            }
+            if !Self.isCancellation(error) {
+                toast = Toast(message: String(localized: "Couldn't mark as read. \(Self.describe(error))"))
+            }
+        }
     }
 
     func markAllRead() async {
+        guard let api else { return }
         let generation = sessionGeneration
         do {
             try await api.markAllRead()
             guard generation == sessionGeneration else { return }
+            readRequests = [:]
             for i in notifications.indices where notifications[i].readAt == nil {
                 notifications[i].readAt = .now
             }
@@ -512,6 +656,7 @@ final class AppModel {
                 details[id] = n
             }
             counts.unread = 0
+            countsRevision += 1
             updateBadge()
             if filter == .unread { await refresh() }
         } catch {
@@ -534,10 +679,12 @@ final class AppModel {
 
     private func update(_ q: MeowQuestion) {
         for i in notifications.indices where notifications[i].question?.id == q.id {
+            readRequests[notifications[i].id] = nil
             notifications[i].question?.apply(q)
             if notifications[i].readAt == nil { notifications[i].readAt = q.resolvedAt ?? .now }
         }
         if var n = details[q.notificationId] {
+            readRequests[n.id] = nil
             n.question?.apply(q)
             if n.readAt == nil { n.readAt = q.resolvedAt ?? .now }
             details[n.id] = n
@@ -551,24 +698,32 @@ final class AppModel {
 
     // MARK: Answers
 
-    func answer(_ questionID: String, with answer: String) async -> AnswerResult {
+    func answer(_ questionID: String, with answer: String, identity expectedIdentity: NotificationIdentity? = nil) async -> AnswerResult {
         guard isRegistered, !isChangingServer else {
             return .refused(String(localized: "The server is changing. Please try again afterward."))
         }
+        guard let identity = NotificationIdentity.current,
+              expectedIdentity == nil || expectedIdentity == identity else {
+            return .refused(String(localized: "The server has changed."))
+        }
         let generation = sessionGeneration
-        let outcome = await replies.submit(questionID: questionID, answer: answer)
+        let outcome = await replies.submit(questionID: questionID, answer: answer, identity: identity)
+        let failures = await replies.failed
         guard generation == sessionGeneration, !isChangingServer else {
             return .refused(String(localized: "The server has changed."))
         }
         let result = apply(outcome, to: questionID)
+        failedReplies = failures
         await refreshCounts()
         return result
     }
 
     /// Answers from a notification action. The user isn't looking at the app,
     /// so a refusal is reported with a local notification.
-    func answerFromNotification(_ questionID: String, with answer: String) async {
-        guard case .refused(let reason) = await self.answer(questionID, with: answer) else { return }
+    func answerFromNotification(_ questionID: String, with answer: String, identity: NotificationIdentity) async {
+        guard NotificationIdentity.current == identity else { return }
+        guard case .refused(let reason) = await self.answer(questionID, with: answer, identity: identity),
+              NotificationIdentity.current == identity else { return }
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Your answer wasn't accepted")
         content.body = reason
@@ -582,9 +737,32 @@ final class AppModel {
         let generation = sessionGeneration
         let results = await replies.flush()
         let pending = await replies.pending
+        let failures = await replies.failed
         guard generation == sessionGeneration, !isChangingServer else { return }
-        for (reply, outcome) in results { apply(outcome, to: reply.questionID) }
+        var reasons: [String] = []
+        for (reply, outcome) in results {
+            let result = apply(outcome, to: reply.questionID)
+            if case .discarded = outcome { continue }
+            if case .refused(let reason) = result { reasons.append(reason) }
+        }
         queuedReplies = Dictionary(pending.map { ($0.questionID, $0) }, uniquingKeysWith: { first, _ in first })
+        failedReplies = failures
+        if !reasons.isEmpty {
+            alert = reasons.joined(separator: "\n")
+        }
+    }
+
+    func dismissFailedReply(_ reply: PendingReply) async {
+        let generation = sessionGeneration
+        do {
+            try await replies.dismissFailure(reply.idempotencyKey)
+            let failures = await replies.failed
+            guard generation == sessionGeneration else { return }
+            failedReplies = failures
+        } catch {
+            guard generation == sessionGeneration else { return }
+            alert = Self.describe(error)
+        }
     }
 
     @discardableResult
@@ -632,7 +810,7 @@ final class AppModel {
     static func describe(_ error: Error) -> String {
         if let e = error as? MeowAPIError {
             if e.status == 401 {
-                return String(localized: "This iPhone is no longer registered with the server. Change or reset the server in Settings.")
+                return String(localized: "This iPhone is no longer registered with the server. In Settings, choose Re-register this server.")
             }
             return e.localizedDescription
         }

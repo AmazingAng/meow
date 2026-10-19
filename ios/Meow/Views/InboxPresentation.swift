@@ -1,0 +1,19 @@
+import Foundation
+
+/// Groups the loaded page without treating a read question as resolved.
+struct InboxPresentation {
+    let pending: [MeowNotification]
+    let activity: [MeowNotification]
+
+    init(_ notifications: [MeowNotification], now: Date) {
+        pending = notifications.filter { $0.question?.isOpen(at: now) == true }
+            .sorted {
+                guard let left = $0.question?.expiresAt, let right = $1.question?.expiresAt else {
+                    return $0.id < $1.id
+                }
+                return left == right ? $0.id < $1.id : left < right
+            }
+        let pendingIDs = Set(pending.map(\.id))
+        activity = notifications.filter { !pendingIDs.contains($0.id) }
+    }
+}

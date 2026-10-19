@@ -1,0 +1,132 @@
+{
+  "date": "2026-10-19",
+  "version": "0.1.0",
+  "build": "3",
+  "behavior": {
+    "low": "passive, no sound",
+    "normal": "active, respects Focus",
+    "high": "time-sensitive, subject to app and Focus settings",
+    "critical_alerts": "not enabled; requires Apple approval and user consent"
+  },
+  "go_push_tests": "passed; includes direct/gateway priority and sound parity",
+  "ios_unit": {
+    "devicesAndConfigurations": [
+      {
+        "device": {
+          "architecture": "arm64",
+          "deviceId": "AF7E516E-5A30-4CE1-ABCB-45D117CD076C",
+          "deviceName": "Meow Gateway Verification",
+          "modelName": "iPhone 17 Pro",
+          "osBuildNumber": "23C54",
+          "osVersion": "26.2",
+          "platform": "iOS Simulator"
+        },
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "passedTests": 48,
+        "skippedTests": 0,
+        "testPlanConfiguration": {
+          "configurationId": "1",
+          "configurationName": "Test Scheme Action"
+        }
+      }
+    ],
+    "environmentDescription": "Meow · Built with macOS 26.2",
+    "expectedFailures": 0,
+    "failedTests": 0,
+    "finishTime": 1792404567.572,
+    "passedTests": 48,
+    "result": "Passed",
+    "skippedTests": 0,
+    "startTime": 1792404555.185,
+    "statistics": [],
+    "testFailures": [],
+    "title": "Test - Meow",
+    "topInsights": [],
+    "totalTestCount": 48
+  },
+  "ios_ui": {
+    "devicesAndConfigurations": [
+      {
+        "device": {
+          "architecture": "arm64",
+          "deviceId": "AF7E516E-5A30-4CE1-ABCB-45D117CD076C",
+          "deviceName": "Meow Gateway Verification",
+          "modelName": "iPhone 17 Pro",
+          "osBuildNumber": "23C54",
+          "osVersion": "26.2",
+          "platform": "iOS Simulator"
+        },
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "passedTests": 1,
+        "skippedTests": 0,
+        "testPlanConfiguration": {
+          "configurationId": "1",
+          "configurationName": "Test Scheme Action"
+        }
+      }
+    ],
+    "environmentDescription": "Meow · Built with macOS 26.2",
+    "expectedFailures": 0,
+    "failedTests": 0,
+    "finishTime": 1792404720.294,
+    "passedTests": 1,
+    "result": "Passed",
+    "skippedTests": 0,
+    "startTime": 1792404699.187,
+    "statistics": [],
+    "testFailures": [],
+    "title": "Test - Meow",
+    "topInsights": [],
+    "totalTestCount": 1
+  },
+  "ipa_inspection": {
+    "artifact": "/Users/liang/Documents/Fight for PHD/vibe/meow/repo/meow-repo/dist/testflight/0.1.0-3/export/Meow.ipa",
+    "distribution_signed": true,
+    "uploaded_to_testflight": "not checked",
+    "bundles": [
+      {
+        "bundle": "blue.meow.app",
+        "version": "0.1.0",
+        "build": "3",
+        "privacy_manifest": true,
+        "signature_verified": true,
+        "app_group": "group.blue.meow.app",
+        "aps_environment": "production",
+        "time_sensitive": true,
+        "debuggable": false,
+        "executable_sha256": "f782fbae46175092cecac75e9139e8f06916a263c53a5fba6e82e762f0e1c6e2"
+      },
+      {
+        "bundle": "blue.meow.app.NotificationService",
+        "version": "0.1.0",
+        "build": "3",
+        "privacy_manifest": true,
+        "signature_verified": true,
+        "app_group": "group.blue.meow.app",
+        "aps_environment": null,
+        "time_sensitive": false,
+        "debuggable": false,
+        "executable_sha256": "e6f34ab5f705af614f6307978c0e0dac6bbfd232e008f9402ae5e24c1ff08da2"
+      }
+    ]
+  },
+  "screenshots": [
+    "docs/verification/focus-notifications-screenshots/instructions-zh-Hans.png",
+    "docs/verification/focus-notifications-screenshots/settings-en.png",
+    "docs/verification/focus-notifications-screenshots/settings-zh-Hans.png"
+  ],
+  "real_device_focus_test": {
+    "passed": true,
+    "evidence": "docs/verification/testflight-build3-real-device-results.json",
+    "scope": "TestFlight build 3; same Wi-Fi origin/gateway; real production APNs; user-reported Do Not Disturb configuration with ringer enabled"
+  },
+  "testflight_upload": {
+    "status": "succeeded",
+    "confirmed_at": "2026-10-19T18:13:37+08:00",
+    "apple_processing": "started; readiness not checked",
+    "log": "dist/testflight/0.1.0-3/upload.log"
+  },
+  "ipa_sha256": "b272667cb536f073df0d5e8d3cdce3442bb5795c515aa40aeff9aab3429621a1"
+}

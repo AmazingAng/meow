@@ -1,0 +1,7 @@
+# Operator only: merge with compose.yaml. Keep APNs credentials on this host.
+# docker compose -p meow-gateway -f compose.yaml -f compose.gateway.yaml up -d
+services:
+  meow:
+    command: ["gateway"]
+    environment:
+      MEOW_DB: /data/gateway.db

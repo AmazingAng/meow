@@ -100,30 +100,44 @@ func (d *Dispatcher) sweep(ctx context.Context, minAge time.Duration) {
 }
 
 func (d *Dispatcher) deliver(ctx context.Context, id string) {
-	t, err := d.store.PushTarget(ctx, id)
-	if err != nil {
-		if !errors.Is(err, store.ErrNotFound) {
-			d.log.Error("load push target", "notification", id, "err", err)
-		}
-		return
-	}
-	n := t.Notification
-	switch {
-	case n.PushStatus != store.PushQueued:
-		return
-	case t.Device.APNsToken == "":
-		d.set(ctx, id, store.PushSkipped, "device has no APNs token")
-		return
-	case n.Question != nil && n.Question.Status != store.StatusPending:
-		d.set(ctx, id, store.PushSkipped, "question already "+n.Question.Status)
-		return
-	}
-	msg, err := BuildMessage(t)
-	if err != nil {
-		d.set(ctx, id, store.PushFailed, err.Error())
-		return
-	}
 	for attempt := 0; ; attempt++ {
+		if ctx.Err() != nil {
+			return // leave queued for restart
+		}
+		t, err := d.store.PushTarget(ctx, id)
+		if err != nil {
+			if !errors.Is(err, store.ErrNotFound) {
+				d.log.Error("load push target", "notification", id, "err", err)
+			}
+			return
+		}
+		n := t.Notification
+		switch {
+		case n.PushStatus != store.PushQueued:
+			return
+		case t.Device.APNsToken == "" && !d.isGateway():
+			d.set(ctx, id, store.PushSkipped, "device has no APNs token")
+			return
+		case n.Question != nil && n.Question.Status != store.StatusPending:
+			d.set(ctx, id, store.PushSkipped, "question already "+n.Question.Status)
+			return
+		case n.Question != nil && !d.store.Now().Before(n.Question.ExpiresAt):
+			d.set(ctx, id, store.PushSkipped, "question already expired")
+			return
+		}
+		msg, err := d.message(ctx, t)
+		if err != nil {
+			if d.isGateway() {
+				if errors.Is(err, store.ErrNotFound) {
+					d.set(ctx, id, store.PushSkipped, "device has no gateway binding")
+				} else {
+					d.log.Error("load gateway binding", "notification", id, "err", err)
+				}
+			} else {
+				d.set(ctx, id, store.PushFailed, err.Error())
+			}
+			return
+		}
 		err = d.pusher.Push(ctx, msg)
 		if err == nil {
 			d.set(ctx, id, store.PushAccepted, "")
@@ -135,7 +149,7 @@ func (d *Dispatcher) deliver(ctx context.Context, id string) {
 		}
 		var ae *Error
 		if errors.As(err, &ae) {
-			if ae.InvalidToken() {
+			if ae.InvalidToken() && !d.isGateway() {
 				if cerr := d.store.ClearAPNsToken(ctx, t.Device.ID, msg.Token); cerr != nil {
 					d.log.Error("clear apns token", "device", t.Device.ID, "err", cerr)
 				}
@@ -155,10 +169,14 @@ func (d *Dispatcher) deliver(ctx context.Context, id string) {
 			d.set(ctx, id, store.PushFailed, err.Error())
 			return
 		}
+		delay := d.Backoff << attempt
+		if ae != nil {
+			delay = max(delay, ae.RetryAfter)
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(d.Backoff << attempt):
+		case <-time.After(delay):
 		}
 	}
 }
@@ -167,4 +185,17 @@ func (d *Dispatcher) set(ctx context.Context, id, status, msg string) {
 	if err := d.store.SetPushStatus(ctx, id, status, msg); err != nil {
 		d.log.Error("set push status", "notification", id, "err", err)
 	}
+}
+
+func (d *Dispatcher) isGateway() bool { _, ok := d.pusher.(*GatewayClient); return ok }
+
+func (d *Dispatcher) message(ctx context.Context, t store.PushTarget) (Message, error) {
+	if !d.isGateway() {
+		return BuildMessage(t)
+	}
+	b, err := d.store.GatewayBinding(ctx, t.Device.ID)
+	if err != nil {
+		return Message{}, err
+	}
+	return relayMessage(t, b), nil
 }

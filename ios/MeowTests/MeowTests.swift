@@ -624,8 +624,8 @@ final class OnboardingCommandTests: XCTestCase {
                        "HTTPS://meow.example.com:8443/meow")
     }
 
-    func testNoDefaultServerIsConfiguredYet() {
-        // project.yml sets MeowDefaultServer to "" until the hosted service is live.
+    func testSelfHostedBuildDoesNotAssumeAServer() {
+        // A self-hosted build starts without an assumed server address.
         XCTAssertNil(MeowShared.defaultServer)
     }
 }

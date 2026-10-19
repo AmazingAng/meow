@@ -12,12 +12,24 @@ struct OnboardingView: View {
     @State private var serverProblem: AppModel.ServerProblem?
     @State private var isCheckingServer = false
     @State private var isSendingTest = false
+    @State private var help: SetupHelpTopic?
+    @State private var showServer = false
     /// Inbox IDs already there when connecting began; anything newer came from the computer.
     @State private var knownIDs: Set<String>?
     @State private var received: MeowNotification?
     @FocusState private var serverFocused: Bool
 
-    enum Step { case server, notifications, connect, test }
+    enum Step: Int {
+        case server = 1, notifications, connect, test
+        var title: LocalizedStringKey {
+            switch self {
+            case .server: "Server"
+            case .notifications: "Notifications"
+            case .connect: "Connect your computer"
+            case .test: "Test connection"
+            }
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -27,23 +39,64 @@ struct OnboardingView: View {
             )
             .ignoresSafeArea()
 
-            Group {
-                switch step {
-                case .server: serverStep
-                case .notifications: notifications
-                case .connect: connectStep
-                case .test: testStep
+            VStack(spacing: 0) {
+                progressHeader
+                Group {
+                    switch step {
+                    case .server: serverStep
+                    case .notifications: notifications
+                    case .connect: connectStep
+                    case .test: testStep
+                    }
                 }
+                .transition(.opacity)
             }
-            .transition(.opacity)
         }
         .animation(reduceMotion ? nil : .smooth, value: step)
+        .sheet(item: $help) { SetupHelpView(topic: $0) }
+        .sheet(isPresented: $showServer) { ServerSheet() }
+        .onChange(of: model.isRegistered) { _, registered in
+            if !registered {
+                step = .server
+                serverText = model.server?.absoluteString ?? ""
+                knownIDs = nil
+                received = nil
+            }
+        }
         .onAppear {
             serverText = model.server?.absoluteString ?? ""
             if model.isRegistered {
                 step = model.permission == .notDetermined ? .notifications : .connect
             }
         }
+    }
+
+    private var progressHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if step != .server {
+                Button {
+                    switch step {
+                    case .notifications: showServer = true
+                    case .connect: step = .notifications
+                    case .test: step = .connect
+                    case .server: break
+                    }
+                } label: {
+                    Label(step == .notifications ? LocalizedStringKey("Change server…") : LocalizedStringKey("Back"),
+                          systemImage: "chevron.left")
+                        .frame(minHeight: 44)
+                }
+                .disabled(isBusy || model.isChangingServer)
+                .accessibilityIdentifier("onboarding.back")
+            }
+            Text("Step \(step.rawValue) of 4").font(.caption).foregroundStyle(.secondary)
+            Text(step.title).font(.subheadline.weight(.semibold))
+            ProgressView(value: Double(step.rawValue), total: 4)
+                .accessibilityLabel(Text(step.title))
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 8)
+        .frame(maxWidth: 640, alignment: .leading)
     }
 
     // MARK: Server
@@ -92,6 +145,9 @@ struct OnboardingView: View {
                 }
             }
             .multilineTextAlignment(.leading)
+            Button("Where do I get a server address?") { help = .server }
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("onboarding.serverHelp")
         } footer: {
             Button(action: start) {
                 ZStack {
@@ -198,6 +254,11 @@ struct OnboardingView: View {
                     Text("In a terminal on your computer, run the command below. It checks the server, asks for your Device Key and connects Claude Code and Codex.")
                         .foregroundStyle(.secondary)
                 }
+                Button { help = .cli } label: {
+                    Label("Install the CLI first", systemImage: "arrow.down.circle")
+                        .frame(minHeight: 44)
+                }
+                .accessibilityIdentifier("onboarding.cliHelp")
                 CommandBlock(title: "1. Run this command", command: model.setupCommand)
                 if let key = model.deviceKey {
                     VStack(alignment: .leading, spacing: 8) {

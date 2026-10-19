@@ -1,0 +1,356 @@
+{
+  "version": "0.1.0",
+  "build": "7",
+  "phone_build_verified": true,
+  "phone_install_confirmed_by_user": true,
+  "origin": "http://192.168.31.235:8182",
+  "gateway": "http://192.168.31.235:8181",
+  "device_id": "dev_73b4l74qmoxta5um",
+  "checks": {
+    "notification_open": {
+      "marker": "TF7-OPEN-01",
+      "notification": {
+        "id": "ntf_36oehearh2c5oyh7",
+        "push_status": "accepted",
+        "push_error": null,
+        "delivered_at": null,
+        "read_at": null
+      },
+      "physical_result": "passed",
+      "user_confirmed_full_body": true,
+      "user_confirmed_no_crash": true,
+      "after_open": {
+        "id": "ntf_36oehearh2c5oyh7",
+        "push_status": "accepted",
+        "delivered_at": 1792430639449,
+        "read_at": 1792430654047
+      }
+    },
+    "fallback": {
+      "phase": "complete",
+      "question": {
+        "id": "qst_qartwe6urh63mkrr",
+        "status": "pending",
+        "question": "Build 7 断网降级测试",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": null,
+        "created_at": "2026-10-19T17:24:37.861Z",
+        "expires_at": "2026-10-19T17:54:37.861Z",
+        "resolved_at": null,
+        "notification_id": "ntf_uusplmduezxioen5"
+      },
+      "notification": {
+        "id": "ntf_uusplmduezxioen5",
+        "push_status": "accepted",
+        "push_error": null,
+        "delivered_at": null,
+        "read_at": null
+      },
+      "physical_result": "passed",
+      "baseline_visible_full_content_and_actions_confirmed_by_user": true,
+      "before_fault": {
+        "id": "ntf_uusplmduezxioen5",
+        "push_status": "accepted",
+        "delivered_at": 1792430678438,
+        "read_at": null
+      },
+      "fault_started_at": "2026-10-19T17:25:08.828369+00:00",
+      "origin_unreachable_before_replay": true,
+      "replay_sent_at": "2026-10-19T17:25:08.830000+00:00",
+      "replay_apns_accepted": true,
+      "replay_accepted_at": "2026-10-19T17:25:09.077972+00:00",
+      "origin_restored": true,
+      "gateway_remained_healthy": true,
+      "restored_at": "2026-10-19T17:25:26.943030+00:00",
+      "outage_seconds": 18.11,
+      "generic_fallback_visible_confirmed_by_user": true,
+      "no_actions_confirmed_by_user": true,
+      "physical_fallback_display_result": "passed",
+      "user_confirmed_recovery_full_body": true,
+      "user_confirmed_approval_without_crash": true,
+      "server_result": {
+        "id": "qst_qartwe6urh63mkrr",
+        "status": "answered",
+        "answer": "approve",
+        "resolved_at": 1792430760345
+      },
+      "response_count": 1,
+      "cli_exit": 0,
+      "cli_result": {
+        "id": "qst_qartwe6urh63mkrr",
+        "status": "answered",
+        "question": "Build 7 断网降级测试",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": "approve",
+        "created_at": "2026-10-19T17:24:37.861Z",
+        "expires_at": "2026-10-19T17:54:37.861Z",
+        "resolved_at": "2026-10-19T17:26:00.345Z",
+        "notification_id": "ntf_uusplmduezxioen5"
+      }
+    },
+    "server_switch": {
+      "phase": "complete",
+      "old_a_question": {
+        "id": "qst_ohka7cygcfpeiegh",
+        "status": "pending",
+        "question": "切换前保留这条旧通知",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": null,
+        "created_at": "2026-10-19T17:27:06.05Z",
+        "expires_at": "2026-10-19T17:57:06.05Z",
+        "resolved_at": null,
+        "notification_id": "ntf_rt42jwzgtjqa56cm"
+      },
+      "old_a_notification": {
+        "id": "ntf_rt42jwzgtjqa56cm",
+        "push_status": "accepted",
+        "delivered_at": null,
+        "read_at": null
+      },
+      "old_a_gateway_route": {
+        "gateway_url": "http://192.168.31.235:8181",
+        "gateway_device_id": "gwd_fnbpfuhubmbfmmor",
+        "binding_id": "CA6E8467-10AF-4B25-BAD6-152C1CDCA2B0"
+      },
+      "physical_result": "passed",
+      "b_registration_confirmed_by_user": true,
+      "b_device_id": "dev_is7abnghpuz2ypkg",
+      "b_push_registered": true,
+      "before_old_action": {
+        "a_question": {
+          "id": "qst_ohka7cygcfpeiegh",
+          "status": "pending",
+          "answer": null
+        },
+        "a_response_count": 0,
+        "b_total_responses": 0,
+        "b_old_question_count": 0
+      },
+      "old_a_route_remaining": 0,
+      "old_action_started_at": "2026-10-19T17:28:57.095413+00:00",
+      "b_log_before_old_action_size": 2045,
+      "user_confirmed_old_action_ignored": true,
+      "user_confirmed_no_old_detail_or_crash": true,
+      "after_old_action": {
+        "a_question": {
+          "id": "qst_ohka7cygcfpeiegh",
+          "status": "pending",
+          "answer": null
+        },
+        "a_response_count": 0,
+        "b_total_responses": 0,
+        "b_old_question_count": 0
+      },
+      "revoked_route_replay": {
+        "status": 401,
+        "error_code": "unauthorized",
+        "apns_reached": false
+      },
+      "request_level_observation": "API access logging is not enabled; database and user observations prove no cross-server answer, not absence of every HTTP request",
+      "old_notification_physical_result": "passed",
+      "b_control_question": {
+        "id": "qst_d54ugygmaupthjx7",
+        "status": "pending",
+        "question": "B 服务器正常回复对照",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": null,
+        "created_at": "2026-10-19T17:30:08.405Z",
+        "expires_at": "2026-10-19T18:00:08.405Z",
+        "resolved_at": null,
+        "notification_id": "ntf_tm6ozfu5lffhsxzq"
+      },
+      "b_control_notification": {
+        "id": "ntf_tm6ozfu5lffhsxzq",
+        "push_status": "accepted",
+        "delivered_at": null,
+        "read_at": null
+      },
+      "b_control_user_confirmed": true,
+      "b_control_response_count": 1,
+      "b_control_cli_exit": 0,
+      "b_control_cli_result": {
+        "id": "qst_d54ugygmaupthjx7",
+        "status": "answered",
+        "question": "B 服务器正常回复对照",
+        "choices": [
+          "approve",
+          "reject"
+        ],
+        "answer": "approve",
+        "created_at": "2026-10-19T17:30:08.405Z",
+        "expires_at": "2026-10-19T18:00:08.405Z",
+        "resolved_at": "2026-10-19T17:30:31.333Z",
+        "notification_id": "ntf_tm6ozfu5lffhsxzq"
+      }
+    },
+    "queue_keep": {
+      "phase": "complete",
+      "question": {
+        "id": "qst_j2z5rvqjorqqvamp",
+        "status": "pending",
+        "question": "离线回复保留测试",
+        "choices": null,
+        "answer": null,
+        "created_at": "2026-10-19T17:31:14.69Z",
+        "expires_at": "2026-10-19T18:01:14.69Z",
+        "resolved_at": null,
+        "notification_id": "ntf_65wa6duby36utzxt"
+      },
+      "notification": {
+        "id": "ntf_65wa6duby36utzxt",
+        "push_status": "accepted",
+        "delivered_at": null,
+        "read_at": null
+      },
+      "physical_result": "passed_after_foreground_resume",
+      "outage": {
+        "started_at": "2026-10-19T17:31:55.713292+00:00",
+        "automatic_restore_seconds": 120,
+        "restored": true,
+        "verified_unreachable": true,
+        "restored_at": "2026-10-19T17:32:43.877119+00:00",
+        "total_outage_seconds": 48.16
+      },
+      "user_confirmed_offline_queue": true,
+      "user_confirmed_cancel_switch_keeps_b_and_reply": true,
+      "expected_answer": "tf7-keep-ok",
+      "b_unreachable_at_keep_confirmation": true,
+      "responses_before_manual_restore": 0,
+      "keep_confirmed_at": "2026-10-19T17:32:43.638292+00:00",
+      "cli_wait_first_timeout_seconds": 60,
+      "responses_at_retry_check": 0,
+      "last_retry_check_at": "2026-10-19T17:35:36.844079+00:00",
+      "user_confirmed_answered_after_foreground": true,
+      "cli_exit": 0,
+      "cli_result": {
+        "id": "qst_j2z5rvqjorqqvamp",
+        "status": "answered",
+        "question": "离线回复保留测试",
+        "choices": null,
+        "answer": "发送测试",
+        "created_at": "2026-10-19T17:31:14.69Z",
+        "expires_at": "2026-10-19T18:01:14.69Z",
+        "resolved_at": "2026-10-19T17:56:24.005Z",
+        "notification_id": "ntf_65wa6duby36utzxt"
+      },
+      "response_count": 1,
+      "actual_answer": "发送测试",
+      "sample_answer_matched": false,
+      "original_text_match": true,
+      "retry_scope": "App foreground; prompt sending while suspended was not established",
+      "user_confirmed_original_answer": "发送测试"
+    },
+    "queue_discard": {
+      "phase": "complete",
+      "question": {
+        "id": "qst_e4gnvmmzggpbi36w",
+        "status": "pending",
+        "question": "离线回复丢弃并切换测试",
+        "choices": null,
+        "answer": null,
+        "created_at": "2026-10-19T17:57:59.787Z",
+        "expires_at": "2026-10-19T18:27:59.787Z",
+        "resolved_at": null,
+        "notification_id": "ntf_jeakjqyca23lt6t6"
+      },
+      "notification": {
+        "id": "ntf_jeakjqyca23lt6t6",
+        "push_status": "accepted",
+        "delivered_at": null,
+        "read_at": null
+      },
+      "physical_result": "passed",
+      "user_confirmed_reply_screen_open": true,
+      "outage": {
+        "started_at": "2026-10-19T17:58:40.283537+00:00",
+        "automatic_restore_seconds": 120,
+        "restored": true,
+        "verified_unreachable": true,
+        "restored_at": "2026-10-19T18:00:09.262165+00:00",
+        "total_outage_seconds": 88.98
+      },
+      "user_confirmed_offline_queue_then_explicit_discard": true,
+      "user_confirmed_a_registration_and_cli_login": true,
+      "b_unreachable_at_return_confirmation": true,
+      "return_a_device_id": "dev_2kpkz77kkj3pnfke",
+      "return_a_push_registered": true,
+      "b_response_count_before_restore": 0,
+      "a_old_question_response_count": 0,
+      "a_old_question_count": 0,
+      "old_b_gateway_route_remaining": 0,
+      "return_confirmed_at": "2026-10-19T18:00:09.087317+00:00",
+      "user_confirmed_force_quit_reopen": true,
+      "final_checked_at": "2026-10-19T18:16:37.378189+00:00",
+      "after_relaunch": {
+        "a": {
+          "question_count": 0,
+          "response_count": 0,
+          "question": []
+        },
+        "b": {
+          "question_count": 1,
+          "response_count": 0,
+          "question": [
+            {
+              "id": "qst_e4gnvmmzggpbi36w",
+              "status": "pending",
+              "answer": null
+            }
+          ]
+        }
+      }
+    },
+    "return_a": {
+      "phase": "complete",
+      "notification": {
+        "id": "ntf_fim3r75ea2pthkye",
+        "push_status": "accepted",
+        "delivered_at": null,
+        "read_at": null
+      },
+      "physical_result": "passed",
+      "user_confirmed_force_quit_and_foreground_15_seconds": true,
+      "user_confirmed_full_body": true,
+      "user_confirmed_no_crash": true,
+      "after_open": {
+        "id": "ntf_fim3r75ea2pthkye",
+        "push_status": "accepted",
+        "delivered_at": 1792432850162,
+        "read_at": 1792433762635
+      },
+      "current_device_id": "dev_2kpkz77kkj3pnfke",
+      "push_registered": true
+    }
+  },
+  "server_b": "http://192.168.31.235:8183",
+  "physical_retest_status": "completed_for_listed_lan_flows",
+  "completed_at": "2026-10-19T18:16:37.378189+00:00",
+  "cleanup": {
+    "old_a": {
+      "question_id": "qst_ohka7cygcfpeiegh",
+      "status_before_cleanup": "expired"
+    },
+    "discard_b": {
+      "question_id": "qst_e4gnvmmzggpbi36w",
+      "status_before_cleanup": "pending",
+      "http_status": 200,
+      "status_after_cleanup": "cancelled"
+    },
+    "b_test_service_stopped": true,
+    "a_and_gateway_healthy": true,
+    "preserved_databases": true,
+    "at": "2026-10-19T18:16:48.191019+00:00"
+  }
+}

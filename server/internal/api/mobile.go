@@ -302,3 +302,33 @@ func (s *Server) respond(w http.ResponseWriter, r *http.Request, p principal) {
 		s.internalError(w, r, err)
 	}
 }
+
+// pushConfig exposes only transport configuration, never outbound secrets.
+func (s *Server) pushConfig(w http.ResponseWriter, r *http.Request, p principal) {
+	mode := "direct"
+	if s.gatewayURL != "" {
+		mode = "gateway"
+	}
+	writeJSON(w, 200, map[string]string{"mode": mode, "gateway_url": s.gatewayURL})
+}
+
+func (s *Server) bindGateway(w http.ResponseWriter, r *http.Request, p principal) {
+	if s.gatewayURL == "" {
+		writeError(w, 409, "direct_mode", "this server uses direct APNs")
+		return
+	}
+	var b store.GatewayBinding
+	if !strictJSON(w, r, &b) {
+		return
+	}
+	if !strings.HasPrefix(b.DeviceID, "gwd_") || !bindingRE.MatchString(b.DeviceID) || !bindingRE.MatchString(b.BindingID) || !strings.HasPrefix(b.PushToken, "gwp_") || len(b.PushToken) != 43 || !bindingRE.MatchString(b.PushToken) {
+		writeError(w, 422, "invalid_request", "invalid gateway binding")
+		return
+	}
+	b.GatewayURL = s.gatewayURL
+	if err := s.st.SetGatewayBinding(r.Context(), p.device.ID, b); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	w.WriteHeader(204)
+}

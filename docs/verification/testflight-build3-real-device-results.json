@@ -1,0 +1,58 @@
+{
+  "started_at": "2026-10-19T20:55:56.422964+08:00",
+  "version": "0.1.0",
+  "build": "3",
+  "phone_version_verified": true,
+  "origin": "http://192.168.31.235:8182",
+  "gateway": "http://192.168.31.235:8181",
+  "device_id": "dev_73b4l74qmoxta5um",
+  "health": {
+    "origin": "ok",
+    "gateway": "ok"
+  },
+  "production_route_verified": true,
+  "user_reported_preconditions": "Time Sensitive allowed in app and Do Not Disturb; Meow not allowlisted; ringer on; audible volume; Do Not Disturb active; phone locked",
+  "phase": "focus comparison completed",
+  "checks": {
+    "focus_normal": {
+      "notification_id": "ntf_pu5vcoa2ojimbblo",
+      "priority": "normal",
+      "marker": "TF3-FOCUS-NORMAL-01",
+      "sent_at": "2026-10-19T20:56:29.398017+08:00",
+      "user_observation": "No proactive sound, vibration, or screen wake reported by user",
+      "push_status": "accepted",
+      "push_error": null,
+      "delivered_at": 1792414591589,
+      "read_at": null,
+      "passed": true
+    },
+    "focus_high": {
+      "notification_id": "ntf_fwctkgqy5glsgpj4",
+      "priority": "high",
+      "marker": "TF3-FOCUS-HIGH-01",
+      "sent_at": "2026-10-19T20:57:14.797422+08:00",
+      "user_observation": "User confirmed audible ringing and visible notification while Do Not Disturb remained active",
+      "push_status": "accepted",
+      "push_error": null,
+      "delivered_at": 1792414635367,
+      "read_at": null,
+      "passed": true
+    }
+  },
+  "limitations": [
+    "No physical-phone screenshots captured; visible/sound observations require user confirmation",
+    "Critical Alerts entitlement is pending Apple review; this build supports Time Sensitive only",
+    "Silent-mode override not exercised or supported by this build",
+    "Origin-unreachable fallback and live server-switch revocation are separate pending phone tests; not covered by this comparison",
+    "Public HTTPS/mobile-data access not exercised"
+  ],
+  "cli_current_device_verified": true,
+  "completed_at": "2026-10-19T20:58:14.616739+08:00",
+  "focus_test_passed": true,
+  "scope": "TestFlight build 3; same Wi-Fi origin/gateway; real production APNs; user-reported Do Not Disturb configuration with ringer enabled",
+  "totals": {
+    "notifications": 2,
+    "apns_accepted": 2,
+    "extension_receipts": 2
+  }
+}

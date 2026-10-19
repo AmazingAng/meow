@@ -30,7 +30,16 @@ func (s *Server) whoami(w http.ResponseWriter, r *http.Request, p principal) {
 		s.internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"key": toKeyJSON(*p.key, ""), "device": toDeviceJSON(d)})
+	registered := d.APNsToken != ""
+	if s.gatewayURL != "" {
+		binding, err := s.st.GatewayBinding(r.Context(), d.ID)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			s.internalError(w, r, err)
+			return
+		}
+		registered = err == nil && binding.GatewayURL == s.gatewayURL
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"key": toKeyJSON(*p.key, ""), "device": toDeviceJSON(d), "push_registered": registered})
 }
 
 type notifyInput struct {
@@ -43,7 +52,7 @@ type notifyInput struct {
 
 // readNotifyInput accepts JSON, or plain text for one-line curl usage:
 //
-//	curl -H "Authorization: Bearer $MEOW_KEY" -d "Build completed" https://api.meow.blue/v1/notifications
+//	curl -H "Authorization: Bearer $MEOW_KEY" -d "Build completed" "$MEOW_SERVER/v1/notifications"
 //
 // For plain text the first line is the title and the rest the body; query
 // parameters title, type, priority and source may be used too.
@@ -229,6 +238,10 @@ func (s *Server) loadQuestion(w http.ResponseWriter, r *http.Request, p principa
 }
 
 func (s *Server) getQuestion(w http.ResponseWriter, r *http.Request, p principal) {
+	if p.key != nil && !p.key.Has(store.ScopeAsk) {
+		writeError(w, http.StatusForbidden, "forbidden", "Device Key lacks the ask scope")
+		return
+	}
 	if q, ok := s.loadQuestion(w, r, p, r.PathValue("id")); ok {
 		writeJSON(w, http.StatusOK, toQuestionJSON(q))
 	}

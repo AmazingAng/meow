@@ -3,6 +3,7 @@ import SwiftUI
 struct DetailView: View {
     let id: String
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var loadFailed = false
 
     var body: some View {
@@ -21,48 +22,68 @@ struct DetailView: View {
         .toolbar(.hidden, for: .tabBar)
         .task(id: id) {
             loadFailed = !(await model.loadDetail(id))
-            model.markRead(id)
+            await model.markRead(id)
         }
     }
 
     private func content(_ n: MeowNotification) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(spacing: 12) {
-                    SourceAvatar(source: n.source, size: 44)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(n.source.isEmpty ? "Meow" : n.source).font(.headline)
-                        Text(n.createdAt.formatted(date: .abbreviated, time: .shortened))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    HStack(spacing: 12) {
+                        SourceAvatar(source: n.source, size: 44)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(n.source.isEmpty ? "Meow" : n.source).font(.headline)
+                            Text(n.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(n.title)
-                        .font(.title2.bold())
-                        .textSelection(.enabled)
-                    if !n.body.isEmpty {
-                        Text(n.body)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(n.title)
+                            .font(.title2.bold())
                             .textSelection(.enabled)
+                        if !n.body.isEmpty {
+                            Text(n.body)
+                                .textSelection(.enabled)
+                        }
                     }
+                    if let q = n.question {
+                        QuestionPanel(question: q)
+                            .id("question-actions")
+                    }
+                    Divider()
+                    DetailsSection(notification: n)
                 }
-                if let q = n.question {
-                    QuestionPanel(question: q)
-                }
-                Divider()
-                DetailsSection(notification: n)
+                .frame(maxWidth: 640, alignment: .leading)
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
-            .frame(maxWidth: 640, alignment: .leading)
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .background(Color(.systemGroupedBackground))
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let q = n.question, q.choices == nil {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    if q.isOpen(at: context.date), model.queuedReplies[q.id] == nil {
-                        ReplyComposer(question: q).id(q.id)
+            .scrollDismissesKeyboard(.interactively)
+            .background(Color(.systemGroupedBackground))
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let q = n.question {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        if q.isOpen(at: context.date), model.queuedReplies[q.id] == nil {
+                            if q.choices == nil {
+                                ReplyComposer(question: q).id(q.id)
+                            } else {
+                                Button {
+                                    withAnimation(reduceMotion ? nil : .snappy) {
+                                        proxy.scrollTo("question-actions", anchor: .top)
+                                    }
+                                } label: {
+                                    Label("Jump to answers", systemImage: "arrow.down.to.line")
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                }
+                                .buttonStyle(.bordered)
+                                .accessibilityIdentifier("question.jumpToAnswer")
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 8)
+                                .frame(maxWidth: .infinity)
+                                .background(.bar)
+                            }
+                        }
                     }
                 }
             }
@@ -81,6 +102,12 @@ private struct QuestionPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            if let failed = model.failedReplies.first(where: { $0.questionID == question.id }), let failure = failed.failure {
+                Label("Your answer wasn't accepted", systemImage: "exclamationmark.circle.fill")
+                    .foregroundStyle(.red)
+                Text(failed.answer).textSelection(.enabled)
+                Text(AppModel.describeRefusal(failure.error)).font(.footnote)
+            }
             if let queued = model.queuedReplies[question.id] {
                 queuedNotice(queued)
             } else if isOpen {

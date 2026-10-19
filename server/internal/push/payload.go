@@ -20,6 +20,8 @@ const (
 
 const (
 	maxAlertBody = 1000 // runes shown in the banner; the app shows the full text
+	// Bundled by both iOS targets; older apps fall back to the system sound.
+	NotificationSound = "meow.wav"
 	// MaxPayload is the APNs limit for alert notifications.
 	MaxPayload = 4096
 )
@@ -83,13 +85,13 @@ func BuildMessage(t store.PushTarget) (Message, error) {
 		"interruption-level": interruptionLevel(n.Priority),
 	}
 	if n.Priority != "low" {
-		aps["sound"] = "default"
+		aps["sound"] = NotificationSound
 	}
 	aps["badge"] = t.Badge
 	if n.Source != "" {
 		aps["thread-id"] = n.Source
 	}
-	meow := map[string]any{"id": n.ID, "type": n.Type}
+	meow := map[string]any{"id": n.ID, "type": n.Type, "device_id": t.Device.ID}
 	expiration := n.CreatedAt.Add(24 * time.Hour)
 	if q := n.Question; q != nil {
 		meow["question_id"] = n.QuestionID

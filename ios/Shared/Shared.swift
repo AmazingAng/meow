@@ -41,6 +41,23 @@ enum MeowShared {
         set { Keychain.set(newValue, for: "device_token") }
     }
 
+    static var deviceID: String? {
+        get { defaults.string(forKey: "device_id") }
+        set { defaults.set(newValue, forKey: "device_id") }
+    }
+
+    static var gatewayBinding: GatewayBinding? {
+        guard let text = Keychain.get("gateway_binding"), let data = text.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(GatewayBinding.self, from: data)
+    }
+
+    @discardableResult
+    static func saveGatewayBinding(_ binding: GatewayBinding?) -> Bool {
+        guard let binding else { return Keychain.set(nil, for: "gateway_binding") }
+        guard let data = try? JSONEncoder().encode(binding), let text = String(data: data, encoding: .utf8) else { return false }
+        return Keychain.set(text, for: "gateway_binding")
+    }
+
     static var containerURL: URL {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]

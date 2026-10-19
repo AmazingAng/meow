@@ -95,7 +95,7 @@ func run(args []string) int {
 	case "hook":
 		return cmdHook(rest)
 	case "dev":
-		return cmdDev(rest)
+		return usageErr("the phone emulator commands were removed; use the Meow iOS app")
 	case "version", "--version":
 		fmt.Println("meow", version)
 		return exitOK
@@ -163,6 +163,9 @@ func newClient() (*client.Client, error) {
 	}
 	if c.Key == "" {
 		return nil, errors.New(`no Device Key configured; copy it from the Meow app and run "meow login"`)
+	}
+	if strings.TrimSpace(c.Server) == "" {
+		return nil, client.ErrNoServer
 	}
 	return client.New(c.Server, c.Key), nil
 }
@@ -370,18 +373,30 @@ func cmdLogin(args []string) int {
 	if _, err := parse(fs, args); err != nil {
 		return usageErr(err.Error())
 	}
-	cfg, err := config.LoadFile()
+	cfg, err := config.Load()
 	if err != nil {
 		return fail(err)
 	}
 	if *server != "" {
 		cfg.Server = strings.TrimRight(*server, "/")
 	}
+	in := bufio.NewReader(os.Stdin)
+	if cfg.Server == "" {
+		if !stdinIsTerminal() {
+			return usageErr("no server configured; pass --server or set MEOW_SERVER")
+		}
+		fmt.Fprint(os.Stderr, "Meow server (shown in the app under Settings → Server): ")
+		line, _ := in.ReadString('\n')
+		cfg.Server = strings.TrimRight(strings.TrimSpace(line), "/")
+		if cfg.Server == "" {
+			return usageErr(client.ErrNoServer.Error())
+		}
+	}
 	k := strings.TrimSpace(*key)
 	if k == "" {
 		// Prompting keeps the key out of shell history.
 		fmt.Fprint(os.Stderr, "Device Key (Meow app → Settings → Device Key): ")
-		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		line, err := in.ReadString('\n')
 		if err != nil && line == "" {
 			return fail(err)
 		}
@@ -424,9 +439,6 @@ func cmdWhoAmI(args []string) int {
 		return fail(err)
 	}
 	server := cfg.Server
-	if server == "" {
-		server = client.DefaultServer
-	}
 	fmt.Printf("server  %s\nkey     %s (%s)\ndevice  %s %s\n", server, who.Key.Hint, strings.Join(who.Key.Scopes, ","), who.Device.ID, who.Device.Name)
 	return exitOK
 }

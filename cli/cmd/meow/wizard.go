@@ -33,7 +33,7 @@ func cmdSetupWizard(args []string) int {
 	if _, err := parse(fs, args); err != nil {
 		return usageErr(err.Error())
 	}
-	cfg, err := config.LoadFile()
+	cfg, err := config.Load()
 	if err != nil {
 		return fail(err)
 	}
@@ -87,7 +87,7 @@ func cmdSetupWizard(args []string) int {
 		return fail(err)
 	}
 	fmt.Fprintf(os.Stderr, "✓ Logged in to device %q\n", who.Device.Name)
-	if !who.Device.HasAPNsToken {
+	if !who.HasPushRegistration() {
 		fmt.Fprintln(os.Stderr, "! This iPhone hasn't registered for notifications yet. Open Meow and allow notifications, or nothing will appear on the phone.")
 	}
 
@@ -165,10 +165,10 @@ func cmdDoctor(args []string) int {
 		report(false, err.Error())
 	} else {
 		report(true, fmt.Sprintf("Device Key works for device %q", who.Device.Name))
-		report(who.Device.HasAPNsToken, map[bool]string{
+		report(who.HasPushRegistration(), map[bool]string{
 			true:  "The iPhone is registered for notifications",
 			false: "The iPhone hasn't registered for notifications. Open Meow and allow notifications.",
-		}[who.Device.HasAPNsToken])
+		}[who.HasPushRegistration()])
 	}
 
 	agents := detectAgents()
