@@ -4,6 +4,8 @@ struct InboxView: View {
     @Environment(AppModel.self) private var model
     @State private var now = Date.now
     @State private var isSearching = false
+    @State private var deletion: DeletionConfirmation?
+    @State private var confirmsDeletion = false
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -36,7 +38,8 @@ struct InboxView: View {
                 ToolbarItem(placement: .principal) {
                     InboxMenu()
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    deletionMenu
                     if isSearching {
                         Button("Cancel") {
                             searchFocused = false
@@ -51,6 +54,14 @@ struct InboxView: View {
                         .accessibilityIdentifier("inbox.search")
                     }
                 }
+            }
+            .alert("Delete messages?", isPresented: $confirmsDeletion, presenting: deletion) { selection in
+                Button("Delete", role: .destructive) {
+                    Task { await model.deleteNotifications(in: selection.interval) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { selection in
+                Text("\(selection.range.title): All messages in this time range will be permanently deleted from this server and this iPhone, including messages hidden by search or filters.")
             }
             .navigationDestination(for: String.self) { id in
                 DetailView(id: id)
@@ -71,6 +82,35 @@ struct InboxView: View {
                 }
             }
         }
+    }
+
+    private struct DeletionConfirmation {
+        let range: InboxDeleteRange
+        let interval: InboxDeletionInterval
+    }
+
+    private var deletionMenu: some View {
+        Menu {
+            Section("Delete messages from") {
+                ForEach(InboxDeleteRange.recent) { range in
+                    Button(range.title) { confirmDeletion(range) }
+                }
+            }
+            Menu("Older messages") {
+                ForEach(InboxDeleteRange.older) { range in
+                    Button(range.title) { confirmDeletion(range) }
+                }
+            }
+        } label: {
+            Label("Delete messages", systemImage: "trash")
+        }
+        .disabled(model.isDeletingNotifications || model.savedNotifications.isEmpty)
+        .accessibilityIdentifier("inbox.delete")
+    }
+
+    private func confirmDeletion(_ range: InboxDeleteRange) {
+        deletion = DeletionConfirmation(range: range, interval: range.interval())
+        confirmsDeletion = true
     }
 
     private var searchField: some View {
@@ -106,6 +146,14 @@ struct InboxView: View {
                 NotificationRow(notification: notification, now: now)
             }
             .accessibilityIdentifier("notification.\(notification.id)")
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button(role: .destructive) {
+                    Task { await model.deleteNotification(notification.id) }
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(model.isDeletingNotifications)
+            }
         }
     }
 

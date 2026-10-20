@@ -107,6 +107,7 @@ final class AppModel {
         return filter != .pending && count > displayLimit ? "local-\(displayLimit)" : nil
     }
     private(set) var isLoading = false
+    private(set) var isDeletingNotifications = false
     private(set) var hasLoaded = false
     private(set) var loadError: String?
     private(set) var inboxStorageError: String?
@@ -143,6 +144,7 @@ final class AppModel {
     @ObservationIgnored private var apnsToken: String?
     @ObservationIgnored private var readRequests: [String: UUID] = [:]
     @ObservationIgnored private var countsRevision = 0
+    @ObservationIgnored private var deletionRevision = 0
 
     private enum Keys {
         static let onboarded = "onboarded"
@@ -295,6 +297,8 @@ final class AppModel {
         retryTask?.cancel()
         retryTask = nil
         isLoading = false
+        isDeletingNotifications = false
+        deletionRevision += 1
         MeowShared.deviceToken = nil
         Keychain.set(nil, for: Keys.deviceKey)
         MeowShared.defaults.removeObject(forKey: Keys.deviceKeyID)
@@ -713,7 +717,9 @@ final class AppModel {
 
     func refreshCounts() async {
         let generation = sessionGeneration
-        guard isRegistered, let api, let c = try? await api.counts(), generation == sessionGeneration else { return }
+        let revision = countsRevision
+        guard isRegistered, let api, let c = try? await api.counts(), generation == sessionGeneration,
+              revision == countsRevision else { return }
         counts = c
         countsRevision += 1
         updateBadge()
@@ -725,9 +731,11 @@ final class AppModel {
         let generation = sessionGeneration
         await hydrateInbox()
         guard generation == sessionGeneration, !isChangingServer else { return false }
+        let revision = deletionRevision
         do {
             let notification = try await api.notification(id)
             guard generation == sessionGeneration else { return false }
+            guard revision == deletionRevision else { return self.notification(id: id) != nil }
             upsert(notification)
             return true
         } catch let error as MeowAPIError where error.status == 404 {
@@ -739,6 +747,50 @@ final class AppModel {
         } catch {
             guard generation == sessionGeneration, !isChangingServer else { return false }
             return notification(id: id) != nil
+        }
+    }
+
+    func deleteNotification(_ id: String) async {
+        await deleteMessages(id: id, interval: nil)
+    }
+
+    func deleteNotifications(in interval: InboxDeletionInterval) async {
+        await deleteMessages(id: nil, interval: interval)
+    }
+
+    private func deleteMessages(id: String?, interval: InboxDeletionInterval?) async {
+        guard isRegistered, !isChangingServer, !isDeletingNotifications, let api else { return }
+        let generation = sessionGeneration
+        isDeletingNotifications = true
+        defer { if generation == sessionGeneration { isDeletingNotifications = false } }
+        await hydrateInbox()
+        guard generation == sessionGeneration, !isChangingServer else { return }
+        do {
+            if let id { try await api.deleteNotification(id) }
+            else if let interval { try await api.deleteNotifications(in: interval) }
+            guard generation == sessionGeneration, !isChangingServer else { return }
+            // Invalidate snapshots started before the server confirmed deletion,
+            // including details not previously present in the saved inbox.
+            deletionRevision += 1
+            loadGeneration += 1
+            isLoading = false
+            let matches: (MeowNotification) -> Bool = { n in
+                if let id { return n.id == id }
+                return interval?.contains(n.createdAt) == true
+            }
+            let removed = Set((savedNotifications + Array(details.values)).filter(matches).map(\.id))
+            savedNotifications.removeAll(where: matches)
+            details = details.filter { !removed.contains($0.key) }
+            for id in removed { readRequests[id] = nil }
+            inboxPath.removeAll { removed.contains($0) }
+            changed(Array(removed))
+            counts = InboxCounts(unread: savedNotifications.filter(\.isUnread).count,
+                                 pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
+            countsRevision += 1
+            updateBadge()
+        } catch {
+            guard generation == sessionGeneration, !isChangingServer, !Self.isCancellation(error) else { return }
+            alert = String(localized: "Couldn't delete messages. \(Self.describe(error))")
         }
     }
 

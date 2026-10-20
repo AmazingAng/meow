@@ -220,10 +220,14 @@ Only SHA-256 hashes of both are stored.
 | `POST /v1/devices` | none | register; returns the device token and the first Device Key once |
 | `GET/PATCH /v1/device`, `GET/POST /v1/keys`, `DELETE /v1/keys/{id}` | device token | |
 | `GET /v1/inbox`, `POST /v1/notifications/{id}/read`, `…/delivered` | device token | |
+| `DELETE /v1/notifications/{id}` | device token | permanently delete one message; `204`, or `404` if missing |
+| `DELETE /v1/inbox?from=…&before=…` | device token | delete this device's messages created in `[from, before)`; Unix milliseconds; returns `{deleted: N}` |
 
 ```sh
 curl -H "Authorization: Bearer $MEOW_KEY" -d "Build completed" "$MEOW_SERVER/v1/notifications"
 ```
+
+In the iOS inbox, swipe left and tap the trash icon to delete one message. The header trash menu clears a selected time range after confirmation. Time ranges use the iPhone's local calendar and apply to all messages, including those hidden by search or unread filters. Deletion removes server records and the local cache; it cannot be undone. Update the server before using these controls; unsupported endpoints and network failures keep local messages and show an error. Bulk deletion requires both bounds (`0 <= from < before <= 253402300799999`); missing, duplicate and unknown query parameters are rejected. Deleting a legacy question message also removes its question and responses and wakes waiting clients with `404`; it never approves anything. Creation idempotency records keep their normal retention to prevent sender retries from recreating deleted messages. An APNs notification already accepted by Apple may remain in Notification Center.
 
 Question lifecycle: `pending` → `answered` | `rejected` | `expired` | `cancelled`. Exactly one response is accepted per question. A retry with the same `Idempotency-Key` and answer returns the stored result. Any other second response gets `409`, and a response after expiry gets `410`. Expiry never approves anything.
 

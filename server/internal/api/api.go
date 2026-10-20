@@ -85,6 +85,8 @@ func New(c Config) *Server {
 	m.HandleFunc("GET /v1/keys", s.withDevice(s.listKeys))
 	m.HandleFunc("POST /v1/keys", s.withDevice(s.createKey))
 	m.HandleFunc("DELETE /v1/keys/{id}", s.withDevice(s.revokeKey))
+	m.HandleFunc("DELETE /v1/inbox", s.withDevice(s.deleteInbox))
+	m.HandleFunc("DELETE /v1/notifications/{id}", s.withDevice(s.deleteNotification))
 	m.HandleFunc("GET /v1/inbox", s.withDevice(s.inbox))
 	m.HandleFunc("GET /v1/inbox/counts", s.withDevice(s.counts))
 	m.HandleFunc("POST /v1/inbox/read", s.withDevice(s.markAllRead))

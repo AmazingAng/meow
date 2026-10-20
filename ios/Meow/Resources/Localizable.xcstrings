@@ -11,6 +11,16 @@
         }
       }
     },
+    "%@: All messages in this time range will be permanently deleted from this server and this iPhone, including messages hidden by search or filters.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@：将从服务器和这台 iPhone 永久删除此时间范围内的全部消息，包括被搜索或筛选隐藏的消息。"
+          }
+        }
+      }
+    },
     "1. Install and connect": {
       "localizations": {
         "zh-Hans": {
@@ -121,6 +131,16 @@
         }
       }
     },
+    "All messages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部消息"
+          }
+        }
+      }
+    },
     "Allow notifications": {
       "localizations": {
         "zh-Hans": {
@@ -187,6 +207,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "上一步"
+          }
+        }
+      }
+    },
+    "Before the last hour": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一小时之前"
+          }
+        }
+      }
+    },
+    "Before today": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天之前"
+          }
+        }
+      }
+    },
+    "Before yesterday": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "昨天之前"
           }
         }
       }
@@ -504,6 +554,16 @@
         }
       }
     },
+    "Couldn't delete messages. %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法删除消息。%@"
+          }
+        }
+      }
+    },
     "Couldn't mark as read. %@": {
       "localizations": {
         "zh-Hans": {
@@ -631,6 +691,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "删除"
+          }
+        }
+      }
+    },
+    "Delete messages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除消息"
+          }
+        }
+      }
+    },
+    "Delete messages from": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除以下时间范围的消息"
+          }
+        }
+      }
+    },
+    "Delete messages?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除消息？"
           }
         }
       }
@@ -987,6 +1077,26 @@
         }
       }
     },
+    "Last hour": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近一小时"
+          }
+        }
+      }
+    },
+    "Last month": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近一个月"
+          }
+        }
+      }
+    },
     "Last sync succeeded": {
       "localizations": {
         "zh-Hans": {
@@ -1303,6 +1413,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭"
+          }
+        }
+      }
+    },
+    "Older messages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更早的消息"
+          }
+        }
+      }
+    },
+    "Older than a month": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一个月之前"
           }
         }
       }
@@ -2205,6 +2335,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "时效性通知"
+          }
+        }
+      }
+    },
+    "Today": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天"
+          }
+        }
+      }
+    },
+    "Today and yesterday": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天和昨天"
           }
         }
       }

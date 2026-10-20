@@ -130,6 +130,17 @@ struct MeowAPI: Sendable {
 
     // MARK: Inbox
 
+    func deleteNotification(_ id: String) async throws {
+        try await sendEmpty("DELETE", "/v1/notifications/\(id)")
+    }
+
+    func deleteNotifications(in interval: InboxDeletionInterval) async throws {
+        struct Result: Decodable { let deleted: Int }
+        let _: Result = try await send("DELETE", "/v1/inbox", query: [
+            URLQueryItem(name: "from", value: String(interval.from)),
+            URLQueryItem(name: "before", value: String(interval.before))])
+    }
+
     func inbox(filter: String, search: String, cursor: String?, limit: Int = 50) async throws -> InboxPage {
         var q = [URLQueryItem(name: "filter", value: filter), URLQueryItem(name: "limit", value: String(limit))]
         if !search.isEmpty { q.append(URLQueryItem(name: "q", value: search)) }
