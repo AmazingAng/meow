@@ -11,6 +11,15 @@ enum MeowShared {
 
     static var defaults: UserDefaults { UserDefaults(suiteName: appGroup) ?? .standard }
 
+    static let notificationSoundKey = "notification_sound"
+
+    /// An app-wide preference: changing servers does not change the chosen tone.
+    /// Missing or unknown values retain the original Meow sound.
+    static var notificationSound: NotificationSoundChoice {
+        get { defaults.string(forKey: notificationSoundKey).flatMap(NotificationSoundChoice.init(rawValue:)) ?? .meow }
+        set { defaults.set(newValue.rawValue, forKey: notificationSoundKey) }
+    }
+
     /// The saved server, or the default before one is chosen. Registering
     /// saves the server, so a registered device never depends on the default.
     static var server: URL? {

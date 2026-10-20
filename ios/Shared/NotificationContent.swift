@@ -8,6 +8,27 @@ enum NotificationSound {
     }
 }
 
+/// The same stored selection is read by the app and notification extension.
+enum NotificationSoundChoice: String, CaseIterable, Identifiable, Sendable {
+    case meow, system
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .meow: String(localized: "Cat sound")
+        case .system: String(localized: "System default")
+        }
+    }
+
+    var sound: UNNotificationSound {
+        switch self {
+        case .meow: NotificationSound.meow
+        case .system: .default
+        }
+    }
+}
+
 /// Notification categories and actions. The category identifiers match the
 /// ones the server puts in each push (server/internal/push/payload.go).
 enum NotificationCategory {
@@ -132,7 +153,7 @@ enum NotificationContent {
         let updated = content.mutableCopy() as! UNMutableNotificationContent
         // Also covers direct pushes, offline fallback and older servers that
         // still send the default system sound. Silent notifications stay silent.
-        if updated.sound != nil { updated.sound = NotificationSound.meow }
+        if updated.sound != nil { updated.sound = MeowShared.notificationSound.sound }
         guard var m = content.userInfo["meow"] as? [String: Any],
               m["question_id"] != nil,
               identity.map({ canRespond(m, identity: $0, now: now) }) != true else { return updated }

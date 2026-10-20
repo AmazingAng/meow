@@ -302,6 +302,16 @@
         }
       }
     },
+    "Cat sound": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "猫叫声"
+          }
+        }
+      }
+    },
     "Change server…": {
       "localizations": {
         "zh-Hans": {
@@ -1379,6 +1389,16 @@
         }
       }
     },
+    "Preview sound": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "试听声音"
+          }
+        }
+      }
+    },
     "Previous answer": {
       "localizations": {
         "zh-Hans": {
@@ -1954,6 +1974,16 @@
         }
       }
     },
+    "System default": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统默认"
+          }
+        }
+      }
+    },
     "Test connection": {
       "localizations": {
         "zh-Hans": {
@@ -2255,6 +2285,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用 Meow 官方服务器"
+          }
+        }
+      }
+    },
+    "Uses your iPhone's default notification sound. Send a test notification to hear it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 iPhone 的系统默认提示音。发送测试通知即可试听。"
           }
         }
       }

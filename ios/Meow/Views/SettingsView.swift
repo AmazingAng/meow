@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var isSendingTest = false
     @State private var isSendingTimeSensitiveTest = false
     @State private var soundPlayer: AVAudioPlayer?
+    @AppStorage(MeowShared.notificationSoundKey, store: MeowShared.defaults)
+    private var notificationSound = NotificationSoundChoice.meow
     @State private var showCLIHelp = false
 
     var body: some View {
@@ -176,14 +178,26 @@ struct SettingsView: View {
                 }
             }
             .disabled(isSendingTest || model.deviceKey == nil)
-            Button { previewSound() } label: {
-                LabeledContent {
-                    Text(verbatim: "Meow")
-                } label: {
-                    Label("Notification sound", systemImage: "speaker.wave.2")
+            Picker(selection: $notificationSound) {
+                ForEach(NotificationSoundChoice.allCases) { choice in
+                    Text(choice.title).tag(choice)
                 }
+            } label: {
+                Label("Notification sound", systemImage: "speaker.wave.2")
             }
-            .accessibilityIdentifier("notifications.previewSound")
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("notifications.sound")
+            .onChange(of: notificationSound) { soundPlayer?.stop() }
+            if notificationSound == .meow {
+                Button { previewSound() } label: {
+                    Label("Preview sound", systemImage: "play.circle")
+                }
+                .accessibilityIdentifier("notifications.previewSound")
+            } else {
+                Text("Uses your iPhone's default notification sound. Send a test notification to hear it.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
             if let gateway = model.gatewayURL {
                 DisclosureGroup("Gateway") {
                     Text(verbatim: gateway.absoluteString).textSelection(.enabled)
