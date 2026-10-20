@@ -1,9 +1,0 @@
-{
-  "exit": 1,
-  "tests": 3,
-  "failures": [
-    "MeowFailureTests.NotificationCallbackTests testBackgroundResponseEntryCompletesOnceOnMainThreadAfterSuspension",
-    "MeowFailureTests.NotificationCallbackTests testForegroundPresentationReturnsOptionsOnMainThread",
-    "MeowFailureTests.NotificationCallbackTests testRejectedOrEmptyResponseStillCompletesOnMainThread"
-  ]
-}
