@@ -1,0 +1,15 @@
+{
+  "version": "0.1.0",
+  "build": 12,
+  "source_commit": "e0ae88b",
+  "native_tests": 130,
+  "ios_build_for_testing": "passed",
+  "archive_verified": true,
+  "ipa_verified": true,
+  "uploaded": true,
+  "upload_confirmed_at": "2026-10-20T16:24:27+08:00",
+  "processing": "Apple reported the package is processing; not yet confirmed ready for testing",
+  "simulator_started": false,
+  "physical_ui_validation": "not performed",
+  "colleagues_group": "pending build processing"
+}
