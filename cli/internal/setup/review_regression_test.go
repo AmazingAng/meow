@@ -140,12 +140,6 @@ func TestCodexNotifyOwnershipRequiresStringArguments(t *testing.T) {
 	}
 }
 
-func TestSkillEmptyExecutableKeepsDefaultCommand(t *testing.T) {
-	if !bytes.Equal(Skill("codex"), Skill("codex", "")) {
-		t.Fatal("an empty optional executable must keep the default command")
-	}
-}
-
 func TestCodexGeneratedRoundTrips(t *testing.T) {
 	property := func(raw string, quoted bool, crlf bool) bool {
 		raw = strings.ToValidUTF8(raw, "?")

@@ -90,7 +90,7 @@ def mutation_tests(output):
          'if in.StopHookActive { return req, "", false, nil }; req.Title = withProject("Task complete", in.Cwd)'),
         ('idempotency', 'cli/cmd/meow/hook.go',
          'in.SessionID, in.PromptID, string(body)', 'in.SessionID, in.PromptID, string(body[:0])+"event"'),
-        ('skill-path', 'cli/cmd/meow/setup.go', 'setup.Skill(agent, o.exe)', 'setup.Skill(agent)'),
+        ('skill-untouched', 'cli/cmd/meow/setup.go', '!exists || !setup.IsMeowSkill(old)', '!exists || len(old) < 0'),
         ('quoted-key', 'cli/internal/setup/codex.go',
          'string(key.Node().Data) == "notify"', 'string(parser.Raw(key.Node().Raw)) == "notify"'),
     ]
@@ -109,7 +109,7 @@ def mutation_tests(output):
             path.write_text(source.replace(old, new))
             try:
                 selector = ('FuzzCodexConfigPreservesSettings' if name == 'quoted-key' else
-                            'TestCodexForeign|TestBuildClaudeStop|TestClaudeCompletion|TestSkillCommands')
+                            'TestCodexForeign|TestBuildClaudeStop|TestClaudeCompletion|TestSetupLeavesSkills')
                 result = subprocess.run(['go', 'test', './cli/internal/setup', './cli/cmd/meow',
                                          '-run', selector,
                                          '-count=1', '-json'], cwd=copy, capture_output=True, text=True)
@@ -173,9 +173,8 @@ def real_cli(output):
         if len(received) != 3 or len(committed) != 2 or received[1][0] != received[2][0]:
             raise RuntimeError('real hook continuation/idempotency check failed')
         run([str(binary), 'setup', 'claude', '--yes', '--no-test'], output, 'setup-install', env=env)
-        skill = (output / 'claude-config/skills/meow/SKILL.md').read_text()
-        if str(binary).replace("'", "'\\''") not in skill:
-            raise RuntimeError('installed skill is missing the selected binary path')
+        if (output / 'claude-config/skills/meow/SKILL.md').exists():
+            raise RuntimeError('setup installed a skill; skills.sh owns it now')
         run([str(binary), 'setup', 'claude', '--yes', '--no-test'], output, 'setup-reinstall', env=env)
         run([str(binary), 'setup', 'claude', '--uninstall', '--yes'], output, 'setup-uninstall', env=env)
         if (output / 'claude-config/skills/meow/SKILL.md').exists():

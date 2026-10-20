@@ -1,6 +1,6 @@
 # Meow
 
-Push notifications and quick replies for AI agents. An agent sends a notification or asks a question, your iPhone shows it, you answer from the lock screen, and the waiting CLI gets the answer.
+A minimal notification app for AI agents. Meow V1 tells you when work finishes, fails, or needs your attention. Read it on your iPhone and continue in the agent on your computer. V1 has no phone replies or approval actions.
 
 ```
 server/   Go API server: one process, one SQLite file (WAL), APNs delivery
@@ -81,11 +81,11 @@ In another terminal, run the setup command copied from the app, or:
 ```sh
 bin/meow setup --server http://127.0.0.1:8080
 bin/meow "Build completed"
-bin/meow ask "Deploy to production?" --choices approve,reject
+bin/meow send --alert --priority high --title "Needs your attention" "Deploy to production? Please respond on your computer."
 ```
 
-Setup asks for the Device Key shown in the app. Answer questions in the iOS app
-or the notification. For push delivery, configure direct APNs or the
+Setup asks for the Device Key shown in the app. Respond to questions in the agent
+on your computer. For push delivery, configure direct APNs or the
 [wake gateway](docs/wake-gateway.md); without a provider, messages still appear
 in the inbox and push is recorded as `skipped`.
 
@@ -94,23 +94,21 @@ in the inbox and push is recorded as `skipped`.
 ```
 meow <message>                         info notification
 meow send <message> --priority high    reads stdin when no message is given
-meow ask <question> [--choices a,b] [--timeout 300] [--no-wait] [--json]
-meow wait <question-id>
 meow login [--key meow_…] [--server URL]
 meow whoami
 meow setup [--server URL]
-meow setup claude|codex [--uninstall] [--no-summary] [--no-skill]
+meow setup claude|codex [--uninstall] [--no-summary]
 meow doctor
 ```
 
-`meow ask` prints the answer to stdout. Exit codes: `0` answered, `3` rejected, `4` expired, `5` cancelled, `130` interrupted (Ctrl-C cancels the question). It keeps waiting through network failures and server restarts.
+`meow ask` and `meow wait` are unavailable in the V1 CLI and return an explanatory error without creating a question. The server protocol and underlying question implementation remain for compatibility. Existing questions, options and historical answers remain readable in the app. Previously queued replies are preserved as copyable records and are not sent automatically.
 
 Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `MEOW_SERVER` and `MEOW_SOURCE` override it. No server address is assumed: setup/login use the address supplied by the app or your existing configuration.
 
 ## Local inbox and search
 
 The iOS app saves synchronized messages in a local SQLite database. Search,
-All / Unread / Pending filters, and display pagination use those saved messages
+All / Unread filters, and display pagination use those saved messages
 without network requests, including history beyond the first visible page.
 Saved history remains searchable after restarting the app while offline.
 
@@ -123,8 +121,7 @@ The notification extension does not open this database: background notifications
 enter the cache when the main app fetches them. Switching servers or re-registering
 clears the old credential's cache.
 
-Question expiry, authorization, idempotency, and acceptance of replies are still
-enforced by the server. Cached question state does not grant permission to approve.
+Legacy question states remain visible as history. Reading a notification does not answer a question or approve an action.
 
 ## Notifications during Focus / Do Not Disturb
 
@@ -132,7 +129,7 @@ enforced by the server. Cached question state does not grant permission to appro
 | --- | --- |
 | `low` | Passive; no sound or screen wake. |
 | `normal` | Standard notification; respects Focus. Default for `meow send`. |
-| `high` | Time Sensitive; can interrupt Focus when allowed. Default for `meow ask`. |
+| `high` | Time Sensitive; can interrupt Focus when allowed. Use for failures or requests for attention. |
 
 In iPhone Settings → Notifications → Meow, enable **Time Sensitive Notifications**.
 Also enable Time Sensitive Notifications in Settings → Focus → your Focus → Apps.
@@ -156,6 +153,26 @@ and separate user consent. Meow does not currently claim this capability.
 
 ## Agent integrations
 
+### Agent skill
+
+The [`meow` skill](skills/meow/SKILL.md) teaches Claude Code, Codex and other
+agents to install the CLI, guide setup, troubleshoot and send notifications.
+Install it first, then ask the agent to set up Meow:
+
+```sh
+npx skills add AmazingAng/meow -g          # Node.js 22.20+; asks which agents to install to
+npx skills add AmazingAng/meow -g -a claude-code codex -y
+npx skills update meow -g
+npx skills remove meow -g
+```
+
+The agent can install the CLI and run `meow doctor`, but you enter the Device
+Key yourself in a terminal, in `meow setup`. Without Node.js, copy
+`skills/meow/` to `~/.claude/skills/meow` or `~/.agents/skills/meow`.
+The skills CLI sends anonymous telemetry unless `DISABLE_TELEMETRY=1` is set.
+
+### Hooks
+
 ```sh
 # After installing the CLI using one of the methods above:
 meow setup --server https://your-meow-server     # asks for the Device Key, connects every agent found
@@ -167,11 +184,12 @@ meow setup --server https://your-meow-server     # asks for the Device Key, conn
 
 | Agent | What is installed | You get notified when |
 | --- | --- | --- |
-| Claude Code | async `Stop` and `Notification` hooks in `settings.json` (`$CLAUDE_CONFIG_DIR` or `~/.claude`), skill in `skills/meow/` | a task finishes; a permission prompt or MCP form has been waiting about 6 seconds |
-| Codex | top-level `notify` in `config.toml` (`$CODEX_HOME` or `~/.codex`), skill in `~/.agents/skills/meow/` | a turn finishes |
+| Claude Code | async `Stop` and `Notification` hooks in `settings.json` (`$CLAUDE_CONFIG_DIR` or `~/.claude`) | a task finishes; a permission prompt or MCP form has been waiting about 6 seconds |
+| Codex | top-level `notify` in `config.toml` (`$CODEX_HOME` or `~/.codex`) | a turn finishes |
 
 - Completion notifications include the first 200 characters of the agent's last message; pass `--no-summary` to leave it out.
-- The skill teaches the agent to ask you with `meow ask` when it needs a decision.
+- The Codex completion hook does not mirror native question cards or collect their answers. Replies and decisions stay in the agent on the computer.
+- Setup does not install the agent skill (see below). It removes the outdated skill that earlier versions of `meow setup` wrote, and never touches other skills.
 - Codex runs one `notify` command. Setup preserves an existing handler (including
   Computer Use), running it alongside Meow with the original JSON argument.
   Re-running setup does not duplicate the handler; uninstall restores it.
@@ -238,7 +256,7 @@ open Meow.xcodeproj
 - Debug builds accept launch arguments `-meowServer http://127.0.0.1:8080 -meowAutoRegister YES` to skip onboarding against a local server.
 - Simulator pushes: fill in the IDs in `ios/scripts/approval.apns` and run `xcrun simctl push booted blue.meow.app ios/scripts/approval.apns`.
 
-Notification actions: Approve requires unlocking the phone, Reject is destructive, and free-text questions get a reply field. Questions with other choices are answered in the app. Answers are saved before sending and retried with the same `Idempotency-Key`, so an answer given offline or from the lock screen is applied at most once.
+Meow V1 delivers notifications without reply or approval actions, including on the lock screen. Existing questions, options and historical answers remain readable; continue in the agent on your computer to respond. Previously saved unsent replies are retained as copyable records in Settings and are not automatically submitted.
 
 ## Development
 

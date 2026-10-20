@@ -2,36 +2,64 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestSkillCommandsUseInstalledExecutable(t *testing.T) {
+func TestSetupLeavesSkillsToSkillsSh(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(dir, "claude"))
-	executable := filepath.Join(dir, "private tools' bin", "meow")
-	if err := os.MkdirAll(filepath.Dir(executable), 0700); err != nil {
+	t.Setenv("MEOW_CONFIG", filepath.Join(dir, "meow.json"))
+	skill := filepath.Join(dir, "claude", "skills", "meow", "SKILL.md")
+	options := setupOptions{install: true, summary: true, exe: filepath.Join(dir, "meow")}
+
+	changes, notes, err := planClaude(options)
+	if err != nil || len(changes) != 1 || changes[0].path == skill {
+		t.Fatalf("fresh install must only add hooks: %+v %v", changes, err)
+	}
+	if !strings.Contains(strings.Join(notes, "\n"), "npx skills add AmazingAng/meow -g -a claude-code") {
+		t.Fatalf("missing skill hint: %v", notes)
+	}
+
+	// An earlier meow setup wrote a marked skill: installing or uninstalling removes it.
+	if err := os.MkdirAll(filepath.Dir(skill), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(executable, []byte("#!/bin/sh\n[ \"$1\" = ask ] && [ \"$2\" = 'Deploy v1.2.0 to production?' ]\n"), 0700); err != nil {
+	legacy := []byte("---\nname: meow\n---\n<!-- meow-skill: installed by \"meow setup\" -->\nmeow ask\n")
+	if err := os.WriteFile(skill, legacy, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, agent := range []string{"claude", "codex"} {
-		change, ok, err := skillChange(filepath.Join(dir, agent, "SKILL.md"), agent, setupOptions{install: true, skill: true, exe: executable})
-		if err != nil || !ok {
-			t.Fatalf("skill plan: %v %v", ok, err)
+	for _, install := range []bool{true, false} {
+		options.install = install
+		changes, _, err := planClaude(options)
+		removed := false
+		for _, c := range changes {
+			removed = removed || (c.path == skill && c.data == nil)
 		}
-		text := string(change.data)
-		first := strings.SplitN(strings.SplitN(text, "~~~sh\n", 2)[1], "\n~~~", 2)[0]
-		command := exec.Command("/bin/sh", "-c", first)
-		command.Env = []string{"PATH=/usr/bin:/bin"}
-		if out, err := command.CombinedOutput(); err != nil {
-			t.Errorf("%s skill cannot run installed executable: %v %s", agent, err, out)
+		if err != nil || !removed {
+			t.Fatalf("install=%v: legacy skill not removed: %+v %v", install, changes, err)
+		}
+	}
+
+	// The skills.sh copy has no marker: setup never touches it and stops hinting.
+	if err := os.WriteFile(skill, []byte("---\nname: meow\ndescription: Meow\n---\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, install := range []bool{true, false} {
+		options.install = install
+		changes, notes, err := planClaude(options)
+		for _, c := range changes {
+			if c.path == skill {
+				t.Fatalf("install=%v touched the skills.sh skill", install)
+			}
+		}
+		if err != nil || strings.Contains(strings.Join(notes, "\n"), "npx skills") {
+			t.Fatalf("install=%v: %v %v", install, notes, err)
 		}
 	}
 }
+
 func TestClaudeCompletionIdempotencyAfterContinuation(t *testing.T) {
 	first := []byte(`{"session_id":"s","prompt_id":"p","stop_hook_active":false,"last_assistant_message":"Initial response"}`)
 	final := []byte(`{"session_id":"s","prompt_id":"p","stop_hook_active":true,"last_assistant_message":"Validation finished"}`)

@@ -1,4 +1,4 @@
-// Command meow sends push notifications and questions to your iPhone.
+// Command meow sends agent notifications to your iPhone.
 package main
 
 import (
@@ -38,8 +38,6 @@ const usage = `meow — push notifications for agents
 Usage:
   meow <message>                       send an info notification
   meow send <message> [flags]          send a notification (reads stdin if no message)
-  meow ask <question> [flags]          ask a question and wait for the answer
-  meow wait <question-id>              wait for an existing question
   meow login [--key KEY] [--server URL]  save your Device Key
   meow whoami                          show the configured key and device
   meow setup                           guided setup: server, Device Key, agents, test
@@ -53,16 +51,7 @@ Send flags:
   --alert          mark as an alert instead of info
   --source S       sender label, e.g. "Claude Code" (default $MEOW_SOURCE)
 
-Ask flags:
-  --choices a,b    allowed answers, e.g. approve,reject (default: free text)
-  --timeout SECS   seconds until the question expires (default 900)
-  --body TEXT      extra context shown under the question
-  --source S       sender label
-  --no-wait        print the question ID and exit
-  --json           print the final question as JSON
-
-The answer is printed to stdout. Exit codes: 0 answered, 3 rejected,
-4 expired, 5 cancelled, 130 interrupted (the question is cancelled).
+Meow V1 is notification-only. Respond to questions in the agent on your computer.
 
 Configuration: MEOW_KEY and MEOW_SERVER override ~/.config/meow/config.json.
 `
@@ -80,10 +69,8 @@ func run(args []string) int {
 	switch cmd {
 	case "send":
 		return cmdSend(rest)
-	case "ask":
-		return cmdAsk(rest)
-	case "wait":
-		return cmdWait(rest)
+	case "ask", "wait":
+		return usageErr("Meow V1 is notification-only. Use meow send --alert to notify; respond in the agent on your computer.")
 	case "login":
 		return cmdLogin(rest)
 	case "whoami":

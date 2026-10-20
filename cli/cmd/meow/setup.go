@@ -24,26 +24,28 @@ const setupUsage = `meow setup — connect a coding agent to Meow
 
 Usage:
   meow setup [--server URL]    guided: check the server, log in, connect every agent found
-  meow setup claude [flags]    Claude Code: Stop and Notification hooks, plus the meow skill
-  meow setup codex [flags]     Codex: notify command, plus the meow skill
+  meow setup claude [flags]    Claude Code: Stop and Notification hooks
+  meow setup codex [flags]     Codex: notify command
 
-You get a notification when the agent finishes a task or needs you, and the
-skill lets the agent ask you with "meow ask". meow setup shows the changes
-and asks before writing; each changed file is backed up first.
+You get a notification when the agent finishes a task or needs you. Reply in
+the agent on your computer. meow setup shows the changes and asks before
+writing; each changed file is backed up first.
+
+The meow skill, which teaches agents to set up and use Meow, is installed
+separately: npx skills add AmazingAng/meow -g
 
 Flags:
   --uninstall    remove what meow setup added
   --no-summary   leave the agent's last message out of notifications
-  --no-skill     don't install the meow skill
   --no-test      don't send a test notification
   --force        (codex) replace an existing notify command
   --yes          apply without asking
 `
 
 type setupOptions struct {
-	install, summary, skill, force bool
-	exe                            string   // absolute path of this meow binary (install only)
-	known                          []string // meow binaries setup may have installed before
+	install, summary, force bool
+	exe                     string   // absolute path of this meow binary (install only)
+	known                   []string // meow binaries setup may have installed before
 }
 
 // executables lists every meow binary whose hooks belong to meow: this one
@@ -72,7 +74,7 @@ func cmdSetup(args []string) int {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	uninstall := fs.Bool("uninstall", false, "")
 	noSummary := fs.Bool("no-summary", false, "")
-	noSkill := fs.Bool("no-skill", false, "")
+	fs.Bool("no-skill", false, "") // accepted for compatibility; setup no longer installs the skill
 	noTest := fs.Bool("no-test", false, "")
 	force := fs.Bool("force", false, "")
 	yes := fs.Bool("yes", false, "")
@@ -94,7 +96,7 @@ func cmdSetup(args []string) int {
 	default:
 		return usageErr(`meow setup supports "claude" and "codex"`)
 	}
-	o := setupOptions{install: !*uninstall, summary: !*noSummary, skill: !*noSkill, force: *force}
+	o := setupOptions{install: !*uninstall, summary: !*noSummary, force: *force}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -272,7 +274,8 @@ func planClaude(o setupOptions) ([]fileChange, []string, error) {
 		}
 		changes = append(changes, c)
 	}
-	if c, ok, err := skillChange(filepath.Join(dir, "skills", "meow", "SKILL.md"), "claude", o); err != nil {
+	skill := filepath.Join(dir, "skills", "meow", "SKILL.md")
+	if c, ok, err := legacySkillChange(skill, o); err != nil {
 		return nil, nil, err
 	} else if ok {
 		changes = append(changes, c)
@@ -281,6 +284,7 @@ func planClaude(o setupOptions) ([]fileChange, []string, error) {
 	var notes []string
 	if o.install {
 		notes = append(notes, "Claude Code picks up the hooks automatically, including sessions that are already running.")
+		notes = append(notes, skillHint(skill, "claude-code")...)
 	}
 	return changes, notes, nil
 }
@@ -340,7 +344,8 @@ func planCodex(o setupOptions) ([]fileChange, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if c, ok, err := skillChange(filepath.Join(home, ".agents", "skills", "meow", "SKILL.md"), "codex", o); err != nil {
+	skill := filepath.Join(home, ".agents", "skills", "meow", "SKILL.md")
+	if c, ok, err := legacySkillChange(skill, o); err != nil {
 		return nil, nil, err
 	} else if ok {
 		changes = append(changes, c)
@@ -351,33 +356,34 @@ func planCodex(o setupOptions) ([]fileChange, []string, error) {
 		notes = append(notes,
 			"Start a new Codex session to pick up the change.",
 			"If Codex's own terminal notifications are on, you may get both; set notifications = false under [tui] to keep only Meow.")
+		notes = append(notes, skillHint(skill, "codex")...)
 	}
 	return changes, notes, nil
 }
 
-func skillChange(path, agent string, o setupOptions) (fileChange, bool, error) {
+// legacySkillChange removes a SKILL.md written by an earlier meow setup. Its
+// commands are outdated, and the skill is now installed with skills.sh, so
+// setup never writes a skill and leaves every other SKILL.md alone, including
+// the one skills.sh installs at the same path.
+func legacySkillChange(path string, o setupOptions) (fileChange, bool, error) {
 	old, exists, err := setup.ReadOptional(path)
-	if err != nil {
+	if err != nil || !exists || !setup.IsMeowSkill(old) {
 		return fileChange{}, false, err
 	}
-	if !o.install {
-		if exists && setup.IsMeowSkill(old) {
-			return fileChange{path: path, exists: true, lines: []string{"remove the meow skill"}}, true, nil
-		}
-		return fileChange{}, false, nil
+	line := "remove the meow skill"
+	if o.install {
+		line = "remove the outdated meow skill written by an earlier meow setup"
 	}
-	if !o.skill {
-		return fileChange{}, false, nil
+	return fileChange{path: path, exists: true, lines: []string{line}}, true, nil
+}
+
+// skillHint suggests installing the skill when the agent doesn't have it.
+// A legacy copy counts as missing because this install removes it.
+func skillHint(path, agent string) []string {
+	if old, exists, err := setup.ReadOptional(path); err == nil && exists && !setup.IsMeowSkill(old) {
+		return nil
 	}
-	data := setup.Skill(agent, o.exe)
-	if bytes.Equal(old, data) {
-		return fileChange{}, false, nil
-	}
-	c := fileChange{path: path, data: data, exists: exists, lines: []string{`skill that lets the agent ask you with "meow ask"`}}
-	if exists && !setup.IsMeowSkill(old) {
-		c.lines = append(c.lines, "replaces an existing skill named meow (it is backed up first)")
-	}
-	return c, true, nil
+	return []string{"Optional: to teach the agent to set up and use Meow, run: npx skills add AmazingAng/meow -g -a " + agent}
 }
 
 // meowExecutable returns the path the agents should run. A PATH entry such

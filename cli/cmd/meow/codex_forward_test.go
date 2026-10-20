@@ -113,7 +113,7 @@ func TestCodexCoexistenceGeneratedArgumentRoundTrips(t *testing.T) {
 	}
 }
 
-func TestCodexCoexistenceRestoresSkillAndBackupThroughSetup(t *testing.T) {
+func TestCodexCoexistenceKeepsBackupThroughSetup(t *testing.T) {
 	ts, _ := fakeMeow(t, true)
 	dir := wizardEnv(t, "meow_good", "codex")
 	path := filepath.Join(dir, "codex", "config.toml")
@@ -126,8 +126,11 @@ func TestCodexCoexistenceRestoresSkillAndBackupThroughSetup(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("wizard failed: %s", output)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".agents", "skills", "meow", "SKILL.md")); err != nil {
-		t.Fatal("Codex skill not installed", err)
+	if _, err := os.Stat(filepath.Join(dir, ".agents", "skills", "meow", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatal("setup must leave the Codex skill to skills.sh", err)
+	}
+	if !strings.Contains(output, "npx skills add AmazingAng/meow -g -a codex") {
+		t.Fatal("missing skill hint", output)
 	}
 	backups, err := filepath.Glob(path + ".bak.*")
 	if err != nil || len(backups) != 1 {

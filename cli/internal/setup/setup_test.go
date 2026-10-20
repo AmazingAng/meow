@@ -297,22 +297,12 @@ func TestWriteFileBacksUpAndFollowsSymlinks(t *testing.T) {
 	}
 }
 
-func TestSkill(t *testing.T) {
-	for _, agent := range []string{"claude", "codex"} {
-		s := string(Skill(agent))
-		if !strings.HasPrefix(s, "---\nname: meow\ndescription: ") || !IsMeowSkill([]byte(s)) {
-			t.Fatalf("%s skill frontmatter:\n%s", agent, s[:120])
-		}
-		if strings.Contains(s, "§") || strings.Contains(s, "%!") {
-			t.Fatalf("%s skill has unrendered template text", agent)
-		}
-		desc := strings.SplitN(strings.SplitN(s, "description: ", 2)[1], "\n", 2)[0]
-		if len(desc) > 1024 {
-			t.Fatalf("description is %d chars", len(desc))
-		}
+func TestIsMeowSkill(t *testing.T) {
+	if !IsMeowSkill([]byte("<!-- meow-skill: installed by \"meow setup\" -->")) {
+		t.Fatal("legacy setup skill not recognized")
 	}
-	if !strings.Contains(string(Skill("claude")), `--source "Claude Code"`) || !strings.Contains(string(Skill("codex")), `--source "Codex"`) {
-		t.Fatal("source label not filled in")
+	if IsMeowSkill([]byte("---\nname: meow\ndescription: Meow\n---\n")) {
+		t.Fatal("unmarked skill claimed as setup's")
 	}
 }
 

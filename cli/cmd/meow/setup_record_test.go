@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"meow.blue/meow/cli/internal/config"
-	"meow.blue/meow/cli/internal/setup"
 )
 
 // A binary not named meow is still found on uninstall, because setup records
@@ -55,15 +54,5 @@ func TestUninstallFindsRecordedExecutable(t *testing.T) {
 	}
 	if cfg, _ := config.LoadFile(); cfg.Key != "meow_testkey" {
 		t.Fatal("recording an install changed the saved key")
-	}
-}
-
-func TestSkillHasNoBareMeowCommand(t *testing.T) {
-	s := string(setup.Skill("claude", "/opt/tools/meow-dev"))
-	if strings.Contains(s, "`meow ") || strings.Contains(s, "\nmeow ") {
-		t.Fatalf("skill still tells the agent to run bare meow:\n%s", s)
-	}
-	if !strings.Contains(s, "`'/opt/tools/meow-dev' send`") {
-		t.Fatal("send hint does not use the installed executable")
 	}
 }
