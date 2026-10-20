@@ -19,6 +19,31 @@ final class NotificationBodyTests: XCTestCase {
         })
     }
 
+    func testReportedTestFlightMessageRendersChineseStrongAndInlineCode() {
+        let raw = """
+        **0.1.0（14）已归档并验证，尚未上传成功。**
+
+        命令行报 `Failed to Use Accounts`。已用 Xcode 打开归档，请选 build 14，点击 **Distribute App → TestFlight & App Store → Distribute**。完成后告诉我结果，我继续核对 TestFlight 状态。
+        """
+        let body = NotificationBody(raw)
+        XCTAssertEqual(body.original, raw)
+        XCTAssertNil(body.json)
+        XCTAssertEqual(body.blocks.count, 2)
+        XCTAssertEqual(String(body.blocks[0].text.characters), "0.1.0（14）已归档并验证，尚未上传成功。")
+        XCTAssertEqual(String(body.blocks[1].text.characters),
+            "命令行报 Failed to Use Accounts。已用 Xcode 打开归档，请选 build 14，点击 Distribute App → TestFlight & App Store → Distribute。完成后告诉我结果，我继续核对 TestFlight 状态。")
+        let strong = body.blocks.flatMap { block in
+            block.text.runs.filter { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true }
+                .map { String(block.text[$0.range].characters) }
+        }
+        XCTAssertEqual(strong, ["0.1.0（14）已归档并验证，尚未上传成功。", "Distribute App → TestFlight & App Store → Distribute"])
+        let code = body.blocks.flatMap { block in
+            block.text.runs.filter { $0.inlinePresentationIntent?.contains(.code) == true }
+                .map { String(block.text[$0.range].characters) }
+        }
+        XCTAssertEqual(code, ["Failed to Use Accounts"])
+    }
+
     func testJSONWithSiblingFieldsIsNotLossilyUnwrapped() {
         let raw = #"{"message":"done","count":9007199254740993,"precise":0.123456789012345678901234,"empty":[],"nested":{"ok":true},"message":"again"}"#
         let body = NotificationBody(raw)
