@@ -1,6 +1,146 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Run this command in your computer's terminal. It installs Meow, asks for your Device Key and connects the agents it finds. No Go or GitHub account is needed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在电脑终端运行这条命令，即可安装 Meow、输入 Device Key 并接入检测到的 Agent。无需安装 Go 或登录 GitHub。"
+          }
+        }
+      }
+    },
+    "Homebrew and other installation options": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 与其他安装方式"
+          }
+        }
+      }
+    },
+    "1. Install and connect": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. 安装并接入"
+          }
+        }
+      }
+    },
+    "Copy install and setup command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制安装与接入命令"
+          }
+        }
+      }
+    },
+    "CLI already installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已经安装 CLI"
+          }
+        }
+      }
+    },
+    "Download a ready-to-run CLI. No Go or GitHub account is needed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接下载可运行的 CLI，无需安装 Go 或登录 GitHub。"
+          }
+        }
+      }
+    },
+    "macOS · Homebrew": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS · Homebrew"
+          }
+        }
+      }
+    },
+    "Copy install command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制安装命令"
+          }
+        }
+      }
+    },
+    "macOS / Linux · Direct install": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS / Linux · 直接安装"
+          }
+        }
+      }
+    },
+    "Direct installation saves Meow in ~/.local/bin and checks its SHA-256 checksum. It starts setup for this server immediately; paste your Device Key when asked.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接安装会将 Meow 保存到 ~/.local/bin 并校验 SHA-256，随后立即接入当前服务器。看到提示后粘贴 Device Key 即可。"
+          }
+        }
+      }
+    },
+    "After Homebrew, or if already installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 安装后，或已安装 CLI"
+          }
+        }
+      }
+    },
+    "Downloads and installation guide": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载与安装说明"
+          }
+        }
+      }
+    },
+    "Setup sends a test notification to this iPhone. Your Device Key is entered separately and is not included in the copied setup command.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接入完成后会向这台 iPhone 发送测试通知。Device Key 单独输入，不会包含在复制的接入命令中。"
+          }
+        }
+      }
+    },
+    "CLI installation help": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CLI 安装帮助"
+          }
+        }
+      }
+    },
     "%@ doesn't look like a Meow server. Check the address.": {
       "localizations": {
         "zh-Hans": {
