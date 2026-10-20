@@ -1,0 +1,52 @@
+[
+  {
+    "name": "multiline",
+    "body": "line1\nline2\nline3\nline4",
+    "expected": "line1\nline2\nline3…"
+  },
+  {
+    "name": "json",
+    "body": " {\"suggestions\":[]} ",
+    "expected": ""
+  },
+  {
+    "name": "code",
+    "body": "```sh\necho hello\n```",
+    "expected": ""
+  },
+  {
+    "name": "braces in prose",
+    "body": "Use {name} in the template",
+    "expected": "Use {name} in the template"
+  },
+  {
+    "name": "unicode",
+    "body": "猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é",
+    "expected": "猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺é猫😺e…"
+  },
+  {
+    "name": "trim",
+    "body": " \r\n正文\r\n第二行\n",
+    "expected": "正文\n第二行"
+  },
+  {
+    "name": "empty",
+    "body": "  \n",
+    "expected": ""
+  },
+  {
+    "name": "literal",
+    "body": "[broken json",
+    "expected": "[broken json"
+  },
+  {
+    "name": "null",
+    "body": "null",
+    "expected": "null"
+  },
+  {
+    "name": "array",
+    "body": "[1,\"a\"]",
+    "expected": ""
+  }
+]

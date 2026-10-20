@@ -254,7 +254,7 @@ extension GatewayContentTests {
         n.body = String(repeating: "猫", count: 1500)
         let c = try XCTUnwrap(NotificationContent.hydrate(n, original: wake(), identity: identity))
         XCTAssertEqual(c.title, "Deploy?")
-        XCTAssertEqual(c.body.count, 1000)
+        XCTAssertEqual(c.body.count, 180)
         XCTAssertTrue(c.body.hasSuffix("…"))
         XCTAssertEqual(c.categoryIdentifier, NotificationCategory.info)
         XCTAssertNil((c.userInfo["meow"] as? [String: Any])?["question_id"])

@@ -20,7 +20,7 @@ struct DetailView: View {
                         }
                         VStack(alignment: .leading, spacing: 12) {
                             Text(n.title).font(.title2.bold()).textSelection(.enabled)
-                            if !n.body.isEmpty { Text(n.body).textSelection(.enabled) }
+                            if !n.body.isEmpty { NotificationBodyView(n.body) }
                         }
                         if let question = n.question {
                             QuestionContext(question: question)
@@ -104,6 +104,16 @@ private struct DetailsSection: View {
                 LabeledContent("ID") { mono(n.id) }
                 if let q = n.question {
                     LabeledContent("Question ID") { mono(q.id) }
+                }
+                if !n.body.isEmpty {
+                    DisclosureGroup("Original text") {
+                        Text(verbatim: n.body)
+                            .font(.footnote.monospaced())
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 8)
+                    }
+                    .accessibilityIdentifier("notification.original")
                 }
             }
             .font(.subheadline)

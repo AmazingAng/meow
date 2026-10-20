@@ -77,6 +77,45 @@ func WriteFile(path string, data []byte, now time.Time) (backup string, err erro
 	return backup, nil
 }
 
+// BackupAndRemove preserves the contents next to the entry before removing it.
+// For a symlink it removes only the link, never its target.
+func BackupAndRemove(path string, now time.Time) (string, error) {
+	old, exists, err := ReadOptional(path)
+	if err != nil || !exists {
+		return "", err
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	base := path + ".bak." + now.Format("20060102-150405")
+	for i := 0; i <= 100; i++ {
+		backup := base
+		if i > 0 {
+			backup = fmt.Sprintf("%s-%d", base, i)
+		}
+		f, err := os.OpenFile(backup, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fi.Mode().Perm())
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		_, err = f.Write(old)
+		if err == nil {
+			err = f.Sync()
+		}
+		if closeErr := f.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			return "", err
+		}
+		return backup, RemoveFile(path)
+	}
+	return "", fmt.Errorf("too many backup files for %s", path)
+}
+
 // RemoveFile deletes path and then its directory if that is now empty.
 func RemoveFile(path string) error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {

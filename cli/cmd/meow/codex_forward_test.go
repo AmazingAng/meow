@@ -50,7 +50,7 @@ func notifyArgv(t *testing.T, data []byte) []string {
 func TestCodexCoexistenceInstallReinstallAndRestore(t *testing.T) {
 	original := []string{"/Applications/Codex Computer Use.app/helper", "turn-ended", "雪 ' $(touch never)"}
 	path, options := plannedNotify(t, original)
-	changes, _, err := planCodex(options)
+	changes, _, err := planCodexNotify(options)
 	if err != nil {
 		t.Fatalf("normal install must preserve existing notify: %v", err)
 	}
@@ -67,12 +67,12 @@ func TestCodexCoexistenceInstallReinstallAndRestore(t *testing.T) {
 	if err := os.WriteFile(path, changes[0].data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if again, _, err := planCodex(options); err != nil || len(again) != 0 {
+	if again, _, err := planCodexNotify(options); err != nil || len(again) != 0 {
 		t.Fatalf("reinstall must be idempotent: %v %v", again, err)
 	}
 	options.summary = true
 	options.exe = filepath.Join(filepath.Dir(path), "new-tools", "meow")
-	changes, _, err = planCodex(options)
+	changes, _, err = planCodexNotify(options)
 	if err != nil || len(changes) != 1 {
 		t.Fatalf("upgrade: %v %v", changes, err)
 	}
@@ -83,7 +83,7 @@ func TestCodexCoexistenceInstallReinstallAndRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	options.install = false
-	changes, _, err = planCodex(options)
+	changes, _, err = planCodexNotify(options)
 	if err != nil || len(changes) != 1 || !reflect.DeepEqual(notifyArgv(t, changes[0].data), original) {
 		t.Fatalf("uninstall didn't restore original: %v %v", changes, err)
 	}
@@ -96,7 +96,7 @@ func TestCodexCoexistenceGeneratedArgumentRoundTrips(t *testing.T) {
 		if os.WriteFile(path, []byte("notify = "+setup.TOMLArray(original)+"\n"), 0600) != nil {
 			return false
 		}
-		changes, _, err := planCodex(options)
+		changes, _, err := planCodexNotify(options)
 		if err != nil || len(changes) != 1 {
 			return false
 		}
@@ -105,7 +105,7 @@ func TestCodexCoexistenceGeneratedArgumentRoundTrips(t *testing.T) {
 		}
 		remove := options
 		remove.install = false
-		changes, _, err = planCodex(remove)
+		changes, _, err = planCodexNotify(remove)
 		return err == nil && len(changes) == 1 && reflect.DeepEqual(notifyArgv(t, changes[0].data), original)
 	}
 	if err := quick.Check(property, &quick.Config{MaxCount: 50}); err != nil {
@@ -264,7 +264,7 @@ func TestCodexUninstallLeavesLaterForeignReplacementAlone(t *testing.T) {
 	original := []string{"/opt/other", "turn-ended"}
 	path, options := plannedNotify(t, original)
 	options.install = false
-	changes, _, err := planCodex(options)
+	changes, _, err := planCodexNotify(options)
 	if err != nil || len(changes) != 0 {
 		t.Fatalf("uninstall modified a foreign replacement: %v %v", changes, err)
 	}
@@ -280,7 +280,7 @@ func TestCodexMalformedExistingNotifyIsNeverOverwritten(t *testing.T) {
 		if err := os.WriteFile(path, []byte(source), 0600); err != nil {
 			t.Fatal(err)
 		}
-		changes, _, err := planCodex(options)
+		changes, _, err := planCodexNotify(options)
 		if err == nil || len(changes) != 0 {
 			t.Fatal("invalid existing handler was silently replaced", err)
 		}

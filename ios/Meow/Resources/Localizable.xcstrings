@@ -1357,6 +1357,16 @@
         }
       }
     },
+    "Original text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始正文"
+          }
+        }
+      }
+    },
     "Other notifications": {
       "extractionState": "stale",
       "localizations": {
