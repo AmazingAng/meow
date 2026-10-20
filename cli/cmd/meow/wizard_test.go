@@ -137,6 +137,20 @@ func TestWizardWarnsWhenPhoneCantReceive(t *testing.T) {
 	}
 }
 
+func TestWizardWithoutAgentsStillSendsFirstNotification(t *testing.T) {
+	ts, sent := fakeMeow(t, true)
+	wizardEnv(t, "meow_good")
+	var code int
+	out := captureOutput(t, "", func() { code = run([]string{"setup", "--server", ts.URL}) })
+	if code != exitOK || sent() != 1 || !strings.Contains(out, "Check that it appears on your iPhone") {
+		t.Fatalf("exit %d, notifications %d:\n%s", code, sent(), out)
+	}
+	cfg, err := config.LoadFile()
+	if err != nil || cfg.Server != ts.URL || len(cfg.Installed) != 0 {
+		t.Fatalf("setup didn't preserve a standalone CLI login: %+v, %v", cfg, err)
+	}
+}
+
 func TestDoctor(t *testing.T) {
 	ts, sent := fakeMeow(t, false)
 	wizardEnv(t, "meow_good", "codex")

@@ -34,6 +34,61 @@ or the notification. For push delivery, configure direct APNs or the
 [wake gateway](docs/wake-gateway.md); without a provider, messages still appear
 in the inbox and push is recorded as `skipped`.
 
+## Installation
+
+The CLI is available as a ready-to-run binary for macOS and Linux, on Apple
+Silicon/ARM64 and Intel/AMD64. You do not need Go or a GitHub account.
+
+### macOS with Homebrew
+
+```sh
+brew install amazingang/tap/meow
+meow setup --server https://YOUR_MEOW_SERVER
+```
+
+Upgrade with `brew upgrade meow`; uninstall with `brew uninstall meow`.
+
+### Direct installation on macOS or Linux
+
+Copy the **install and setup command** from the iPhone app. It includes your
+server address, installs the CLI and starts setup in the terminal. For example:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/install.sh | sh -s -- --server https://YOUR_MEOW_SERVER
+```
+
+Paste your Device Key when setup asks for it. The copied command contains no key.
+Setup detects Claude Code and Codex, asks before editing their configuration,
+and sends one test notification, including when neither agent is installed yet.
+
+To install without starting setup:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/install.sh | sh
+```
+
+The installer verifies SHA-256 before replacing the binary, installs in
+`~/.local/bin`, and does not require sudo or edit shell configuration. If this
+directory is not on your PATH, it prints the line to add to your shell profile:
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The combined command starts setup using the installed binary's absolute path,
+so it works immediately even before that PATH change. To pin a release or choose
+a directory, download the script and pass its options:
+
+```sh
+curl -fsSLo /tmp/meow-install.sh https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/install.sh
+sh /tmp/meow-install.sh --version 0.1.0 --install-dir "$HOME/.local/bin"
+```
+
+For manual installation, download the matching archive and `checksums.txt` from
+[GitHub Releases](https://github.com/AmazingAng/meow/releases/latest), verify its
+checksum, extract `meow`, and put it in your PATH. Run `meow doctor` if setup or
+push delivery needs attention.
+
 ## CLI
 
 ```
@@ -102,21 +157,9 @@ and separate user consent. Meow does not currently claim this capability.
 ## Agent integrations
 
 ```sh
-# Build from source on macOS / Linux. Install Go and GitHub CLI first.
-# Repository access is required. Skip cloning if already in this checkout.
-gh auth login
-gh repo clone AmazingAng/meow
-cd meow
-mkdir -p "$HOME/.local/bin"
-go build -o "$HOME/.local/bin/meow" ./cli/cmd/meow
-export PATH="$HOME/.local/bin:$PATH"
-meow --version
+# After installing the CLI using one of the methods above:
 meow setup --server https://your-meow-server     # asks for the Device Key, connects every agent found
 ```
-
-No prebuilt GitHub Release is currently available. If you cannot access the
-repository, ask your server administrator for the CLI. The release workflow can
-produce binaries when a version tag is published.
 
 `meow setup` checks the server, asks for the Device Key from the app (it is never passed as a flag, so it stays out of shell history), connects Claude Code and Codex if they are installed, and sends one test notification. `meow setup claude` or `meow setup codex` connects a single agent. `meow doctor` re-runs the checks without changing anything and says what to fix.
 
@@ -204,6 +247,18 @@ Push a version tag; GitHub Actions runs the tests and publishes prebuilt `meow` 
 
 ```sh
 git tag v0.1.0 && git push origin v0.1.0
+```
+
+The release workflow also tests the installer. After the release finishes,
+update the Homebrew tap from the published checksums (no cross-repository token
+is stored in Actions):
+
+```sh
+gh repo clone AmazingAng/homebrew-tap ../homebrew-tap
+python3 scripts/update_homebrew.py 0.1.0 --output ../homebrew-tap/Formula/meow.rb
+git -C ../homebrew-tap add Formula/meow.rb
+git -C ../homebrew-tap commit -m "Update Meow to 0.1.0"
+git -C ../homebrew-tap push
 ```
 
 ### Self-hosting without Apple credentials

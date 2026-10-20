@@ -381,6 +381,17 @@ final class AppModel {
     /// so the key never lands in shell history.
     var setupCommand: String { Self.setupCommand(server: server) }
 
+    nonisolated static let cliInstallCommand = "curl -fsSL https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/install.sh | sh"
+    nonisolated static let cliHomebrewCommand = "brew install amazingang/tap/meow"
+
+    var installAndSetupCommand: String { Self.installAndSetupCommand(server: server) }
+
+    /// Setup reads its credential from the terminal, never from the copied command.
+    nonisolated static func installAndSetupCommand(server: URL?) -> String {
+        guard let server else { return cliInstallCommand }
+        return "\(cliInstallCommand) -s -- --server \(shellQuoted(commandString(server)))"
+    }
+
     /// Includes the configured server so setup needs no second address entry.
     nonisolated static func setupCommand(server: URL?) -> String {
         guard let server else { return "meow setup" }

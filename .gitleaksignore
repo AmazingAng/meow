@@ -1,0 +1,10 @@
+# Reviewed false positives: six source SHA-256 entries and one synthetic
+# MEOW_KEY in an httptest failure/log-redaction test. These exact immutable
+# history findings are excluded; future findings remain enabled.
+11ba74734e05d61e31ae4fb8a31574f5cd664f13:docs/verification/local-inbox-results.json:generic-api-key:58
+11ba74734e05d61e31ae4fb8a31574f5cd664f13:docs/verification/local-inbox-results.json:generic-api-key:78
+11ba74734e05d61e31ae4fb8a31574f5cd664f13:docs/verification/local-inbox-results.json:generic-api-key:79
+c4e2cf5f5990968cb1c5b10bb41f2b0f6591f5e0:docs/verification/server-review-fixes-results.json:generic-api-key:28
+c4e2cf5f5990968cb1c5b10bb41f2b0f6591f5e0:docs/verification/server-review-fixes-results.json:generic-api-key:29
+c4e2cf5f5990968cb1c5b10bb41f2b0f6591f5e0:docs/verification/ui-review-fixes-results.json:generic-api-key:30
+2749aedc8b44cd87368547e74a28a342675cf792:cli/cmd/meow/hook_test.go:generic-api-key:155

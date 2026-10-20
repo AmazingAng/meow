@@ -593,6 +593,15 @@ extension ReplyQueueTests {
 }
 
 final class OnboardingCommandTests: XCTestCase {
+    func testInstallAndSetupCommandKeepsServerQuotedAndKeyOutOfHistory() throws {
+        let server = try XCTUnwrap(URL(string: "https://meow.example.com/o'neil/"))
+        XCTAssertEqual(AppModel.installAndSetupCommand(server: server),
+                       AppModel.cliInstallCommand + #" -s -- --server 'https://meow.example.com/o'\''neil'"#)
+        XCTAssertEqual(AppModel.installAndSetupCommand(server: nil), AppModel.cliInstallCommand)
+        XCTAssertFalse(AppModel.installAndSetupCommand(server: server).contains("meow_"))
+        XCTAssertTrue(AppModel.cliInstallCommand.hasSuffix(" | sh"))
+    }
+
     func testSetupCommandAlwaysNamesTheServer() throws {
         let server = try XCTUnwrap(URL(string: "https://meow.example.com/"))
         XCTAssertEqual(AppModel.setupCommand(server: server), "meow setup --server https://meow.example.com")

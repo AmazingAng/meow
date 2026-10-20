@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var isSendingTest = false
     @State private var isSendingTimeSensitiveTest = false
     @State private var soundPlayer: AVAudioPlayer?
+    @State private var showCLIHelp = false
 
     var body: some View {
         NavigationStack {
@@ -66,6 +67,7 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showServer) { ServerSheet() }
             .sheet(isPresented: $showReregister) { ServerSheet(reregister: true) }
+            .sheet(isPresented: $showCLIHelp) { SetupHelpView(topic: .cli) }
         }
     }
 
@@ -78,8 +80,9 @@ struct SettingsView: View {
                         .lineLimit(1)
                 }
                 CopyButton(title: "Copy Device Key", text: key)
+                CopyButton(title: "Copy install and setup command", text: model.installAndSetupCommand)
                 CopyButton(title: "Copy setup command", text: model.setupCommand)
-
+                Button("CLI installation help") { showCLIHelp = true }
             }
         } header: {
             Text("Device")

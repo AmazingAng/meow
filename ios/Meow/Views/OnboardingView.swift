@@ -251,15 +251,15 @@ struct OnboardingView: View {
                         .frame(width: 48)
                         .accessibilityHidden(true)
                     Text("Connect your computer").font(.largeTitle.bold())
-                    Text("In a terminal on your computer, run the command below. It checks the server, asks for your Device Key and connects Claude Code and Codex.")
+                    Text("Run this command in your computer's terminal. It installs Meow, asks for your Device Key and connects the agents it finds. No Go or GitHub account is needed.")
                         .foregroundStyle(.secondary)
                 }
                 Button { help = .cli } label: {
-                    Label("Install the CLI first", systemImage: "arrow.down.circle")
+                    Label("Homebrew and other installation options", systemImage: "arrow.down.circle")
                         .frame(minHeight: 44)
                 }
                 .accessibilityIdentifier("onboarding.cliHelp")
-                CommandBlock(title: "1. Run this command", command: model.setupCommand)
+                CommandBlock(title: "1. Install and connect", command: model.installAndSetupCommand, copyTitle: "Copy install and setup command")
                 if let key = model.deviceKey {
                     VStack(alignment: .leading, spacing: 8) {
                         CommandBlock(title: "2. Paste your Device Key when asked", command: key, copyTitle: "Copy Device Key")
@@ -269,6 +269,7 @@ struct OnboardingView: View {
                     }
                     DisclosureGroup {
                         VStack(alignment: .leading, spacing: 20) {
+                            CommandBlock(title: "CLI already installed", command: model.setupCommand, copyTitle: "Copy setup command")
                             CommandBlock(title: "Log in with the Meow CLI", command: model.loginCommand(for: key))
                             CommandBlock(title: "Or send with curl", command: model.curlCommand(for: key))
                         }

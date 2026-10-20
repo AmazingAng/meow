@@ -23,6 +23,9 @@ jobs:
       - name: Test
         run: go test -race ./...
 
+      - name: Test installer
+        run: python3 scripts/test_install.py
+
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser

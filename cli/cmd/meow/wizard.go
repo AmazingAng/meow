@@ -96,6 +96,7 @@ func cmdSetupWizard(args []string) int {
 	if len(agents) == 0 {
 		fmt.Fprintln(os.Stderr, "\nNo Claude Code or Codex setup found on this computer.")
 		fmt.Fprintln(os.Stderr, `Install one, then run "meow setup claude" or "meow setup codex".`)
+		sendSetupTest(cfg, "Meow CLI")
 		return exitOK
 	}
 	var connected, failed []string

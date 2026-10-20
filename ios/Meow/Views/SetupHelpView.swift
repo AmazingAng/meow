@@ -7,6 +7,7 @@ enum SetupHelpTopic: String, Identifiable {
 
 struct SetupHelpView: View {
     let topic: SetupHelpTopic
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -23,21 +24,16 @@ struct SetupHelpView: View {
                             .frame(minHeight: 44)
                     } else {
                         Text("Install Meow on your computer").font(.headline)
-                        Text("Build the CLI from source on macOS or Linux. Install Go and GitHub CLI first, then sign in to GitHub with an account that can access the repository.")
-                        CommandBlock(title: "Build and install", command: """
-                        gh auth login
-                        gh repo clone AmazingAng/meow
-                        cd meow
-                        mkdir -p "$HOME/.local/bin"
-                        go build -o "$HOME/.local/bin/meow" ./cli/cmd/meow
-                        export PATH="$HOME/.local/bin:$PATH"
-                        """)
-                        Link("CLI source and installation guide", destination: URL(string: "https://github.com/AmazingAng/meow#agent-integrations")!)
-                            .frame(minHeight: 44)
-                        Text("Repository access is required. If you don't have access, ask the person running your server for the CLI.")
+                        Text("Download a ready-to-run CLI. No Go or GitHub account is needed.")
+                        CommandBlock(title: "macOS · Homebrew", command: AppModel.cliHomebrewCommand, copyTitle: "Copy install command")
+                        CommandBlock(title: "macOS / Linux · Direct install", command: model.installAndSetupCommand, copyTitle: "Copy install and setup command")
+                        Text("Direct installation saves Meow in ~/.local/bin and checks its SHA-256 checksum. It starts setup for this server immediately; paste your Device Key when asked.")
                             .font(.footnote).foregroundStyle(.secondary)
+                        CommandBlock(title: "After Homebrew, or if already installed", command: model.setupCommand, copyTitle: "Copy setup command")
+                        Link("Downloads and installation guide", destination: URL(string: "https://github.com/AmazingAng/meow#installation")!)
+                            .frame(minHeight: 44)
                         CommandBlock(title: "Verify installation", command: "meow --version")
-                        Text("When the version appears, return to setup and run the connection command. Keep your Device Key ready to paste when asked.")
+                        Text("Setup sends a test notification to this iPhone. Your Device Key is entered separately and is not included in the copied setup command.")
                     }
                 }
                 .frame(maxWidth: 640, alignment: .leading)
