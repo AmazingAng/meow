@@ -8,8 +8,11 @@
   "ipa_verified": true,
   "uploaded": true,
   "upload_confirmed_at": "2026-10-20T16:24:27+08:00",
-  "processing": "Apple reported the package is processing; not yet confirmed ready for testing",
+  "processing": "Complete; App Store Connect shows Testing",
   "simulator_started": false,
   "physical_ui_validation": "not performed",
-  "colleagues_group": "pending build processing"
+  "colleagues_group": "Assigned and Testing",
+  "internal_group": "meowtest assigned",
+  "automatically_notify_testers": true,
+  "testflight_build_id": "770e6b2b-9d6d-4577-a96a-c5f07d038572"
 }
