@@ -106,5 +106,18 @@
     "The mutation runner rejected an ambiguous restoration mutation; its match was narrowed to the actual restoration call before the final fresh run.",
     "A former plan-level foreign-command conflict assertion was replaced by the new preservation contract; the low-level TOML editor conflict tests were retained."
   ],
-  "adversarial_review": "Checked malformed argv, duplicate forwarding options, unsupported events, credential absence, shell-looking Unicode arguments, late foreign replacements, backup bytes and deadline handling. Author review only."
+  "adversarial_review": "Checked malformed argv, duplicate forwarding options, unsupported events, credential absence, shell-looking Unicode arguments, late foreign replacements, backup bytes and deadline handling. Author review only.",
+  "release": {
+    "version": "0.1.1",
+    "source_commit": "8b747ac3e10ab15090ad8314cb57dbec26bbca5d",
+    "url": "https://github.com/AmazingAng/meow/releases/tag/v0.1.1",
+    "workflow": {
+      "url": "https://github.com/AmazingAng/meow/actions/runs/39390602210",
+      "conclusion": "success"
+    },
+    "public_install": "Downloaded public installer and release binary into isolated install directory; meow --version returned meow 0.1.1.",
+    "published_binary_forwarding": "Temporary helper received exact original argv and unchanged final JSON payload, including Unicode and spaces; command succeeded with no stdout/stderr.",
+    "homebrew_tap_commit": "3435b06",
+    "ios_changes": false
+  }
 }
