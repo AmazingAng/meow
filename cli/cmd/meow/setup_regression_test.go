@@ -86,7 +86,7 @@ func TestCodexPlanKeepsCustomExecutableAndForeignCommands(t *testing.T) {
 	t.Setenv("MEOW_CONFIG", filepath.Join(fixtureRoot, "meow.json"))
 	executable := filepath.Join(fixtureRoot, "phone-push")
 	options := setupOptions{install: true, exe: executable}
-	changes, _, err := planCodex(options)
+	changes, _, err := planCodexNotify(options)
 	if err != nil || len(changes) != 1 {
 		t.Fatalf("initial plan: %v %v", changes, err)
 	}
@@ -94,11 +94,11 @@ func TestCodexPlanKeepsCustomExecutableAndForeignCommands(t *testing.T) {
 	if err := os.WriteFile(configPath, changes[0].data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if again, _, err := planCodex(options); err != nil || len(again) != 0 {
+	if again, _, err := planCodexNotify(options); err != nil || len(again) != 0 {
 		t.Fatalf("custom executable reinstall: %v %v", again, err)
 	}
 	options.install = false
-	changes, _, err = planCodex(options)
+	changes, _, err = planCodexNotify(options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,11 +119,11 @@ func TestCodexPlanKeepsCustomExecutableAndForeignCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	options.install = true
-	if kept, _, err := planCodex(options); err != nil || len(kept) != 1 || !strings.Contains(string(kept[0].data), "--forward-notify=") {
+	if kept, _, err := planCodexNotify(options); err != nil || len(kept) != 1 || !strings.Contains(string(kept[0].data), "--forward-notify=") {
 		t.Fatalf("foreign notify must be preserved by coexistence: %v %v", kept, err)
 	}
 	options.force = true
-	changes, notes, err := planCodex(options)
+	changes, notes, err := planCodexNotify(options)
 	if err != nil || len(changes) != 1 || len(notes) == 0 {
 		t.Fatalf("forced plan: %v %v %v", changes, notes, err)
 	}
@@ -168,7 +168,7 @@ func TestAlreadyConnectedSetupStillSuggestsMissingSkill(t *testing.T) {
 			}
 			setup()
 			out := setup()
-			if !strings.Contains(out, "already connected") || !strings.Contains(out, "npx skills add AmazingAng/meow") {
+			if !(strings.Contains(out, "already connected") || strings.Contains(out, "configuration is unchanged")) || !strings.Contains(out, "npx skills add AmazingAng/meow") {
 				t.Fatalf("reinstall lost the missing-skill hint: %s", out)
 			}
 			skill := filepath.Join(dir, "claude", "skills", "meow", "SKILL.md")

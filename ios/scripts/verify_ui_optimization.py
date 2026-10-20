@@ -76,6 +76,14 @@ class Fixture(BaseHTTPRequestHandler):
                 self.items[:] = [later] + [dict(info, id=f'ntf_info_{i}') for i in range(49)] + [soon]
             elif scenario == 'activity':
                 self.items[:] = [info]
+            elif scenario == 'formatting':
+                bodies = {
+                    'markdown': '## 推送已恢复\n\n收到，这条回复用于测试桌面版的自动推送。回复结束后，留意 Meow 是否收到 **「New result」** 通知。\n\n- **Markdown** 正常显示\n- 使用 `meow doctor` 检查连接\n\n> 完整正文仍可在详细信息中查看。\n\n```sh\nmeow doctor\n```\n\n| 项目 | 状态 |\n| --- | --- |\n| App | 正常 |\n| Hook | 正常 |',
+                    'envelope': '{"suggestion":"收到了，自动推送正常了"}',
+                    'json': '{"status":"ok","checks":["Markdown","JSON"],"count":9007199254740993}',
+                }
+                self.items[:] = [dict(info, id='ntf_' + name, title='New result · meow', body=body)
+                                 for name, body in bodies.items()]
             else:
                 soon['body'] = 'Choose an answer.'
                 if scenario == 'answered':

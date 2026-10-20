@@ -173,6 +173,43 @@ final class UIOptimizationTests: XCTestCase {
         app.buttons["filter.\(name)"].tap()
     }
 
+    func test09NotificationBodyFormatting() {
+        scenario("formatting")
+        var app = open(id: "ntf_envelope", chinese: true)
+        XCTAssertTrue(app.staticTexts["收到了，自动推送正常了"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["{\"suggestion\":\"收到了，自动推送正常了\"}"].exists)
+        capture("body-json-envelope", app)
+        app.buttons["详细信息"].tap()
+        let original = app.buttons["notification.original"]
+        reveal(original, in: app); original.tap()
+        XCTAssertTrue(app.staticTexts["{\"suggestion\":\"收到了，自动推送正常了\"}"].exists)
+        capture("body-original-json", app)
+        app.terminate()
+
+        app = open(id: "ntf_markdown", chinese: true)
+        XCTAssertTrue(app.staticTexts["推送已恢复"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Markdown 正常显示"].exists)
+        XCTAssertFalse(app.staticTexts["## 推送已恢复"].exists)
+        capture("body-markdown", app)
+        reveal(app.staticTexts["Hook"], in: app)
+        capture("body-markdown-table", app)
+        app.terminate()
+
+        app = open(id: "ntf_json", chinese: true)
+        XCTAssertTrue(app.descendants(matching: .any)["notification.body"].waitForExistence(timeout: 10))
+        let json = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "9007199254740993")).firstMatch
+        XCTAssertTrue(json.waitForExistence(timeout: 5))
+        XCTAssertTrue(json.label.contains("\n"))
+        capture("body-json-formatted", app)
+        app.terminate()
+
+        app = open(id: "ntf_markdown", large: true, chinese: true)
+        XCTAssertTrue(app.staticTexts["推送已恢复"].waitForExistence(timeout: 10))
+        capture("body-markdown-accessible", app)
+        reveal(app.staticTexts["Markdown 正常显示"], in: app)
+        capture("body-markdown-accessible-list", app)
+    }
+
     func test06UrgentQuestionBeyondFirstPageAppearsFirst() {
         scenario("pagination")
         let app = open()

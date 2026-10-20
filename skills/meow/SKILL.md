@@ -81,11 +81,11 @@ It prints the planned changes, then exits with "re-run with --yes". Show the pla
 meow setup claude --yes
 ```
 
-- Claude Code: async `Stop` and `Notification` hooks in `settings.json` (`$CLAUDE_CONFIG_DIR` or `~/.claude`). Running sessions pick them up.
-- Codex: top-level `notify` in `config.toml` (`$CODEX_HOME` or `~/.codex`). An existing `notify` handler is kept and runs alongside Meow. `--force` replaces it; only use it if the user asks. Start a new Codex session afterwards.
+- Claude Code: async `Stop`, `StopFailure` and `Notification` hooks in `settings.json` (`$CLAUDE_CONFIG_DIR` or `~/.claude`). Running sessions pick them up.
+- Codex: async `Stop` and `PermissionRequest` in `hooks.json` (`$CODEX_HOME` or `~/.codex`), retaining legacy `notify` until migration is explicitly completed. Start a new session and have the user review/trust both hooks in `/hooks`. After a Stop hook actually runs, `meow setup codex --finish-migration` retires the fallback and restores any original notify handler. Repeat `--no-summary` if used. Only finish when all clients support hooks. `meow doctor` reports observed execution, not current trust. `--force` replaces a foreign notify handler; only use it if requested.
 - Every edited file is backed up as `<file>.bak.<timestamp>`. Re-running is safe.
 - `--no-summary` leaves the agent's last message out of notifications. `--no-test` skips the test notification.
-- Setup never touches this skill. It only removes an outdated `meow` skill that an earlier version of `meow setup` wrote. If setup lists that removal, reinstall this skill afterwards with `npx skills add AmazingAng/meow -g`.
+- Setup never touches this skill. It backs up and removes an outdated `meow` skill that an earlier version of `meow setup` wrote. If setup lists that removal, reinstall this skill afterwards with `npx skills add AmazingAng/meow -g`.
 - To undo: `meow setup claude --uninstall --yes`. It removes only the hooks Meow added. To remove this skill: `npx skills remove meow -g`.
 
 ## 4. Verify
@@ -141,4 +141,7 @@ echo "Build log tail..." | meow send --title "Build failed" --priority high
 - Wait for an explicit answer in the agent on the computer. Never treat silence or notification delivery as approval.
 - Ask one question at a time, and wait for its answer before asking another.
 - Never put secrets, tokens or passwords in a question or a notification.
-- If hooks are installed, a notification is sent automatically when you finish. Use `meow send` only for news the user shouldn't miss in the middle of a task.
+- Hooks provide a neutral “New result” reminder when a turn ends. Use `meow send` for a concrete result, an important development, or a decision that needs context, including at the end of a task when useful. Include the full result/context, not just “done”.
+- V1 does not deduplicate explicit sends against Stop reminders. Do not claim sending will suppress the automatic reminder, and do not use an unsupported `--progress` flag.
+- If an explicit send fails, mention it briefly in the conversation and continue; do not repeatedly retry or create a notification loop. Hooks already perform bounded transient retries.
+- Bodies retain up to 4000 Unicode scalars and newlines; banner previews are shorter. Set `MEOW_LANGUAGE=zh` in the agent launch environment for Chinese automatic titles (English fallback).

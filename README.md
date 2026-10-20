@@ -184,19 +184,21 @@ meow setup --server https://your-meow-server     # asks for the Device Key, conn
 
 | Agent | What is installed | You get notified when |
 | --- | --- | --- |
-| Claude Code | async `Stop` and `Notification` hooks in `settings.json` (`$CLAUDE_CONFIG_DIR` or `~/.claude`) | a task finishes; a permission prompt or MCP form has been waiting about 6 seconds |
-| Codex | top-level `notify` in `config.toml` (`$CODEX_HOME` or `~/.codex`) | a turn finishes |
+| Claude Code | async `Stop`, `StopFailure`, and `Notification` hooks in `settings.json` (`$CLAUDE_CONFIG_DIR` or `~/.claude`) | a turn ends; an API error ends a turn; a permission prompt or MCP form needs attention |
+| Codex | async `Stop` and `PermissionRequest` in `hooks.json` (`$CODEX_HOME` or `~/.codex`), plus legacy `notify` during migration | a turn ends; a permission request needs attention |
 
-- Completion notifications include the first 200 characters of the agent's last message; pass `--no-summary` to leave it out.
-- The Codex completion hook does not mirror native question cards or collect their answers. Replies and decisions stay in the agent on the computer.
-- Setup does not install the agent skill (see below). It removes the outdated skill that earlier versions of `meow setup` wrote, and never touches other skills.
-- Codex runs one `notify` command. Setup preserves an existing handler (including
-  Computer Use), running it alongside Meow with the original JSON argument.
-  Re-running setup does not duplicate the handler; uninstall restores it.
-  `--force` explicitly replaces it instead. Each handler runs independently;
-  Meow has a five-second HTTP timeout and the original command has a separate
-  thirty-second timeout. Output remains silent and failures go to `hook.log`.
-- The hook command (`meow hook …`) always exits 0 and prints nothing, so it never blocks or disturbs the agent. Problems are logged to `hook.log` next to the meow config. Set `MEOW_HOOK_DISABLED=1` to silence it.
+- Stop titles say **New result**, without implying success. Hook bodies retain newlines and up to 4000 Unicode scalars. `--no-summary` omits the body. Set `MEOW_LANGUAGE=zh` in the agent's launch environment for Chinese titles; otherwise titles are English.
+- Banners show at most 180 Unicode scalars, using the first three body lines. Whole JSON objects/arrays and fenced code use a title-only preview. Inbox rows use the same condensed preview; the detail screen retains the original body. Direct APNs and relay hydration use the same preview rules.
+- Replies and decisions stay in the agent on the computer. Permission hooks do not mirror every native question card. Codex has no equivalent of Claude's API-error `StopFailure` in this integration.
+- Setup backs up changed files and outdated generated skills before removal, preserving customized content. It never installs or edits the skills.sh copy.
+- Codex migration is staged. First run `meow setup codex`, start a new Codex session, and review/trust **both** Meow hooks in `/hooks`. Until migration finishes, Stop records execution evidence while the legacy notify handler delivers results. PermissionRequest notifications can arrive once trusted.
+- After a Stop hook has run, use `meow setup codex --finish-migration` (repeat `--no-summary` if originally used). This verifies evidence for the current command, removes Meow's legacy notify wrapper, and restores the original handler. Repeated setup preserves the migration. Changing the command/path requires trust and verification again. Finish migration only when all Codex clients you use support lifecycle hooks; restart old sessions afterwards.
+- `meow doctor` reports observed hook execution separately from legacy configuration. Execution evidence is **not** a live trust check; Meow does not read undocumented trust databases. A policy/feature toggle or revoked trust can still prevent hooks from running. See the [Codex hook documentation](https://learn.chatgpt.com/docs/hooks) and [Claude hook reference](https://code.claude.com/docs/en/hooks).
+- During staging, an existing Codex notify handler (including Computer Use) runs alongside Meow with its original arguments. Uninstall restores it. `--force` explicitly replaces it. The foreign handler has a separate 30-second limit.
+- Hooks retry transport failures, HTTP 429 and 5xx up to **three total attempts**, with 1s/2s backoff, 5 seconds per request and a 20-second overall budget. Quota exhaustion and other permanent errors are not retried. Each attempt reuses the same body and idempotency key.
+- Hooks print nothing and exit 0; sanitized failures go to `hook.log`. New lifecycle hooks run asynchronously, but host shutdown can cancel them: this is best-effort delivery, not a persistent queue. `MEOW_HOOK_DISABLED=1` silences Meow, while preserving a forwarded handler.
+- Explicit `meow send` notifications and automatic Stop reminders are not deduplicated against each other in V1. No heuristic time window can silently suppress a result.
+- Codex Stop skips temporary suggestion output only when `transcript_path` is explicitly `null` and the complete reply is a single `suggestion` (string/null) or `suggestions` (array of titled records) JSON envelope. Persistent chats, other JSON/results, missing metadata and permission requests still notify. Stop does not expose Desktop's `composer_predictions` source marker, so this is a conservative compatibility filter, not a general background-task classifier. An intentional ephemeral turn returning that exact envelope is also skipped; use `meow send` for such a result. Legacy `notify` has no transcript metadata and is unchanged.
 
 ## HTTP API
 

@@ -19,7 +19,7 @@ const (
 )
 
 const (
-	maxAlertBody = 1000 // runes shown in the banner; the app shows the full text
+	maxAlertBody = 180 // runes shown in the banner; the app shows the full text
 	// Bundled by both iOS targets; older apps fall back to the system sound.
 	NotificationSound = "meow.wav"
 	// MaxPayload is the APNs limit for alert notifications.
@@ -74,10 +74,10 @@ func truncate(s string, n int) string {
 // The alert text is shortened until the serialized payload fits MaxPayload.
 func BuildMessage(t store.PushTarget) (Message, error) {
 	n := t.Notification
-	title, body := n.Title, n.Body
+	title, body := n.Title, notificationPreview(n.Body)
 	if n.Source != "" {
 		title = n.Source
-		body = strings.TrimSpace(n.Title + "\n" + n.Body)
+		body = strings.TrimSpace(n.Title + "\n" + body)
 	}
 	aps := map[string]any{
 		"category":           Category(n),

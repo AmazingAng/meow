@@ -260,7 +260,7 @@ struct NotificationRow: View {
                 } else {
                     HStack(alignment: .firstTextBaseline) { metadata }
                 }
-                if let line = firstLine(of: n.body) {
+                if let line = firstLine(of: NotificationContent.preview(n.body)) {
                     Text(line)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)

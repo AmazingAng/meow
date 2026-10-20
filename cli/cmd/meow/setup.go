@@ -24,8 +24,8 @@ const setupUsage = `meow setup — connect a coding agent to Meow
 
 Usage:
   meow setup [--server URL]    guided: check the server, log in, connect every agent found
-  meow setup claude [flags]    Claude Code: Stop and Notification hooks
-  meow setup codex [flags]     Codex: notify command
+  meow setup claude [flags]    Claude Code: Stop, StopFailure and Notification hooks
+  meow setup codex [flags]     Codex: staged lifecycle hooks + legacy notify fallback
 
 You get a notification when the agent finishes a task or needs you. Reply in
 the agent on your computer. meow setup shows the changes and asks before
@@ -38,12 +38,14 @@ Flags:
   --uninstall    remove what meow setup added
   --no-summary   leave the agent's last message out of notifications
   --no-test      don't send a test notification
+  --finish-migration  (codex) retire legacy notify after a verified hook run
   --force        (codex) replace an existing notify command
   --yes          apply without asking
 `
 
 type setupOptions struct {
 	install, summary, force bool
+	finishMigration         bool
 	exe                     string   // absolute path of this meow binary (install only)
 	known                   []string // meow binaries setup may have installed before
 }
@@ -77,6 +79,7 @@ func cmdSetup(args []string) int {
 	fs.Bool("no-skill", false, "") // accepted for compatibility; setup no longer installs the skill
 	noTest := fs.Bool("no-test", false, "")
 	force := fs.Bool("force", false, "")
+	finishMigration := fs.Bool("finish-migration", false, "")
 	yes := fs.Bool("yes", false, "")
 	pos, err := parse(fs, args[1:])
 	if err != nil {
@@ -96,7 +99,7 @@ func cmdSetup(args []string) int {
 	default:
 		return usageErr(`meow setup supports "claude" and "codex"`)
 	}
-	o := setupOptions{install: !*uninstall, summary: !*noSummary, force: *force}
+	o := setupOptions{install: !*uninstall, summary: !*noSummary, force: *force, finishMigration: *finishMigration}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -129,7 +132,11 @@ func cmdSetup(args []string) int {
 	if len(changes) == 0 {
 		recordInstall(agent, o) // covers installs made before setup recorded them
 		if o.install {
-			fmt.Fprintf(os.Stderr, "%s is already connected to Meow.\n", name)
+			if agent == "codex" {
+				fmt.Fprintln(os.Stderr, "Codex configuration is unchanged; see hook status below.")
+			} else {
+				fmt.Fprintf(os.Stderr, "%s is already connected to Meow.\n", name)
+			}
 		} else {
 			fmt.Fprintf(os.Stderr, "Nothing to remove for %s.\n", name)
 		}
@@ -172,10 +179,11 @@ func cmdSetup(args []string) int {
 	now := time.Now()
 	for _, c := range changes {
 		if c.data == nil {
-			if err := setup.RemoveFile(c.path); err != nil {
+			backup, err := setup.BackupAndRemove(c.path, now)
+			if err != nil {
 				return fail(fmt.Errorf("remove %s: %w", tilde(c.path), err))
 			}
-			fmt.Fprintf(os.Stderr, "Removed %s\n", tilde(c.path))
+			fmt.Fprintf(os.Stderr, "Removed %s (backup: %s)\n", tilde(c.path), filepath.Base(backup))
 			continue
 		}
 		backup, err := setup.WriteFile(c.path, c.data, now)
@@ -262,6 +270,13 @@ func planClaude(o setupOptions) ([]fileChange, []string, error) {
 		}
 	}
 	data, err := setup.ClaudeSettings(old, stopCmd, notifyCmd, o.install, o.executables()...)
+	if err == nil {
+		failureCmd := setup.ShellQuote(o.exe) + " hook claude-failure"
+		if !o.summary {
+			failureCmd += " --no-summary"
+		}
+		data, err = setup.LifecycleHooks(data, map[string]string{"StopFailure": failureCmd}, o.install, []string{"claude-failure"}, o.executables()...)
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: %w", tilde(path), err)
 	}
@@ -271,7 +286,8 @@ func planClaude(o setupOptions) ([]fileChange, []string, error) {
 		c := fileChange{path: path, data: data, exists: exists, lines: []string{"remove the meow hooks"}}
 		if o.install {
 			c.lines = []string{
-				"Stop hook (task complete): " + stopCmd,
+				"Stop hook (new result): " + stopCmd,
+				"StopFailure hook (run failed)",
 				"Notification hook (" + setup.ClaudeNotifyMatcher + "): " + notifyCmd,
 			}
 		}
@@ -292,7 +308,7 @@ func planClaude(o setupOptions) ([]fileChange, []string, error) {
 	return changes, notes, nil
 }
 
-func planCodex(o setupOptions) ([]fileChange, []string, error) {
+func planCodexNotify(o setupOptions) ([]fileChange, []string, error) {
 	dir, err := codexDir()
 	if err != nil {
 		return nil, nil, err

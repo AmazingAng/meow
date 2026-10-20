@@ -20,7 +20,7 @@ func TestBuildClaudeStop(t *testing.T) {
 	if err != nil || !send {
 		t.Fatalf("send=%v err=%v", send, err)
 	}
-	if req.Source != "Claude Code" || req.Title != "Task complete · meow-repo" || req.Body != "Fixed the flaky test. All 42 tests pass." {
+	if req.Source != "Claude Code" || req.Title != "New result · meow-repo" || req.Body != "Fixed the flaky test.\n\nAll 42 tests pass." {
 		t.Fatalf("req = %+v", req)
 	}
 	if idem == "" {
@@ -63,11 +63,11 @@ func TestBuildCodex(t *testing.T) {
 	if err != nil || !send || idem == "" {
 		t.Fatalf("send=%v idem=%q err=%v", send, idem, err)
 	}
-	if req.Source != "Codex" || req.Title != "Task complete · web" || req.Body != "Done: refactored the router." {
+	if req.Source != "Codex" || req.Title != "New result · web" || req.Body != "Done: refactored the router." {
 		t.Fatalf("req = %+v", req)
 	}
 	null := `{"type":"agent-turn-complete","thread-id":"t1","turn-id":"9","last-assistant-message":null}`
-	if req, _, _, err = buildHookNotification("codex", []byte(null), true); err != nil || req.Body != "" || req.Title != "Task complete" {
+	if req, _, _, err = buildHookNotification("codex", []byte(null), true); err != nil || req.Body != "" || req.Title != "New result" {
 		t.Fatalf("null message: %+v %v", req, err)
 	}
 	if _, _, send, _ := buildHookNotification("codex", []byte(`{"type":"something-new"}`), true); send {
@@ -79,7 +79,7 @@ func TestBuildCodex(t *testing.T) {
 }
 
 func TestSummarizeTruncates(t *testing.T) {
-	s := summarize(strings.Repeat("猫", 500))
+	s := summarize(strings.Repeat("猫", 5000))
 	if n := len([]rune(s)); n != summaryRunes || !strings.HasSuffix(s, "…") {
 		t.Fatalf("len=%d", n)
 	}
@@ -130,7 +130,7 @@ func TestHookSendsAndStaysSilent(t *testing.T) {
 	if code != 0 || out != "" {
 		t.Fatalf("exit=%d output=%q", code, out)
 	}
-	if len(got) != 1 || got[0]["title"] != "Task complete · repo" || got[0]["source"] != "Claude Code" {
+	if len(got) != 1 || got[0]["title"] != "New result · repo" || got[0]["source"] != "Claude Code" {
 		t.Fatalf("sent %v", got)
 	}
 	if auth != "Bearer meow_testkey" || !strings.HasPrefix(idem, "hook-") {

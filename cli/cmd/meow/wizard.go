@@ -200,7 +200,17 @@ func cmdDoctor(args []string) int {
 		if !installed {
 			msg = a.name + ` is not connected. Run "meow setup ` + a.id + `".`
 		}
-		report(installed, msg)
+		if a.id == "codex" && installed {
+			status, observed := codexHookStatus()
+			fmt.Fprintln(os.Stderr, "- "+status)
+			if codexLegacyActive() {
+				report(true, "Codex legacy notify configured; lifecycle migration pending")
+			} else {
+				report(observed, "Codex lifecycle notifications: "+status)
+			}
+		} else {
+			report(installed, msg)
+		}
 	}
 	if !ok {
 		return exitError

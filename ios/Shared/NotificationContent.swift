@@ -81,6 +81,25 @@ struct NotificationIdentity: Equatable, Sendable {
 }
 
 enum NotificationContent {
+    // Unicode scalars match Go runes; shared fixtures keep relay/direct previews aligned.
+    static func truncatePreview(_ text: String) -> String {
+        let scalars = text.unicodeScalars
+        return scalars.count > 180 ? String(String.UnicodeScalarView(scalars.prefix(179))) + "…" : text
+    }
+
+    static func preview(_ body: String) -> String {
+        var text = body.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty { return "" }
+        if text.hasPrefix("```") && text.hasSuffix("```") { return "" }
+        if (text.hasPrefix("{") || text.hasPrefix("[")),
+           let data = text.data(using: .utf8), (try? JSONSerialization.jsonObject(with: data)) != nil { return "" }
+        let lines = text.components(separatedBy: "\n")
+        if lines.count > 3 { text = lines.prefix(3).joined(separator: "\n") + "…" }
+        return truncatePreview(text)
+    }
+
     /// A failed fetch never exposes actions or trusts content from a wake payload.
     static func fallback(_ original: UNNotificationContent, identity: NotificationIdentity?) -> UNMutableNotificationContent {
         let content = original.mutableCopy() as! UNMutableNotificationContent
@@ -107,8 +126,9 @@ enum NotificationContent {
               m["relay"] as? Bool == true, m["id"] as? String == n.id else { return nil }
         let content = fallback(original, identity: identity)
         content.title = n.source.isEmpty ? n.title : n.source
-        let body = n.source.isEmpty ? n.body : [n.title, n.body].filter { !$0.isEmpty }.joined(separator: "\n")
-        content.body = body.count > 1000 ? String(body.prefix(999)) + "…" : body
+        let summary = preview(n.body)
+        let body = n.source.isEmpty ? summary : [n.title, summary].filter { !$0.isEmpty }.joined(separator: "\n")
+        content.body = truncatePreview(body)
         content.threadIdentifier = n.source
         // Use the origin's priority after hydration, rather than inheriting an
         // interruption level or sound from the generic gateway wake.
