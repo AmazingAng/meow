@@ -110,7 +110,7 @@ struct OnboardingView: View {
                     .foregroundStyle(Color.accentColor)
                 Text("Your agents are calling.")
                     .font(.title3.weight(.semibold))
-                Text("Push notifications and quick replies for Claude Code, Codex and your scripts.")
+                Text("Agent notifications for Claude Code, Codex and your scripts.")
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 8) {
@@ -196,7 +196,7 @@ struct OnboardingView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     Text("Turn on notifications").font(.title2.bold())
-                    Text("Meow tells you when an agent finishes, fails or needs an answer, and you can reply right from the notification.")
+                    Text("Meow notifies you when an agent finishes, fails or needs your attention. Continue on your computer when needed.")
                         .foregroundStyle(.secondary)
                 }
             }

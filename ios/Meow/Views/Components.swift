@@ -71,13 +71,13 @@ struct QuestionAppearance {
     init(_ q: MeowNotification.Question, now: Date = .now) {
         switch q.status {
         case .pending where q.isOpen(at: now):
-            self.init(tag: "Waiting", headline: "Waiting for your answer", icon: "hourglass", color: .orange)
+            self.init(tag: "Needs attention", headline: "Needs attention", icon: "exclamationmark.bubble", color: .orange)
         case .pending, .expired:
             self.init(tag: "Expired", headline: "Expired without an answer", icon: "clock.badge.xmark", color: .secondary)
         case .answered where q.isApproval:
             self.init(tag: "Approved", headline: "Approved", icon: "checkmark.circle.fill", color: .green)
         case .answered:
-            self.init(tag: "Answered", headline: "You answered", icon: "arrowshape.turn.up.left.circle.fill", color: .accentColor)
+            self.init(tag: "Answered", headline: "Previous answer", icon: "arrowshape.turn.up.left.circle.fill", color: .accentColor)
         case .rejected:
             self.init(tag: "Rejected", headline: "Rejected", icon: "xmark.circle.fill", color: .red)
         case .cancelled:

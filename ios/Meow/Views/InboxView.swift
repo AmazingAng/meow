@@ -34,7 +34,7 @@ struct InboxView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    InboxMenu(pendingCount: pendingCount)
+                    InboxMenu()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     if isSearching {
@@ -97,47 +97,7 @@ struct InboxView: View {
 
     @ViewBuilder
     private func inboxRows(now: Date) -> some View {
-        let groups = InboxPresentation(model.notifications, now: now)
-        if model.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, model.filter == .all {
-            if pendingCount > 0 {
-                Section {
-                    rows(groups.pending, now: now)
-                    if groups.pending.isEmpty {
-                        Button("View all pending questions") { model.filter = .pending }
-                    }
-                } header: {
-                    Button { model.filter = .pending } label: {
-                        Label("Needs your answer: \(pendingCount)",
-                              systemImage: "bubble.left.and.bubble.right.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
-                    .accessibilityIdentifier("inbox.pendingSummary")
-                    .accessibilityHint(Text("Soonest expiry first"))
-                }
-                .textCase(nil)
-            }
-
-            rows(groups.activity, now: now)
-        } else if model.filter == .pending {
-            rows(groups.pending, now: now)
-        } else {
-            rows(model.notifications, now: now)
-        }
-    }
-
-    private var pendingCount: Int {
-        // These views now hold the complete pending set, so local answers and
-        // expiry can update the count without waiting for another network poll.
-        if model.hasLoaded, model.loadError == nil,
-           model.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           model.filter == .all || model.filter == .pending {
-            return InboxPresentation(model.notifications, now: now).pending.count
-        }
-        return max(model.counts.pending, InboxPresentation(model.notifications, now: now).pending.count)
+        rows(model.notifications, now: now)
     }
 
     private func rows(_ notifications: [MeowNotification], now: Date) -> some View {
@@ -189,7 +149,7 @@ private struct MascotEmptyState: View {
                     case .unread:
                         text("All caught up", "You've read everything.")
                     case .pending:
-                        text("Nothing waiting on you", "Questions from your agents show up here until you answer them.")
+                        text("No notifications need attention", "Continue in the agent on your computer.")
                     }
                 }
                 .frame(maxWidth: 480)
@@ -212,13 +172,12 @@ private struct MascotEmptyState: View {
 }
 
 private struct InboxMenu: View {
-    var pendingCount: Int
     @Environment(AppModel.self) private var model
 
     var body: some View {
         Menu {
             Section("Filter notifications") {
-                ForEach(AppModel.Filter.allCases) { filter in
+                ForEach(AppModel.Filter.visibleCases) { filter in
                     Button { model.filter = filter } label: {
                         if model.filter == filter {
                             Label { filterTitle(filter) } icon: { Image(systemName: "checkmark") }
@@ -258,7 +217,7 @@ private struct InboxMenu: View {
         switch filter {
         case .all: 0
         case .unread: model.counts.unread
-        case .pending: pendingCount
+        case .pending: model.counts.pending
         }
     }
 
@@ -314,7 +273,7 @@ struct NotificationRow: View {
         }
         .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(needsAnswer ? Text("Needs your answer") : (n.isUnread ? Text("Unread") : Text(verbatim: "")))
+        .accessibilityValue(needsAnswer ? Text("Needs attention") : (n.isUnread ? Text("Unread") : Text(verbatim: "")))
     }
 
     @ViewBuilder

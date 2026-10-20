@@ -5,6 +5,20 @@ struct FailedRepliesView: View {
 
     var body: some View {
         List {
+            if !model.queuedReplies.isEmpty {
+                Section {
+                    ForEach(model.queuedReplies.values.sorted { $0.createdAt > $1.createdAt }, id: \.idempotencyKey) { reply in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(reply.answer).textSelection(.enabled)
+                            CopyButton(title: "Copy answer", text: reply.answer)
+                        }
+                    }
+                } header: {
+                    Text("Unsent records")
+                } footer: {
+                    Text("Meow V1 does not send saved replies. You can copy this text and respond on your computer.")
+                }
+            }
             Section {
                 ForEach(model.failedReplies.sorted { $0.createdAt > $1.createdAt }, id: \.idempotencyKey) { reply in
                     VStack(alignment: .leading, spacing: 10) {
@@ -33,9 +47,9 @@ struct FailedRepliesView: View {
                 Text("These answers were refused by the server and won't be sent again. You can copy an answer or delete its saved record.")
             }
         }
-        .navigationTitle("Replies that weren't sent")
+        .navigationTitle("Saved reply records")
         .overlay {
-            if model.failedReplies.isEmpty {
+            if model.failedReplies.isEmpty && model.queuedReplies.isEmpty {
                 ContentUnavailableView("No failed replies", systemImage: "checkmark.bubble")
             }
         }

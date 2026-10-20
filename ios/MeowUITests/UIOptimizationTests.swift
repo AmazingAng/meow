@@ -65,28 +65,34 @@ final class UIOptimizationTests: XCTestCase {
         let cli = app.buttons["onboarding.cliHelp"]
         XCTAssertTrue(cli.waitForExistence(timeout: 5)); reveal(cli, in: app); cli.tap()
         XCTAssertTrue(app.navigationBars["Install the CLI"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Build and install"].exists)
+        XCTAssertTrue(app.staticTexts["macOS · Homebrew"].exists)
         XCTAssertFalse(app.links["Download Meow CLI"].exists)
         capture("setup-cli-help", app)
         app.buttons["Done"].tap()
         app.buttons["Next"].tap()
-        XCTAssertTrue(app.buttons["Skip for now"].waitForExistence(timeout: 5))
+        // The fixture already contains an agent notification, so onboarding
+        // recognizes it and offers Done instead of waiting for another one.
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
         app.buttons["onboarding.back"].tap()
         XCTAssertTrue(app.buttons["onboarding.cliHelp"].waitForExistence(timeout: 5))
-        app.buttons["Next"].tap(); app.buttons["Skip for now"].tap()
-        XCTAssertTrue(app.buttons["inbox.pendingSummary"].waitForExistence(timeout: 10))
+        app.buttons["Next"].tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 10))
     }
 
-    func test02PendingPriorityAndFilter() {
+    func test02InboxHasOnlyAllAndUnreadFilters() {
         let app = open()
-        let pending = app.descendants(matching: .any).matching(identifier: "notification.ntf_soon").firstMatch
-        let later = app.descendants(matching: .any).matching(identifier: "notification.ntf_later").firstMatch
-        XCTAssertTrue(pending.waitForExistence(timeout: 10))
-        XCTAssertLessThan(pending.frame.minY, later.frame.minY)
-        capture("inbox-priority", app)
-        app.buttons["inbox.pendingSummary"].tap()
-        XCTAssertTrue(pending.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "notification.ntf_info").firstMatch.exists)
+        let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_info").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["inbox.pendingSummary"].exists)
+        capture("notification-only-inbox", app)
+        app.buttons["inbox.filterMenu"].tap()
+        XCTAssertTrue(app.buttons["filter.all"].exists)
+        XCTAssertTrue(app.buttons["filter.unread"].exists)
+        XCTAssertFalse(app.buttons["filter.pending"].exists)
+        app.buttons["filter.unread"].tap()
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "notification.ntf_soon").firstMatch.exists)
     }
 
     func test03AccessibleChineseFilterAndMetadata() {
@@ -96,30 +102,41 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(menu.isHittable)
         capture("inbox-large-zh", app)
         menu.tap()
-        app.buttons["filter.pending"].tap()
+        XCTAssertFalse(app.buttons["filter.pending"].exists)
+        app.buttons["filter.unread"].tap()
         XCTAssertTrue(menu.isHittable)
-        capture("pending-large-zh", app)
+        capture("unread-large-zh", app)
     }
 
-    func test04LongApprovalAndReplyComposer() {
+    func test04LegacyQuestionsAreReadOnly() {
         var app = open(id: "ntf_soon")
-        let jump = app.buttons["question.jumpToAnswer"]
-        XCTAssertTrue(jump.waitForExistence(timeout: 10)); XCTAssertTrue(jump.isHittable)
-        capture("long-approval-top", app)
-        jump.tap()
-        XCTAssertTrue(app.buttons["Reject"].isHittable)
-        capture("long-approval-actions", app)
-        app.buttons["Reject"].tap()
-        XCTAssertTrue(app.staticTexts["Rejected"].waitForExistence(timeout: 10))
-        XCTAssertFalse(jump.exists)
+        let options = app.staticTexts["Options from the agent"]
+        XCTAssertTrue(options.waitForExistence(timeout: 10))
+        reveal(options, in: app)
+        XCTAssertTrue(app.staticTexts["1. approve"].exists)
+        XCTAssertTrue(app.staticTexts["2. reject"].exists)
+        XCTAssertFalse(app.buttons["Approve"].exists)
+        XCTAssertFalse(app.buttons["Reject"].exists)
+        XCTAssertFalse(app.buttons["question.jumpToAnswer"].exists)
+        capture("legacy-choice-read-only", app)
         app.terminate()
         app = open(id: "ntf_later")
-        let field = app.descendants(matching: .any).matching(identifier: "reply.field").firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 10)); field.tap(); field.typeText("Prioritize the inbox")
-        XCTAssertTrue(app.buttons["reply.send"].isHittable)
-        capture("reply-keyboard", app)
-        app.buttons["reply.send"].tap()
-        XCTAssertTrue(app.staticTexts["You answered"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Meow V1 only delivers notifications. Continue in the agent on your computer."].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "reply.field").firstMatch.exists)
+        XCTAssertFalse(app.buttons["reply.send"].exists)
+        capture("legacy-text-read-only", app)
+        assertNoRepliesSubmitted()
+    }
+
+    private func assertNoRepliesSubmitted() {
+        let done = expectation(description: "no response API calls")
+        URLSession.shared.dataTask(with: URL(string: server + "/fixture/stats")!) { data, _, error in
+            XCTAssertNil(error)
+            let value = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Int] }
+            XCTAssertEqual(value?["responses"], 0)
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 5)
     }
 
     func test05SettingsAndReregisterCancellation() {
@@ -167,29 +184,15 @@ final class UIOptimizationTests: XCTestCase {
         capture("urgent-beyond-first-page", app)
     }
 
-    func test07PendingFilterUpdatesAfterAnswerAndExpiry() {
-        scenario("answer")
-        var app = open()
-        selectFilter("pending", in: app)
-        let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_soon").firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10)); row.tap()
-        XCTAssertTrue(app.buttons["Reject"].waitForExistence(timeout: 5)); app.buttons["Reject"].tap()
-        XCTAssertTrue(app.staticTexts["Rejected"].waitForExistence(timeout: 5))
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.staticTexts["Nothing waiting on you"].waitForExistence(timeout: 5))
-        XCTAssertFalse(row.exists)
-        capture("pending-after-answer", app)
-        app.terminate()
-
-        scenario("expiry")
-        app = open()
-        selectFilter("pending", in: app)
-        let expiring = app.descendants(matching: .any).matching(identifier: "notification.ntf_soon").firstMatch
-        XCTAssertTrue(expiring.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Nothing waiting on you"].waitForExistence(timeout: 25))
-        XCTAssertFalse(expiring.exists)
-        XCTAssertEqual(app.buttons["inbox.filterMenu"].value as? String, "Pending 0", "the expired question must leave the filter count too")
-        capture("pending-after-expiry", app)
+    func test07HistoricalAnswersRemainReadable() {
+        scenario("answered")
+        let app = open(id: "ntf_soon")
+        XCTAssertTrue(app.staticTexts["Historical decision"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Approve"].exists)
+        XCTAssertFalse(app.buttons["Reject"].exists)
+        XCTAssertFalse(app.buttons["reply.send"].exists)
+        capture("historical-answer-read-only", app)
+        assertNoRepliesSubmitted()
     }
 
     func test08CompactHeaderSearchAndUnreadMenu() {

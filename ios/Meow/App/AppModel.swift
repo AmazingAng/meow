@@ -14,12 +14,13 @@ final class AppModel {
 
     enum Filter: String, CaseIterable, Identifiable {
         case all, unread, pending
+        static let visibleCases: [Self] = [.all, .unread]
         var id: Self { self }
         var title: LocalizedStringKey {
             switch self {
             case .all: "All"
             case .unread: "Unread"
-            case .pending: "Pending"
+            case .pending: "Needs attention"
             }
         }
     }
@@ -205,10 +206,9 @@ final class AppModel {
         case .active:
             Task {
                 await refreshPermission()
-                await flushReplies()
+                await loadSavedReplyRecords()
                 await refresh()
             }
-            startRetryLoop()
         case .background:
             retryTask?.cancel()
             retryTask = nil
@@ -920,7 +920,6 @@ final class AppModel {
             return .refused(Self.describeRefusal(error))
         case .queued(let reply):
             queuedReplies[questionID] = reply
-            startRetryLoop()
             return .queued
         case .alreadyQueued(let reply):
             queuedReplies[questionID] = reply
@@ -928,15 +927,14 @@ final class AppModel {
         }
     }
 
-    private func startRetryLoop() {
-        guard retryTask == nil else { return }
-        retryTask = Task { [weak self] in
-            while !Task.isCancelled {
-                do { try await Task.sleep(for: .seconds(15)) } catch { return }
-                guard let self else { return }
-                if !self.queuedReplies.isEmpty { await self.flushReplies() }
-            }
-        }
+    /// Retain earlier versions' queued answers without sending them in V1.
+    func loadSavedReplyRecords() async {
+        let generation = sessionGeneration
+        let pending = await replies.pending
+        let failures = await replies.failed
+        guard generation == sessionGeneration, !isChangingServer else { return }
+        queuedReplies = Dictionary(pending.map { ($0.questionID, $0) }, uniquingKeysWith: { first, _ in first })
+        failedReplies = failures
     }
 
     // MARK: Errors

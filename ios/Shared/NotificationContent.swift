@@ -14,33 +14,18 @@ enum NotificationCategory {
     static let info = "MEOW_INFO"
     static let reply = "MEOW_REPLY"
     static let approval = "MEOW_APPROVAL"
-    static let choice = "MEOW_CHOICE" // custom choices are answered in the app
+    static let choice = "MEOW_CHOICE" // legacy custom-choice payloads
 
     static let approveAction = "APPROVE"
     static let rejectAction = "REJECT"
     static let replyAction = "REPLY"
 
     static var all: Set<UNNotificationCategory> {
-        let approveButton = UNNotificationAction(
-            identifier: approveAction, title: String(localized: "Approve"),
-            // The phone must be unlocked to approve, so no one can approve from a locked screen.
-            options: [.authenticationRequired],
-            icon: UNNotificationActionIcon(systemImageName: "checkmark.circle"))
-        let rejectButton = UNNotificationAction(
-            identifier: rejectAction, title: String(localized: "Reject"),
-            options: [.destructive],
-            icon: UNNotificationActionIcon(systemImageName: "xmark.circle"))
-        let replyField = UNTextInputNotificationAction(
-            identifier: replyAction, title: String(localized: "Reply"), options: [],
-            icon: UNNotificationActionIcon(systemImageName: "arrowshape.turn.up.left"),
-            textInputButtonTitle: String(localized: "Send"),
-            textInputPlaceholder: String(localized: "Reply to the agent"))
-        return [
-            UNNotificationCategory(identifier: info, actions: [], intentIdentifiers: []),
-            UNNotificationCategory(identifier: reply, actions: [replyField], intentIdentifiers: []),
-            UNNotificationCategory(identifier: approval, actions: [approveButton, rejectButton], intentIdentifiers: []),
-            UNNotificationCategory(identifier: choice, actions: [], intentIdentifiers: []),
-        ]
+        // Register legacy identifiers without actions too, so notifications from
+        // older servers cannot restore reply/approval buttons in V1.
+        Set([info, reply, approval, choice].map {
+            UNNotificationCategory(identifier: $0, actions: [], intentIdentifiers: [])
+        })
     }
 }
 

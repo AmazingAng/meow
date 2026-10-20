@@ -1,22 +1,12 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "Run this command in your computer's terminal. It installs Meow, asks for your Device Key and connects the agents it finds. No Go or GitHub account is needed.": {
+    "%@ doesn't look like a Meow server. Check the address.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在电脑终端运行这条命令，即可安装 Meow、输入 Device Key 并接入检测到的 Agent。无需安装 Go 或登录 GitHub。"
-          }
-        }
-      }
-    },
-    "Homebrew and other installation options": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew 与其他安装方式"
+            "value": "%@ 看起来不是 Meow 服务器，请检查地址。"
           }
         }
       }
@@ -27,126 +17,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "1. 安装并接入"
-          }
-        }
-      }
-    },
-    "Copy install and setup command": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "复制安装与接入命令"
-          }
-        }
-      }
-    },
-    "CLI already installed": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已经安装 CLI"
-          }
-        }
-      }
-    },
-    "Download a ready-to-run CLI. No Go or GitHub account is needed.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "直接下载可运行的 CLI，无需安装 Go 或登录 GitHub。"
-          }
-        }
-      }
-    },
-    "macOS · Homebrew": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS · Homebrew"
-          }
-        }
-      }
-    },
-    "Copy install command": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "复制安装命令"
-          }
-        }
-      }
-    },
-    "macOS / Linux · Direct install": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS / Linux · 直接安装"
-          }
-        }
-      }
-    },
-    "Direct installation saves Meow in ~/.local/bin and checks its SHA-256 checksum. It starts setup for this server immediately; paste your Device Key when asked.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "直接安装会将 Meow 保存到 ~/.local/bin 并校验 SHA-256，随后立即接入当前服务器。看到提示后粘贴 Device Key 即可。"
-          }
-        }
-      }
-    },
-    "After Homebrew, or if already installed": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew 安装后，或已安装 CLI"
-          }
-        }
-      }
-    },
-    "Downloads and installation guide": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下载与安装说明"
-          }
-        }
-      }
-    },
-    "Setup sends a test notification to this iPhone. Your Device Key is entered separately and is not included in the copied setup command.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接入完成后会向这台 iPhone 发送测试通知。Device Key 单独输入，不会包含在复制的接入命令中。"
-          }
-        }
-      }
-    },
-    "CLI installation help": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CLI 安装帮助"
-          }
-        }
-      }
-    },
-    "%@ doesn't look like a Meow server. Check the address.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 看起来不是 Meow 服务器，请检查地址。"
           }
         }
       }
@@ -187,6 +57,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "高级"
+          }
+        }
+      }
+    },
+    "After Homebrew, or if already installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 安装后，或已安装 CLI"
+          }
+        }
+      }
+    },
+    "Agent notifications for Claude Code, Codex and your scripts.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接收 Claude Code、Codex 和脚本发来的 Agent 通知。"
           }
         }
       }
@@ -321,6 +211,26 @@
         }
       }
     },
+    "CLI already installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已经安装 CLI"
+          }
+        }
+      }
+    },
+    "CLI installation help": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CLI 安装帮助"
+          }
+        }
+      }
+    },
     "CLI source and installation guide": {
       "localizations": {
         "zh-Hans": {
@@ -403,6 +313,7 @@
       }
     },
     "Changing the server registers this iPhone again with a new Device Key.": {
+      "extractionState": "stale",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -473,6 +384,7 @@
       }
     },
     "Connection": {
+      "extractionState": "stale",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -498,6 +410,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "继续"
+          }
+        }
+      }
+    },
+    "Continue in the agent on your computer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请回到电脑上的 Agent 继续处理。"
           }
         }
       }
@@ -538,6 +460,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "复制回复"
+          }
+        }
+      }
+    },
+    "Copy install and setup command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制安装与接入命令"
+          }
+        }
+      }
+    },
+    "Copy install command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制安装命令"
           }
         }
       }
@@ -723,6 +665,16 @@
         }
       }
     },
+    "Direct installation saves Meow in ~/.local/bin and checks its SHA-256 checksum. It starts setup for this server immediately; paste your Device Key when asked.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接安装会将 Meow 保存到 ~/.local/bin 并校验 SHA-256，随后立即接入当前服务器。看到提示后粘贴 Device Key 即可。"
+          }
+        }
+      }
+    },
     "Discard and re-register": {
       "localizations": {
         "zh-Hans": {
@@ -770,6 +722,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "完成"
+          }
+        }
+      }
+    },
+    "Download a ready-to-run CLI. No Go or GitHub account is needed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接下载可运行的 CLI，无需安装 Go 或登录 GitHub。"
+          }
+        }
+      }
+    },
+    "Downloads and installation guide": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载与安装说明"
           }
         }
       }
@@ -890,6 +862,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "高优先级消息和问题使用时效性通知。请在 Meow 的通知设置，以及「设置 → 专注模式 → 对应模式 → App」中允许时效性通知。静音模式下仍不会响铃。"
+          }
+        }
+      }
+    },
+    "Homebrew and other installation options": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 与其他安装方式"
           }
         }
       }
@@ -1035,6 +1017,36 @@
         }
       }
     },
+    "Meow V1 does not send saved replies. You can copy this text and respond on your computer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meow V1 不会发送已保存的回复。你可以复制这些内容，回到电脑作答。"
+          }
+        }
+      }
+    },
+    "Meow V1 only delivers notifications. Continue in the agent on your computer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meow V1 仅提供通知。请回到电脑上的 Agent 继续处理。"
+          }
+        }
+      }
+    },
+    "Meow notifies you when an agent finishes, fails or needs your attention. Continue on your computer when needed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当 Agent 完成任务、执行失败或需要你关注时，Meow 会发送通知。需要处理时，请回到电脑继续。"
+          }
+        }
+      }
+    },
     "Meow tells you when an agent finishes, fails or needs an answer, and you can reply right from the notification.": {
       "localizations": {
         "zh-Hans": {
@@ -1121,6 +1133,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有发送失败的回复"
+          }
+        }
+      }
+    },
+    "No notifications need attention": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无需要关注的通知"
           }
         }
       }
@@ -1305,6 +1327,16 @@
         }
       }
     },
+    "Options from the agent": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 提供的选项"
+          }
+        }
+      }
+    },
     "Or send with curl": {
       "localizations": {
         "zh-Hans": {
@@ -1316,6 +1348,7 @@
       }
     },
     "Other notifications": {
+      "extractionState": "stale",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -1336,11 +1369,22 @@
       }
     },
     "Permission": {
+      "extractionState": "stale",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "权限"
+          }
+        }
+      }
+    },
+    "Previous answer": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "历史回答"
           }
         }
       }
@@ -1597,6 +1641,16 @@
         }
       }
     },
+    "Run this command in your computer's terminal. It installs Meow, asks for your Device Key and connects the agents it finds. No Go or GitHub account is needed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在电脑终端运行这条命令，即可安装 Meow、输入 Device Key 并接入检测到的 Agent。无需安装 Go 或登录 GitHub。"
+          }
+        }
+      }
+    },
     "Save": {
       "localizations": {
         "zh-Hans": {
@@ -1623,6 +1677,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "将移除 %lld 条已保存的回复，并在新服务器重新注册。已处理的回复无法撤回。"
+          }
+        }
+      }
+    },
+    "Saved reply records": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存的回复记录"
           }
         }
       }
@@ -1785,6 +1849,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "设置"
+          }
+        }
+      }
+    },
+    "Setup sends a test notification to this iPhone. Your Device Key is entered separately and is not included in the copied setup command.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接入完成后会向这台 iPhone 发送测试通知。Device Key 单独输入，不会包含在复制的接入命令中。"
           }
         }
       }
@@ -2004,6 +2078,7 @@
       }
     },
     "This iPhone is no longer registered with the server. Change or reset the server in Settings.": {
+      "extractionState": "stale",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -2140,6 +2215,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "未读"
+          }
+        }
+      }
+    },
+    "Unsent records": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未发送的记录"
           }
         }
       }
@@ -2360,6 +2445,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的回答没有被接受"
+          }
+        }
+      }
+    },
+    "macOS / Linux · Direct install": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS / Linux · 直接安装"
+          }
+        }
+      }
+    },
+    "macOS · Homebrew": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS · Homebrew"
           }
         }
       }

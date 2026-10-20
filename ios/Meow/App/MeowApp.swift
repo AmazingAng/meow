@@ -62,35 +62,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     private func handle(_ response: UNNotificationResponse) async {
         let meow = response.notification.request.content.userInfo["meow"] as? [String: Any]
         guard let meow, let identity = NotificationIdentity.current, identity.accepts(meow) else { return }
-        let isDefault = response.actionIdentifier == UNNotificationDefaultActionIdentifier
-        guard isDefault || NotificationContent.canRespond(meow, identity: identity) else { return }
-        await handle(
-            action: response.actionIdentifier,
-            notificationID: meow["id"] as? String,
-            questionID: meow["question_id"] as? String,
-            choices: meow["choices"] as? [String] ?? [],
-            text: (response as? UNTextInputNotificationResponse)?.userText,
-            identity: identity)
-    }
-
-    private func handle(action: String, notificationID: String?, questionID: String?, choices: [String], text: String?, identity: NotificationIdentity) async {
-        guard NotificationIdentity.current == identity else { return }
-        // Send the question's own spelling of the choice.
-        func choice(_ name: String) -> String {
-            choices.first { $0.lowercased() == name } ?? name
-        }
-        switch action {
-        case NotificationCategory.approveAction:
-            if let questionID { await model.answerFromNotification(questionID, with: choice("approve"), identity: identity) }
-        case NotificationCategory.rejectAction:
-            if let questionID { await model.answerFromNotification(questionID, with: choice("reject"), identity: identity) }
-        case NotificationCategory.replyAction:
-            let reply = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if let questionID, !reply.isEmpty { await model.answerFromNotification(questionID, with: reply, identity: identity) }
-        case UNNotificationDefaultActionIdentifier:
-            if let notificationID { model.open(notificationID) }
-        default:
-            break
-        }
+        // Ignore actions left on notifications delivered by a previous app version.
+        // Opening a notification is the only interactive action in V1.
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
+              let id = meow["id"] as? String else { return }
+        model.open(id)
     }
 }

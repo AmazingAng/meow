@@ -16,13 +16,13 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 connectionStatus
-                if !model.failedReplies.isEmpty {
+                if !model.failedReplies.isEmpty || !model.queuedReplies.isEmpty {
                     Section {
                         NavigationLink {
                             FailedRepliesView()
                         } label: {
-                            Label("Replies that weren't sent", systemImage: "exclamationmark.bubble")
-                                .badge(model.failedReplies.count)
+                            Label("Saved reply records", systemImage: "archivebox")
+                                .badge(model.failedReplies.count + model.queuedReplies.count)
                         }
                     }
                 }

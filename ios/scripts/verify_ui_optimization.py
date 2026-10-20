@@ -23,12 +23,14 @@ def timestamp(date):
 
 class Fixture(BaseHTTPRequestHandler):
     items = []
+    response_count = 0
     lock = threading.RLock()
 
     @classmethod
     def reset(cls):
         now = datetime.now(timezone.utc)
         cls.items = []
+        cls.response_count = 0
         for ident, title, choices, expiry, read in [
             ('info', 'Build completed', False, 0, False),
             ('later', 'What should I work on next?', None, 3600, False),
@@ -60,6 +62,8 @@ class Fixture(BaseHTTPRequestHandler):
 
     def get(self):
         url = urlsplit(self.path)
+        if url.path == '/fixture/stats':
+            return self.send_json({'responses': type(self).response_count})
         if url.path == '/fixture/reset':
             self.reset()
             return self.send_json({})
@@ -74,6 +78,9 @@ class Fixture(BaseHTTPRequestHandler):
                 self.items[:] = [info]
             else:
                 soon['body'] = 'Choose an answer.'
+                if scenario == 'answered':
+                    soon['question']['status'] = 'answered'
+                    soon['question']['answer'] = 'Historical decision'
                 if scenario == 'expiry':
                     soon['question']['expires_at'] = timestamp(datetime.now(timezone.utc) + timedelta(seconds=20))
                 self.items[:] = [soon]
@@ -126,6 +133,7 @@ class Fixture(BaseHTTPRequestHandler):
                 n['read_at'] = now
             q = n.get('question')
             if q and self.path == '/v1/questions/' + q['id'] + '/responses':
+                type(self).response_count += 1
                 q['answer'] = body['answer']
                 q['status'] = 'rejected' if body['answer'] == 'reject' else 'answered'
                 n['read_at'] = now
