@@ -71,6 +71,14 @@ final class AppModel {
     private(set) var timeSensitiveSetting = UNNotificationSetting.notSupported
     /// Notifications this iPhone sent to itself, which say nothing about the computer.
     private(set) var sentTestIDs: Set<String> = []
+    private var sendingTestCount = 0
+
+    /// Any computer message in this device's inbox proves the connection,
+    /// including one received before the test page appears or the app restarts.
+    var onboardingNotification: MeowNotification? {
+        guard isRegistered, !isChangingServer, sendingTestCount == 0 else { return nil }
+        return savedNotifications.first { !sentTestIDs.contains($0.id) }
+    }
     private(set) var hasPushToken = false
     var pushRegistrationError: String?
     private(set) var gatewayURL: URL?
@@ -139,6 +147,7 @@ final class AppModel {
         static let onboarded = "onboarded"
         static let deviceKey = "device_key"
         static let deviceKeyID = "device_key_id"
+        static let sentTests = "onboarding_sent_tests"
     }
 
     init(replies: ReplyQueue = .shared, pushSession: URLSession = MeowTransport.gateway,
@@ -146,6 +155,12 @@ final class AppModel {
         self.replies = replies
         self.pushSession = pushSession
         self.inboxStore = inboxStore
+        if let scope = inboxScope,
+           let saved = MeowShared.defaults.dictionary(forKey: Keys.sentTests),
+           saved["scope"] as? String == scope,
+           let ids = saved["ids"] as? [String] {
+            sentTestIDs = Set(ids)
+        }
         #if DEBUG
         // Development helpers: -meowServer http://127.0.0.1:8080 -meowAutoRegister YES -meowOpen ntf_…
         if !isRegistered, let url = MeowShared.serverURL(from: UserDefaults.standard.string(forKey: "meowServer")) {
@@ -288,6 +303,8 @@ final class AppModel {
         hasFinishedOnboarding = false
         hasPushToken = false
         sentTestIDs = []
+        sendingTestCount = 0
+        MeowShared.defaults.removeObject(forKey: Keys.sentTests)
         savedNotifications = []
         details = [:]
         counts = InboxCounts()
@@ -422,17 +439,23 @@ final class AppModel {
     func sendTestNotification(priority: String = "normal") async {
         guard let deviceKey, let server else { return }
         let generation = sessionGeneration
+        sendingTestCount += 1
+        defer { if generation == sessionGeneration { sendingTestCount -= 1 } }
         do {
             let sent = try await MeowAPI(server: server, token: deviceKey).notify(
                 title: String(localized: "Meow!"),
                 body: String(localized: "Your agents can reach you now."), priority: priority)
             guard generation == sessionGeneration else { return }
             sentTestIDs.insert(sent.id)
+            if let scope = inboxScope {
+                MeowShared.defaults.set(["scope": scope, "ids": Array(sentTestIDs)], forKey: Keys.sentTests)
+            }
             toast = Toast(message: isNotificationPermissionGranted
                 ? String(localized: "Test notification sent.")
                 : String(localized: "Sent. Notifications are off, so it's only in your inbox."))
             await refresh()
         } catch {
+            guard generation == sessionGeneration else { return }
             alert = Self.describe(error)
         }
     }

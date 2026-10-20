@@ -130,6 +130,15 @@ final class OnboardingRegressionUITests: XCTestCase {
         connected.name = "onboarding-connected"
         connected.lifetime = .keepAlways
         add(connected)
+        // Relaunch before finishing. The same received message must count;
+        // a new baseline must not silently swallow it and wait for another push.
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["Not now"].waitForExistence(timeout: 10))
+        app.buttons["Not now"].tap()
+        XCTAssertTrue(app.buttons["Next"].waitForExistence(timeout: 10))
+        app.buttons["Next"].tap()
+        XCTAssertTrue(success.waitForExistence(timeout: 10), "receipt survives relaunch without another push")
         app.buttons["Done"].tap()
         XCTAssertTrue(app.staticTexts["From your computer"].waitForExistence(timeout: 10),
                       "finishing onboarding must load the inbox without a scene phase transition")

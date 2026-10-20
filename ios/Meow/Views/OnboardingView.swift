@@ -14,9 +14,7 @@ struct OnboardingView: View {
     @State private var isSendingTest = false
     @State private var help: SetupHelpTopic?
     @State private var showServer = false
-    /// Inbox IDs already there when connecting began; anything newer came from the computer.
-    @State private var knownIDs: Set<String>?
-    @State private var received: MeowNotification?
+    private var received: MeowNotification? { model.onboardingNotification }
     @FocusState private var serverFocused: Bool
 
     enum Step: Int {
@@ -59,8 +57,6 @@ struct OnboardingView: View {
             if !registered {
                 step = .server
                 serverText = model.server?.absoluteString ?? ""
-                knownIDs = nil
-                received = nil
             }
         }
         .onAppear {
@@ -295,9 +291,6 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity)
             .background(.bar)
         }
-        // `meow setup` sends its test as soon as it finishes, often before
-        // the user taps Next, so the baseline is taken here.
-        .task { await captureKnownIDs() }
     }
 
     // MARK: Test
@@ -358,41 +351,20 @@ struct OnboardingView: View {
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
         }
-        // Poll faster than the inbox does while waiting; cancelled when the step goes away.
+        // Check the saved inbox immediately on entry, then synchronize while
+        // waiting. There is no baseline fetch that can swallow an early test.
         .task {
             while !Task.isCancelled, received == nil {
-                if knownIDs == nil {
-                    await captureKnownIDs()
-                } else {
-                    await model.refresh()
-                    checkReceived()
-                }
-                try? await Task.sleep(for: .seconds(2))
+                await model.refresh()
+                do { try await Task.sleep(for: .seconds(2)) }
+                catch { return }
             }
         }
-        // Also catches a refresh triggered by a push arriving in the foreground.
-        .onChange(of: model.notifications) { checkReceived() }
-        .onChange(of: isSendingTest) { checkReceived() }
-    }
-
-    /// Only a successful load counts: a failed one would make old messages look new.
-    private func captureKnownIDs() async {
-        guard knownIDs == nil else { return }
-        await model.refresh()
-        guard knownIDs == nil, model.hasLoaded, model.loadError == nil else { return }
-        knownIDs = Set(model.notifications.map(\.id))
-    }
-
-    /// The only place that says the phone received something: a notification
-    /// that is new since connecting began and wasn't sent from this iPhone.
-    private func checkReceived() {
-        // Wait for a send from this iPhone to finish, so its ID is known.
-        guard step == .test, received == nil, !isSendingTest, let knownIDs else { return }
-        guard let n = model.notifications.first(where: {
-            !knownIDs.contains($0.id) && !model.sentTestIDs.contains($0.id)
-        }) else { return }
-        received = n
-        UIAccessibility.post(notification: .announcement, argument: String(localized: "Connected — received “\(n.title.isEmpty ? n.body : n.title)”"))
+        .onChange(of: received?.id, initial: true) {
+            guard let received else { return }
+            UIAccessibility.post(notification: .announcement,
+                argument: String(localized: "Connected — received “\(received.title.isEmpty ? received.body : received.title)”"))
+        }
     }
 
     /// Scroll the explanation independently while keeping the next action in

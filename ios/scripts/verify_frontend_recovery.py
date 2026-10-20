@@ -47,7 +47,7 @@ def package(output):
     shutil.copy2(ROOT / 'ios/scripts/frontend_recovery/Platform.swift', path / 'Sources/Platform.swift')
     shutil.copy2(ROOT / 'ios/MeowTests/FrontendRecoveryTests.swift', path / 'Tests/FrontendRecoveryTests.swift')
     shutil.copy2(ROOT / 'ios/Meow/Views/InboxPresentation.swift', path / 'Sources/InboxPresentation.swift')
-    for name in ['InboxPresentationTests.swift', 'PendingInboxTests.swift', 'LocalInboxTests.swift']:
+    for name in ['InboxPresentationTests.swift', 'PendingInboxTests.swift', 'LocalInboxTests.swift', 'OnboardingDetectionTests.swift']:
         shutil.copy2(ROOT / 'ios/MeowTests' / name, path / 'Tests' / name)
     original = (ROOT / 'ios/MeowTests/MeowTests.swift').read_text()
     header = r'^(?:private final class ReviewURLProtocol[^\n]+|final class SessionRegressionTests: XCTestCase|extension SessionRegressionTests|final class OnboardingCommandTests: XCTestCase) \{'
