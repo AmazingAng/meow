@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"meow.blue/meow/cli/internal/config"
+	"meow.blue/meow/cli/internal/setup"
 	"meow.blue/meow/client"
 )
 
@@ -56,16 +58,40 @@ func cmdHook(args []string) (code int) {
 			hookLog("panic: %v", r)
 		}
 	}()
-	if len(args) == 0 || os.Getenv("MEOW_HOOK_DISABLED") == "1" {
+	if len(args) == 0 {
 		return
 	}
 	kind, summary, payload := args[0], true, ""
+	var forwarded []string
 	for _, a := range args[1:] {
 		if a == "--no-summary" {
 			summary = false
+		} else if strings.HasPrefix(a, setup.ForwardNotifyPrefix) {
+			if kind != "codex" || forwarded != nil {
+				hookLog("invalid duplicate or non-Codex forwarding option")
+				return
+			}
+			var err error
+			forwarded, err = setup.DecodeForwardNotify(strings.TrimPrefix(a, setup.ForwardNotifyPrefix))
+			if err != nil {
+				hookLog("%s", err)
+				return
+			}
 		} else {
 			payload = a
 		}
+	}
+	if len(forwarded) > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			forwardNotify(ctx, forwarded, payload)
+		}()
+		defer func() { <-done; cancel() }()
+	}
+	if os.Getenv("MEOW_HOOK_DISABLED") == "1" {
+		return
 	}
 
 	var input []byte
@@ -102,6 +128,16 @@ func cmdHook(args []string) (code int) {
 		hookLog("%s: send failed: %v", kind, err)
 	}
 	return
+}
+
+// Preserve the raw payload as one final argument and isolate both output streams.
+// An external handler's failure must not affect Meow or expose message content.
+func forwardNotify(ctx context.Context, argv []string, payload string) {
+	command := exec.CommandContext(ctx, argv[0], append(append([]string{}, argv[1:]...), payload)...)
+	command.WaitDelay = 250 * time.Millisecond
+	if err := command.Run(); err != nil {
+		hookLog("original Codex notify failed: %v", err)
+	}
 }
 
 // buildHookNotification turns an agent's hook input into a notification.

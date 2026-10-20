@@ -2,6 +2,7 @@ package setup
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"path"
 	"slices"
@@ -20,9 +21,27 @@ func isMeowNotify(assignment string, knownExecutables ...string) bool {
 	if toml.Unmarshal([]byte(assignment), &value) != nil {
 		return false
 	}
-	argv := value.Notify
-	if len(argv) != 3 && len(argv) != 4 {
-		return false
+	_, ok := meowNotify(value.Notify, knownExecutables...)
+	return ok
+}
+
+const ForwardNotifyPrefix = "--forward-notify="
+
+// DecodeForwardNotify decodes argv, never shell source.
+func DecodeForwardNotify(value string) ([]string, error) {
+	var argv []string
+	if err := json.Unmarshal([]byte(value), &argv); err != nil {
+		return nil, fmt.Errorf("invalid forwarded notify argv")
+	}
+	if len(argv) == 0 || argv[0] == "" {
+		return nil, fmt.Errorf("forwarded notify needs an executable")
+	}
+	return argv, nil
+}
+
+func meowNotify(argv []string, knownExecutables ...string) ([]string, bool) {
+	if len(argv) < 3 || len(argv) > 5 {
+		return nil, false
 	}
 	executable := path.Base(strings.ReplaceAll(argv[0], `\`, "/"))
 	known := executable == "meow" || executable == "meow.exe"
@@ -31,9 +50,44 @@ func isMeowNotify(assignment string, knownExecutables ...string) bool {
 			known = true
 		}
 	}
-	return known &&
-		argv[1] == "hook" && argv[2] == "codex" &&
-		(len(argv) == 3 || argv[3] == "--no-summary")
+	if !known || argv[1] != "hook" || argv[2] != "codex" {
+		return nil, false
+	}
+	var forwarded []string
+	summarySeen := false
+	for _, arg := range argv[3:] {
+		switch {
+		case arg == "--no-summary" && !summarySeen:
+			summarySeen = true
+		case strings.HasPrefix(arg, ForwardNotifyPrefix) && forwarded == nil:
+			var err error
+			forwarded, err = DecodeForwardNotify(strings.TrimPrefix(arg, ForwardNotifyPrefix))
+			if err != nil {
+				return nil, false
+			}
+		default:
+			return nil, false
+		}
+	}
+	return forwarded, true
+}
+
+// CodexOriginalNotify unwraps our dispatcher, or returns an existing external
+// command. This makes reinstall and uninstall independent of local state files.
+func CodexOriginalNotify(src []byte, knownExecutables ...string) ([]string, error) {
+	var value struct {
+		Notify []string `toml:"notify"`
+	}
+	if err := toml.Unmarshal(src, &value); err != nil {
+		return nil, err
+	}
+	if forwarded, ours := meowNotify(value.Notify, knownExecutables...); ours {
+		return forwarded, nil
+	}
+	if len(value.Notify) > 0 && value.Notify[0] == "" {
+		return nil, fmt.Errorf("existing notify has an empty executable")
+	}
+	return value.Notify, nil
 }
 
 // NotifyConflictError means config.toml already runs another notify command.

@@ -91,8 +91,8 @@ func TestCodexPlanKeepsCustomExecutableAndForeignCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	options.install = true
-	if _, _, err = planCodex(options); err == nil {
-		t.Fatal("foreign notify did not conflict")
+	if kept, _, err := planCodex(options); err != nil || len(kept) != 1 || !strings.Contains(string(kept[0].data), "--forward-notify=") {
+		t.Fatalf("foreign notify must be preserved by coexistence: %v %v", kept, err)
 	}
 	options.force = true
 	changes, notes, err := planCodex(options)

@@ -93,6 +93,24 @@ func cmdSetupWizard(args []string) int {
 
 	// 3. Agents
 	agents := detectAgents()
+	var detected []string
+	for _, agent := range agents {
+		detected = append(detected, agent.name)
+	}
+	if len(detected) > 0 {
+		fmt.Fprintln(os.Stderr, "Detected agents: "+strings.Join(detected, ", "))
+	}
+	for _, supported := range []agentInfo{{"claude", "Claude Code"}, {"codex", "Codex"}} {
+		found := false
+		for _, agent := range agents {
+			if agent.id == supported.id {
+				found = true
+			}
+		}
+		if !found {
+			fmt.Fprintf(os.Stderr, "Not detected: %s. To connect manually: meow setup %s\n", supported.name, supported.id)
+		}
+	}
 	if len(agents) == 0 {
 		fmt.Fprintln(os.Stderr, "\nNo Claude Code or Codex setup found on this computer.")
 		fmt.Fprintln(os.Stderr, `Install one, then run "meow setup claude" or "meow setup codex".`)

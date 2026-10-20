@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -302,11 +303,17 @@ func planCodex(o setupOptions) ([]fileChange, []string, error) {
 		}
 	}
 	existing, ours := setup.CodexNotify(old, o.executables()...)
-	data, err := setup.CodexConfig(old, argv, o.install, o.force, o.executables()...)
-	var conflict *setup.NotifyConflictError
-	if errors.As(err, &conflict) {
-		return nil, nil, fmt.Errorf("%s already has\n    %s\nCodex runs only one notify command. Re-run with --force to replace it (the file is backed up first)",
-			tilde(path), conflict.Existing)
+	original, err := setup.CodexOriginalNotify(old, o.executables()...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%s: %w", tilde(path), err)
+	}
+	if o.install && !o.force && len(original) > 0 {
+		encoded, _ := json.Marshal(original)
+		argv = append(argv, setup.ForwardNotifyPrefix+string(encoded))
+	}
+	data, err := setup.CodexConfig(old, argv, o.install, o.force || (o.install && existing != ""), o.executables()...)
+	if !o.install && ours && len(original) > 0 {
+		data, err = setup.CodexConfig(old, original, true, true, o.executables()...)
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: %w", tilde(path), err)
@@ -315,10 +322,16 @@ func planCodex(o setupOptions) ([]fileChange, []string, error) {
 	var changes []fileChange
 	if !bytes.Equal(old, data) {
 		c := fileChange{path: path, data: data, exists: exists, lines: []string{"remove the meow notify command"}}
+		if !o.install && ours && len(original) > 0 {
+			c.lines = []string{"restore original notify = " + setup.TOMLArray(original)}
+		}
 		if o.install {
 			c.lines = []string{"notify = " + setup.TOMLArray(argv)}
-			if existing != "" && !ours {
+			if existing != "" && !ours && o.force {
 				c.lines = append(c.lines, "replaces: "+existing)
+			}
+			if len(original) > 0 && !o.force {
+				c.lines = append(c.lines, "keeps the existing notification command running alongside Meow")
 			}
 		}
 		changes = append(changes, c)

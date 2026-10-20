@@ -172,7 +172,12 @@ meow setup --server https://your-meow-server     # asks for the Device Key, conn
 
 - Completion notifications include the first 200 characters of the agent's last message; pass `--no-summary` to leave it out.
 - The skill teaches the agent to ask you with `meow ask` when it needs a decision.
-- Codex runs only one `notify` command. If you already have one, setup stops and shows it; `--force` replaces it.
+- Codex runs one `notify` command. Setup preserves an existing handler (including
+  Computer Use), running it alongside Meow with the original JSON argument.
+  Re-running setup does not duplicate the handler; uninstall restores it.
+  `--force` explicitly replaces it instead. Each handler runs independently;
+  Meow has a five-second HTTP timeout and the original command has a separate
+  thirty-second timeout. Output remains silent and failures go to `hook.log`.
 - The hook command (`meow hook …`) always exits 0 and prints nothing, so it never blocks or disturbs the agent. Problems are logged to `hook.log` next to the meow config. Set `MEOW_HOOK_DISABLED=1` to silence it.
 
 ## HTTP API
