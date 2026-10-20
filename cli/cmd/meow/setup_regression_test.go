@@ -140,3 +140,54 @@ func TestSetupUninstallNeedsNoDeviceKey(t *testing.T) {
 		t.Fatalf("uninstall: exit=%d output=%s", code, output)
 	}
 }
+
+func TestAlreadyConnectedSetupStillSuggestsMissingSkill(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("HOME", dir)
+			t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(dir, "claude"))
+			t.Setenv("CODEX_HOME", filepath.Join(dir, "codex"))
+			t.Setenv("MEOW_CONFIG", filepath.Join(dir, "meow.json"))
+			t.Setenv("MEOW_KEY", "meow_testkey")
+			t.Setenv("MEOW_SERVER", "https://setup.invalid")
+			exe := filepath.Join(dir, "bin", "meow")
+			if err := os.MkdirAll(filepath.Dir(exe), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(exe, []byte("#!/bin/sh\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("MEOW_EXECUTABLE", exe)
+			setup := func() string {
+				return captureOutput(t, "", func() {
+					if code := run([]string{"setup", agent, "--yes", "--no-test", "--no-skill"}); code != 0 {
+						t.Errorf("setup exit=%d", code)
+					}
+				})
+			}
+			setup()
+			out := setup()
+			if !strings.Contains(out, "already connected") || !strings.Contains(out, "npx skills add AmazingAng/meow") {
+				t.Fatalf("reinstall lost the missing-skill hint: %s", out)
+			}
+			skill := filepath.Join(dir, "claude", "skills", "meow", "SKILL.md")
+			if agent == "codex" {
+				skill = filepath.Join(dir, ".agents", "skills", "meow", "SKILL.md")
+			}
+			if err := os.MkdirAll(filepath.Dir(skill), 0700); err != nil {
+				t.Fatal(err)
+			}
+			data := []byte("---\nname: meow\ndescription: Skills-managed Meow\n---\n")
+			if err := os.WriteFile(skill, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if out := setup(); strings.Contains(out, "npx skills add") {
+				t.Fatalf("installed skill still gets a missing-skill hint: %s", out)
+			}
+			if got, err := os.ReadFile(skill); err != nil || string(got) != string(data) {
+				t.Fatalf("skills-managed content changed: %q %v", got, err)
+			}
+		})
+	}
+}

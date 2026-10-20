@@ -56,7 +56,7 @@ a directory, download the script and pass its options:
 
 ```sh
 curl -fsSLo /tmp/meow-install.sh https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/install.sh
-sh /tmp/meow-install.sh --version 0.1.0 --install-dir "$HOME/.local/bin"
+sh /tmp/meow-install.sh --version 0.1.2 --install-dir "$HOME/.local/bin"
 ```
 
 For manual installation, download the matching archive and `checksums.txt` from
@@ -157,7 +157,7 @@ and separate user consent. Meow does not currently claim this capability.
 
 The [`meow` skill](skills/meow/SKILL.md) teaches Claude Code, Codex and other
 agents to install the CLI, guide setup, troubleshoot and send notifications.
-Install it first, then ask the agent to set up Meow:
+Use Meow CLI 0.1.2 or later: older setup commands can overwrite a separately installed skill. Install the skill, then ask the agent to set up Meow:
 
 ```sh
 npx skills add AmazingAng/meow -g          # Node.js 22.20+; asks which agents to install to

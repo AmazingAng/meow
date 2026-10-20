@@ -5,7 +5,7 @@ description: Install, configure, troubleshoot and use Meow, notifications for AI
 
 # Meow
 
-Meow sends a notification to the user's iPhone. Meow V1 only delivers notifications. The user reads them on the phone and responds in the agent on their computer.
+Meow sends a notification to the user's iPhone. Meow V1 only delivers notifications. Use CLI 0.1.2 or later; older setup commands can overwrite this skill. The user reads them on the phone and responds in the agent on their computer.
 
 - iPhone app: creates the device, shows the server address and the Device Key.
 - `meow` CLI (macOS and Linux): sends notifications.
@@ -38,7 +38,7 @@ curl -fsSL https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/instal
 
 - If `~/.local/bin` is not on PATH, the installer prints the `export PATH=...` line. Suggest it to the user; don't edit their shell profile without asking.
 - Don't pass `--server` to the installer from an agent. With `--server` it starts interactive setup, which needs a terminal.
-- To pin a version: download the script, then run `sh install.sh --version 0.1.1 --install-dir "$HOME/.local/bin"`.
+- To pin a version: download the script, then run `sh install.sh --version 0.1.2 --install-dir "$HOME/.local/bin"`.
 - Windows is not supported.
 
 ## 2. Connect the CLI to the iPhone

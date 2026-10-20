@@ -18,7 +18,7 @@ def formula(version, checksums):
         if name in entries or not re.fullmatch(r'[0-9a-f]{64}', digest):
             raise ValueError('Duplicate archive or invalid SHA-256')
         entries[name] = digest
-    lines = ['class Meow < Formula', '  desc "Push notifications and quick replies for AI agents"',
+    lines = ['class Meow < Formula', '  desc "Push notifications for AI agents"',
              '  homepage "https://github.com/AmazingAng/meow"', f'  version "{version}"', '']
     for os_name, platform in [('macos', 'darwin'), ('linux', 'linux')]:
         lines += [f'  on_{os_name} do']

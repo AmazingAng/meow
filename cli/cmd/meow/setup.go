@@ -133,6 +133,9 @@ func cmdSetup(args []string) int {
 		} else {
 			fmt.Fprintf(os.Stderr, "Nothing to remove for %s.\n", name)
 		}
+		for _, n := range notes {
+			fmt.Fprintln(os.Stderr, n)
+		}
 		return exitOK
 	}
 
