@@ -9,31 +9,6 @@ client/   Go client for the HTTP API (used by the CLI and the server tests)
 ios/      SwiftUI app (iOS 17+) and its notification service extension
 ```
 
-## Quick start
-
-```sh
-go build -o bin/meow-server ./server/cmd/meow-server
-go build -o bin/meow ./cli/cmd/meow
-MEOW_ADDR=:8080 bin/meow-server
-```
-
-Open the iOS app and enter this server's address. On a physical phone, use the
-computer's LAN address, such as `http://192.168.31.235:8080`, while connected to
-the same Wi-Fi. The app creates the device and Device Key automatically.
-
-In another terminal, run the setup command copied from the app, or:
-
-```sh
-bin/meow setup --server http://127.0.0.1:8080
-bin/meow "Build completed"
-bin/meow ask "Deploy to production?" --choices approve,reject
-```
-
-Setup asks for the Device Key shown in the app. Answer questions in the iOS app
-or the notification. For push delivery, configure direct APNs or the
-[wake gateway](docs/wake-gateway.md); without a provider, messages still appear
-in the inbox and push is recorded as `skipped`.
-
 ## Installation
 
 The CLI is available as a ready-to-run binary for macOS and Linux, on Apple
@@ -88,6 +63,31 @@ For manual installation, download the matching archive and `checksums.txt` from
 [GitHub Releases](https://github.com/AmazingAng/meow/releases/latest), verify its
 checksum, extract `meow`, and put it in your PATH. Run `meow doctor` if setup or
 push delivery needs attention.
+
+## Run a local server from source
+
+```sh
+go build -o bin/meow-server ./server/cmd/meow-server
+go build -o bin/meow ./cli/cmd/meow
+MEOW_ADDR=:8080 bin/meow-server
+```
+
+Open the iOS app and enter this server's address. On a physical phone, use the
+computer's LAN address, such as `http://192.168.31.235:8080`, while connected to
+the same Wi-Fi. The app creates the device and Device Key automatically.
+
+In another terminal, run the setup command copied from the app, or:
+
+```sh
+bin/meow setup --server http://127.0.0.1:8080
+bin/meow "Build completed"
+bin/meow ask "Deploy to production?" --choices approve,reject
+```
+
+Setup asks for the Device Key shown in the app. Answer questions in the iOS app
+or the notification. For push delivery, configure direct APNs or the
+[wake gateway](docs/wake-gateway.md); without a provider, messages still appear
+in the inbox and push is recorded as `skipped`.
 
 ## CLI
 
