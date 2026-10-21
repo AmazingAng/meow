@@ -33,6 +33,26 @@ struct NotificationBody {
     let json: String?
     let blocks: [Block]
 
+    /// Compact inbox text uses the same parsed content as the detail view.
+    /// Parse before truncating so a cut inside **bold** or `code` cannot expose
+    /// unmatched delimiters. Links remain plain text so the row opens details.
+    var listPreview: AttributedString? {
+        for block in blocks where !block.isCode && !block.isDivider {
+            let lines = block.text.characters.split(whereSeparator: \.isNewline)
+            guard let line = lines.first(where: { $0.contains { !$0.isWhitespace } }),
+                  let first = line.firstIndex(where: { !$0.isWhitespace }),
+                  let last = line.lastIndex(where: { !$0.isWhitespace }) else { continue }
+            var preview = AttributedString(block.text[first..<line.index(after: last)])
+            if preview.characters.count > 180 {
+                let end = preview.characters.index(preview.startIndex, offsetBy: 179)
+                preview = AttributedString(preview[..<end]) + AttributedString("…")
+            }
+            preview.link = nil
+            return preview
+        }
+        return nil
+    }
+
     init(_ original: String) {
         self.original = original
         var markdown = original

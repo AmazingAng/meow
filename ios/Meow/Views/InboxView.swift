@@ -308,7 +308,7 @@ struct NotificationRow: View {
                 } else {
                     HStack(alignment: .firstTextBaseline) { metadata }
                 }
-                if let line = firstLine(of: NotificationContent.preview(n.body)) {
+                if let line = NotificationBody(n.body).listPreview {
                     Text(line)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -337,9 +337,4 @@ struct NotificationRow: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func firstLine(of body: String) -> String? {
-        let line = body.split(whereSeparator: \.isNewline).first.map(String.init)?
-            .trimmingCharacters(in: .whitespaces)
-        return line?.isEmpty == false ? line : nil
-    }
 }

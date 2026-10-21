@@ -132,3 +132,54 @@ final class NotificationBodyTests: XCTestCase {
         XCTAssertEqual(String(body.blocks[1].text.characters), "Passed and checked.")
     }
 }
+
+
+extension NotificationBodyTests {
+    func testInboxPreviewRendersInlineMarkdownAndDisablesLinksWithoutChangingDetails() throws {
+        let raw = "**构建完成**，请运行 `meow doctor`，查看 [文档](https://example.com)。"
+        let body = NotificationBody(raw)
+        let preview = try XCTUnwrap(body.listPreview)
+        XCTAssertEqual(String(preview.characters), "构建完成，请运行 meow doctor，查看 文档。")
+        XCTAssertTrue(preview.runs.contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true })
+        XCTAssertTrue(preview.runs.contains { $0.inlinePresentationIntent?.contains(.code) == true })
+        XCTAssertTrue(preview.runs.allSatisfy { $0.link == nil })
+        XCTAssertTrue(body.blocks[0].text.runs.contains { $0.link?.absoluteString == "https://example.com" })
+        XCTAssertEqual(body.original, raw)
+    }
+
+    func testInboxPreviewUsesReadableMarkdownBlockWithoutLayoutMarkers() throws {
+        for (raw, expected) in [
+            ("# **结果**\n\n正文", "结果"),
+            ("- *第一项*\n- 第二项", "第一项"),
+            ("> 请 **检查**", "请 检查"),
+            ("---\n\n完成", "完成"),
+            ("```sh\necho hello\n```\n\n**完成**", "完成"),
+            (###"{"message":"**已完成**"}"###, "已完成"),
+            ("  \n\n 正文  \n\n第二段", "正文"),
+            (#"\*literal\* and \`literal\`"#, "*literal* and `literal`")
+        ] {
+            XCTAssertEqual(String(try XCTUnwrap(NotificationBody(raw).listPreview).characters), expected, raw)
+        }
+        XCTAssertTrue(try XCTUnwrap(NotificationBody("- *第一项*").listPreview).runs.contains {
+            $0.inlinePresentationIntent?.contains(.emphasized) == true
+        })
+    }
+
+    func testInboxPreviewHidesCodeAndStructuredJSONWhenNoReadableProseExists() {
+        for raw in ["", "   \n", "---", "```sh\necho hello\n```", #"{"data":[1,2]}"#] {
+            XCTAssertNil(NotificationBody(raw).listPreview, raw)
+        }
+    }
+
+    func testInboxPreviewTruncatesRenderedCharactersWithoutSplittingEmojiOrMarkdown() throws {
+        let emoji = "👨‍👩‍👧‍👦"
+        let raw = "**" + String(repeating: emoji, count: 190) + "**"
+        let body = NotificationBody(raw)
+        let preview = try XCTUnwrap(body.listPreview)
+        XCTAssertEqual(String(preview.characters), String(repeating: emoji, count: 179) + "…")
+        XCTAssertEqual(preview.characters.count, 180)
+        XCTAssertTrue(preview.runs.contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true })
+        XCTAssertEqual(String(body.blocks[0].text.characters), String(repeating: emoji, count: 190))
+        XCTAssertEqual(body.original, raw)
+    }
+}
