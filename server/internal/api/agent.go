@@ -184,6 +184,8 @@ func (s *Server) idemFailed(w http.ResponseWriter, r *http.Request, err error) b
 		return false
 	case errors.Is(err, store.ErrIdempotencyMismatch):
 		writeError(w, http.StatusUnprocessableEntity, "idempotency_mismatch", "Idempotency-Key was already used for a different request")
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "the original resource has expired or was deleted")
 	case quotaFailed(w, err):
 	default:
 		s.internalError(w, r, err)

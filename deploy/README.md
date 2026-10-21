@@ -88,3 +88,9 @@ credentials. Remove the restore-test container afterward.
 
 `docker compose down` preserves data. `docker compose down -v` deletes the SQLite
 and Caddy certificate volumes. Export backups before intentionally deleting them.
+
+## Delivery cache and rollout
+
+Both direct-APNs and relay Compose files pass `MEOW_RETENTION` from `.env`, defaulting to `12h`. Content is pruned on startup and every five minutes. Downloaded iPhone history has its own lifetime and is not removed by server expiry. A phone offline longer than the server window cannot backfill expired messages.
+
+Update iOS clients to the version that preserves independent local history **before** shortening the server window. Keep `MEOW_RETENTION=720h` during a staged rollout if older clients remain in use. This server version automatically upgrades the SQLite schema to add a content-free 24-hour send-receipt ledger; make an online backup before upgrading. Older server binaries do not understand the new schema: rollback requires the pre-upgrade backup, not just swapping the binary. TTL does not remove old backup files or guarantee byte erasure from SQLite/WAL.

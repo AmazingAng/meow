@@ -30,7 +30,7 @@ var schemaSQL string
 //go:embed gateway.sql
 var gatewaySQL string
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 var (
 	ErrNotFound            = errors.New("not found")
@@ -157,6 +157,17 @@ func (s *Store) migrate(ctx context.Context) error {
 		}
 		if v < 3 {
 			if _, err := tx.ExecContext(ctx, `ALTER TABLE notifications ADD COLUMN context TEXT`); err != nil {
+				return err
+			}
+		}
+		if v < 4 {
+			if _, err := tx.ExecContext(ctx, receiptSchema); err != nil {
+				return err
+			}
+			// Preserve quota usage when upgrading an existing message database.
+			if _, err := tx.ExecContext(ctx, `INSERT INTO notification_receipts
+				SELECT id, device_id, created_at FROM notifications WHERE created_at > ?
+				ON CONFLICT(notification_id) DO NOTHING`, ms(s.now().Add(-24*time.Hour))); err != nil {
 				return err
 			}
 		}
@@ -542,6 +553,11 @@ func insertNotification(ctx context.Context, tx *sql.Tx, n Notification) error {
 		(id, device_id, key_id, type, title, body, source, priority, question_id, push_status, created_at, context)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		n.ID, n.DeviceID, n.KeyID, n.Type, n.Title, n.Body, n.Source, n.Priority, qid, n.PushStatus, ms(n.CreatedAt), origin)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO notification_receipts (notification_id, device_id, created_at) VALUES (?, ?, ?)`,
+		n.ID, n.DeviceID, ms(n.CreatedAt))
 	return err
 }
 
@@ -980,11 +996,10 @@ func (s *Store) checkQuota(ctx context.Context, tx *sql.Tx, limit string, max in
 }
 
 // checkDaily limits notifications, including the ones questions create, over
-// a sliding 24 hours. Pruned rows no longer count, which only matters when
-// retention is shorter than a day.
+// a sliding 24 hours, independently of body retention and explicit deletion.
 func (s *Store) checkDaily(ctx context.Context, tx *sql.Tx, deviceID string, now time.Time) error {
 	return s.checkQuota(ctx, tx, "daily_messages", s.Limits.DailyMessages,
-		`SELECT COUNT(*) FROM notifications WHERE device_id = ? AND created_at > ?`,
+		`SELECT COUNT(*) FROM notification_receipts WHERE device_id = ? AND created_at > ?`,
 		deviceID, ms(now.Add(-24*time.Hour)))
 }
 
@@ -1000,7 +1015,7 @@ func (s *Store) PruneInactiveDevices(ctx context.Context, idle time.Duration) (i
 }
 
 // Prune deletes resolved questions and notifications older than retention, and
-// idempotency records older than 24h. Pending questions are always kept.
+// content-free quota/idempotency metadata after 24h. Pending questions are always kept.
 func (s *Store) Prune(ctx context.Context, retention time.Duration) (int64, error) {
 	now := s.now()
 	cutoff := ms(now.Add(-retention))
@@ -1010,10 +1025,11 @@ func (s *Store) Prune(ctx context.Context, retention time.Duration) (int64, erro
 			sql string
 			arg int64
 		}{
-			{`DELETE FROM questions WHERE status != 'pending' AND created_at < ?`, cutoff},
-			{`DELETE FROM notifications WHERE question_id IS NULL AND created_at < ?`, cutoff},
-			// Idempotency records must not outlive the resources they point to.
-			{`DELETE FROM idempotency WHERE created_at < ?`, ms(now.Add(-min(retention, 24*time.Hour)))},
+			{`DELETE FROM questions WHERE status != 'pending' AND created_at <= ?`, cutoff},
+			{`DELETE FROM notifications WHERE question_id IS NULL AND created_at <= ?`, cutoff},
+			// Keep metadata for the full retry window even after content expires.
+			{`DELETE FROM idempotency WHERE created_at <= ?`, ms(now.Add(-24 * time.Hour))},
+			{`DELETE FROM notification_receipts WHERE created_at <= ?`, ms(now.Add(-24 * time.Hour))},
 		} {
 			res, err := tx.ExecContext(ctx, stmt.sql, stmt.arg)
 			if err != nil {

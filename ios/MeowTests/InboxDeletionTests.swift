@@ -249,10 +249,14 @@ extension InboxDeletionModelTests {
     func testStaleCountsCannotRestoreUnreadBadgeAfterDeletion() async throws {
         let model = try await model([item("one")])
         let gate = DeletionGate()
+        let olderPage = try page([item("one")])
         DeletionProtocol.install { request in
             if request.httpMethod == "DELETE" { return (204, Data()) }
-            try gate.hold()
-            return (200, Data(#"{"unread":1,"pending":0}"#.utf8))
+            if request.url!.path.hasSuffix("/counts") {
+                try gate.hold()
+                return (200, Data(#"{"unread":1,"pending":0}"#.utf8))
+            }
+            return (200, olderPage)
         }
         let counts = Task { await model.refreshCounts() }
         try await wait(gate)

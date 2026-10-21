@@ -145,6 +145,11 @@ final class AppModel {
     @ObservationIgnored private var readRequests: [String: UUID] = [:]
     @ObservationIgnored private var countsRevision = 0
     @ObservationIgnored private var deletionRevision = 0
+    // Server cache membership is separate from the iPhone's durable history.
+    @ObservationIgnored private var serverNotificationIDs: Set<String> = []
+    @ObservationIgnored private var serverUnreadIDs: Set<String> = []
+    @ObservationIgnored private var serverPendingIDs: Set<String> = []
+    @ObservationIgnored private var serverCounts: InboxCounts?
 
     private enum Keys {
         static let onboarded = "onboarded"
@@ -310,6 +315,10 @@ final class AppModel {
         sendingTestCount = 0
         MeowShared.defaults.removeObject(forKey: Keys.sentTests)
         savedNotifications = []
+        serverNotificationIDs = []
+        serverUnreadIDs = []
+        serverPendingIDs = []
+        serverCounts = nil
         details = [:]
         counts = InboxCounts()
         displayLimit = 50
@@ -680,8 +689,18 @@ final class AppModel {
             async let remoteCounts = try? await api.counts()
             let items = try await api.allInbox()
             guard generation == loadGeneration, !isChangingServer else { return }
-            var merged = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             let current = Dictionary(savedNotifications.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            var merged = current
+            for var item in items {
+                // Server omission/expiry is not a command to erase local history.
+                if item.readAt == nil { item.readAt = current[item.id]?.readAt }
+                if item.question?.status == .pending, let previous = current[item.id]?.question,
+                   previous.status != .pending { item.question = previous }
+                merged[item.id] = item
+            }
+            serverNotificationIDs = Set(items.map(\.id))
+            serverUnreadIDs = Set(items.filter(\.isUnread).map(\.id))
+            serverPendingIDs = Set(items.filter { $0.question?.isOpen() == true }.map(\.id))
             for (id, changedAt) in itemRevisions where changedAt > revision {
                 // nil also protects a server-confirmed deletion from an older snapshot.
                 merged[id] = current[id]
@@ -689,13 +708,15 @@ final class AppModel {
             savedNotifications = ordered(Array(merged.values))
             let present = Set(savedNotifications.map(\.id))
             details = details.filter { present.contains($0.key) }
-            hydratedScope = scope
             hasLoaded = true
             loadError = nil
-            persistInbox()
+            // A failed local read must never turn a short server cache into a
+            // complete local snapshot. Keep the disk history intact for retry.
+            if hydratedScope == scope { persistInbox() }
             let c = await remoteCounts
             if generation == loadGeneration, countRevision == countsRevision {
-                if let c, mutationRevision == revision { counts = c }
+                serverCounts = c
+                if let c, mutationRevision == revision { counts = countsIncludingHistory(c) }
                 else {
                     counts = InboxCounts(unread: savedNotifications.filter(\.isUnread).count,
                         pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
@@ -716,14 +737,34 @@ final class AppModel {
         displayLimit += 50
     }
 
+    /// Counts alone cannot distinguish cache expiry from an unread local message.
     func refreshCounts() async {
-        let generation = sessionGeneration
-        let revision = countsRevision
-        guard isRegistered, let api, let c = try? await api.counts(), generation == sessionGeneration,
-              revision == countsRevision else { return }
-        counts = c
-        countsRevision += 1
-        updateBadge()
+        if isLoading {
+            // An existing full sync will update server membership. Do not start a
+            // second snapshot that could overwrite a just-accepted local mutation.
+            counts = InboxCounts(unread: savedNotifications.filter(\.isUnread).count,
+                                 pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
+            countsRevision += 1
+            updateBadge()
+            return
+        }
+        await refresh()
+    }
+
+    private func countsIncludingHistory(_ remote: InboxCounts) -> InboxCounts {
+        var result = remote
+        for item in savedNotifications {
+            if !serverNotificationIDs.contains(item.id) {
+                if item.isUnread { result.unread += 1 }
+                if item.question?.isOpen() == true { result.pending += 1 }
+            } else {
+                if serverUnreadIDs.contains(item.id), !item.isUnread { result.unread -= 1 }
+                if serverPendingIDs.contains(item.id), item.question?.isOpen() != true { result.pending -= 1 }
+            }
+        }
+        result.unread = max(0, result.unread)
+        result.pending = max(0, result.pending)
+        return result
     }
 
     /// Fetches one notification; returns whether it is available to show.
@@ -734,17 +775,18 @@ final class AppModel {
         guard generation == sessionGeneration, !isChangingServer else { return false }
         let revision = deletionRevision
         do {
-            let notification = try await api.notification(id)
+            var notification = try await api.notification(id)
             guard generation == sessionGeneration else { return false }
             guard revision == deletionRevision else { return self.notification(id: id) != nil }
+            if notification.readAt == nil { notification.readAt = self.notification(id: id)?.readAt }
+            if notification.question?.status == .pending, let previous = self.notification(id: id)?.question,
+               previous.status != .pending { notification.question = previous }
             upsert(notification)
             return true
         } catch let error as MeowAPIError where error.status == 404 {
             guard generation == sessionGeneration, !isChangingServer else { return false }
-            savedNotifications.removeAll { $0.id == id }
-            details[id] = nil
-            changed([id])
-            return false
+            // The server only retains a recent delivery cache. Keep saved history.
+            return notification(id: id) != nil
         } catch {
             guard generation == sessionGeneration, !isChangingServer else { return false }
             return notification(id: id) != nil
@@ -767,8 +809,13 @@ final class AppModel {
         await hydrateInbox()
         guard generation == sessionGeneration, !isChangingServer else { return }
         do {
-            if let id { try await api.deleteNotification(id) }
-            else if let interval { try await api.deleteNotifications(in: interval) }
+            if let id {
+                do { try await api.deleteNotification(id) }
+                catch let error as MeowAPIError where error.status == 404 && error.code == "not_found" {
+                    // Already absent from this server; explicit user deletion still
+                    // removes the local copy. Unsupported endpoints have no such code.
+                }
+            } else if let interval { try await api.deleteNotifications(in: interval) }
             guard generation == sessionGeneration, !isChangingServer else { return }
             // Invalidate snapshots started before the server confirmed deletion,
             // including details not previously present in the saved inbox.
@@ -783,6 +830,10 @@ final class AppModel {
             savedNotifications.removeAll(where: matches)
             details = details.filter { !removed.contains($0.key) }
             for id in removed { readRequests[id] = nil }
+            serverNotificationIDs.subtract(removed)
+            serverUnreadIDs.subtract(removed)
+            serverPendingIDs.subtract(removed)
+            serverCounts = nil
             inboxPath.removeAll { removed.contains($0) }
             changed(Array(removed))
             counts = InboxCounts(unread: savedNotifications.filter(\.isUnread).count,
@@ -810,12 +861,15 @@ final class AppModel {
         defer { if readRequests[id] == request { readRequests[id] = nil } }
         do {
             try await api.markRead(id)
+        } catch let error as MeowAPIError where error.status == 404 && error.code == "not_found" {
+            // The saved message outlived its server cache. Its read state is local.
         } catch {
             guard generation == sessionGeneration, readRequests[id] == request else { return }
             if var current = notification(id: id), current.readAt == readAt {
                 current.readAt = nil
                 upsert(current)
                 if revision == countsRevision { counts.unread += unreadDelta }
+                else if let serverCounts { counts = countsIncludingHistory(serverCounts) }
                 updateBadge()
             }
             if !Self.isCancellation(error) {

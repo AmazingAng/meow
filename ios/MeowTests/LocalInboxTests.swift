@@ -559,7 +559,7 @@ extension LocalInboxModelTests {
         XCTAssertEqual(saved?.first?.question?.answer, "approve")
     }
 
-    func testAuthoritative404CannotBeReintroducedByOlderSyncSnapshot() async throws {
+    func testCache404AndOlderSyncBothPreserveSavedHistory() async throws {
         try await store.save([localItem("removed")], scope: scope)
         let data = try page([localItem("removed")])
         let started = expectation(description: "sync held"), gate = DispatchSemaphore(value: 0)
@@ -573,11 +573,11 @@ extension LocalInboxModelTests {
         let task = Task { await model.refresh() }
         await fulfillment(of: [started], timeout: 3)
         let found = await model.loadDetail("removed")
-        XCTAssertFalse(found)
+        XCTAssertTrue(found)
         gate.signal(); await task.value
-        XCTAssertNil(model.notification(id: "removed"))
+        XCTAssertNotNil(model.notification(id: "removed"))
         let saved = try await store.load(scope: scope)
-        XCTAssertEqual(saved, [])
+        XCTAssertEqual(saved?.map(\.id), ["removed"])
     }
 
     func testResetErasesOldScopeAndLateSyncCannotWriteItBack() async throws {

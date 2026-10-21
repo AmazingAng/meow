@@ -45,6 +45,8 @@ final class FrontendRecoveryTests: XCTestCase {
         oldKey = Keychain.get("device_key"); oldKeyID = MeowShared.defaults.string(forKey: "device_key_id")
         oldBinding = MeowShared.gatewayBinding; MeowShared.saveGatewayBinding(nil)
         MeowShared.server = server; MeowShared.deviceToken = "mdt_recovery"; MeowShared.deviceID = "dev_recovery"
+        // Each test owns a fresh fake-device history; refresh no longer erases it.
+        try await InboxStore.shared.erase(scope: InboxStore.scope(server: server, token: "mdt_recovery"))
         file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString + ".json")
     }
     override func tearDown() async throws {
@@ -304,7 +306,7 @@ final class FrontendRecoveryTests: XCTestCase {
         XCTAssertNil(model.toast)
     }
 
-    func testReadFailureDoesNotIncrementNewerServerCountSnapshot() async {
+    func testReadFailureReconcilesNewerServerCountWithOptimisticRead() async {
         let started = expectation(description: "read requested")
         let gate = DispatchSemaphore(value: 0)
         installInbox { _ in started.fulfill(); _ = gate.wait(timeout: .now() + 5); throw URLError(.timedOut) }
@@ -312,7 +314,7 @@ final class FrontendRecoveryTests: XCTestCase {
         let reading = Task { await model.markRead("ntf_recovery") }
         await fulfillment(of: [started], timeout: 3)
         await model.refreshCounts()
-        XCTAssertEqual(model.counts.unread, 2)
+        XCTAssertEqual(model.counts.unread, 1, "the pending local read survives the refreshed server snapshot")
         gate.signal(); await reading.value
         XCTAssertEqual(model.counts.unread, 2, "the server snapshot already includes the unread notification")
         XCTAssertEqual(model.notification(id: "ntf_recovery")?.isUnread, true)

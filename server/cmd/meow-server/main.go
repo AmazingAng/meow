@@ -4,7 +4,7 @@
 //
 //	MEOW_ADDR           listen address (default :8080)
 //	MEOW_DB             SQLite database path (default meow.db); keep it on a persistent volume
-//	MEOW_RETENTION      how long resolved questions and notifications are kept (default 720h)
+//	MEOW_RETENTION      how long resolved questions and notifications are cached (default 12h)
 //	MEOW_TRUST_PROXY    "true" to take the client IP from X-Forwarded-For (behind a reverse proxy)
 //	MEOW_MAX_KEYS_PER_DEVICE      active Device Keys per device (default 10, 0 = unlimited)
 //	MEOW_MAX_PENDING_QUESTIONS    unanswered questions per device (default 20, 0 = unlimited)
@@ -104,9 +104,9 @@ func newAPNsPusher(log *slog.Logger) (push.Pusher, error) {
 
 func run(gatewayMode bool) error {
 	log := newLogger()
-	retention, err := time.ParseDuration(env("MEOW_RETENTION", "720h"))
-	if err != nil || retention < time.Hour {
-		return fmt.Errorf("MEOW_RETENTION must be a duration of at least 1h, e.g. 720h")
+	retention, err := retentionFromEnv()
+	if err != nil {
+		return err
 	}
 	var pusher push.Pusher
 	if gatewayMode {
@@ -200,12 +200,47 @@ func run(gatewayMode bool) error {
 	return err
 }
 
-// maintain expires overdue questions every few seconds and prunes old data hourly.
-func maintain(ctx context.Context, srv *api.Server, st *store.Store, retention, inactiveTTL time.Duration, log *slog.Logger) {
+func retentionFromEnv() (time.Duration, error) {
+	retention, err := time.ParseDuration(env("MEOW_RETENTION", "12h"))
+	if err != nil || retention < time.Hour {
+		return 0, fmt.Errorf("MEOW_RETENTION must be a duration of at least 1h, e.g. 12h; disabling the cache is not supported")
+	}
+	return retention, nil
+}
+
+type cacheMaintenance interface {
+	Prune(context.Context, time.Duration) (int64, error)
+	PruneInactiveDevices(context.Context, time.Duration) (int64, error)
+}
+
+type questionExpiry interface {
+	ExpireDue(context.Context) error
+}
+
+// maintain expires overdue questions and bounds the server's message cache.
+func maintain(ctx context.Context, srv questionExpiry, st cacheMaintenance, retention, inactiveTTL time.Duration, log *slog.Logger) {
 	expire := time.NewTicker(5 * time.Second)
 	defer expire.Stop()
-	prune := time.NewTicker(time.Hour)
+	prune := time.NewTicker(5 * time.Minute)
 	defer prune.Stop()
+	cleanup := func() {
+		n, err := st.Prune(ctx, retention)
+		if err != nil && ctx.Err() == nil {
+			log.Error("prune", "err", err)
+		} else if n > 0 {
+			log.Info("pruned old records", "rows", n)
+		}
+		if inactiveTTL > 0 {
+			n, err := st.PruneInactiveDevices(ctx, inactiveTTL)
+			if err != nil && ctx.Err() == nil {
+				log.Error("prune inactive devices", "err", err)
+			} else if n > 0 {
+				log.Info("deleted inactive devices", "devices", n)
+			}
+		}
+	}
+	log.Info("message cache", "retention", retention.String(), "cleanup_interval", "5m")
+	cleanup()
 	for {
 		select {
 		case <-ctx.Done():
@@ -215,20 +250,7 @@ func maintain(ctx context.Context, srv *api.Server, st *store.Store, retention, 
 				log.Error("expire questions", "err", err)
 			}
 		case <-prune.C:
-			n, err := st.Prune(ctx, retention)
-			if err != nil && ctx.Err() == nil {
-				log.Error("prune", "err", err)
-			} else if n > 0 {
-				log.Info("pruned old records", "rows", n)
-			}
-			if inactiveTTL > 0 {
-				n, err := st.PruneInactiveDevices(ctx, inactiveTTL)
-				if err != nil && ctx.Err() == nil {
-					log.Error("prune inactive devices", "err", err)
-				} else if n > 0 {
-					log.Info("deleted inactive devices", "devices", n)
-				}
-			}
+			cleanup()
 		}
 	}
 }

@@ -350,7 +350,7 @@ func TestRespondExpiresWhileWaitingForLock(t *testing.T) {
 	}
 }
 
-// Retrying an idempotent create after its resource was pruned must not fail.
+// A pruned body remains deduplicated for the full 24h metadata window.
 func TestIdempotencyAfterShortRetention(t *testing.T) {
 	s, _ := openTest(t)
 	reg := register(t, s)
@@ -363,8 +363,8 @@ func TestIdempotencyAfterShortRetention(t *testing.T) {
 	if _, err := s.Prune(ctx, time.Hour); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.CreateNotification(ctx, nn, idem); err != nil {
-		t.Fatalf("retry after prune = %v", err)
+	if _, replay, err := s.CreateNotification(ctx, nn, idem); !replay || !errors.Is(err, ErrNotFound) {
+		t.Fatalf("retry after prune: replay=%v err=%v, want replay with missing body", replay, err)
 	}
 }
 
