@@ -1,4 +1,5 @@
-// Package message defines optional origin metadata shared by senders and servers.
+// Package message defines the V1 notification protocol, normalization and
+// presentation primitives shared by senders and servers. It performs no host IO.
 package message
 
 // Context identifies where an agent notification originated. Names are display

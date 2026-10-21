@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"meow.blue/meow/message"
 	"meow.blue/meow/server/internal/store"
 )
 
@@ -269,7 +270,7 @@ func (s *Server) mark(w http.ResponseWriter, r *http.Request, err error) {
 // so that a reply queued offline and retried is applied at most once.
 func (s *Server) respond(w http.ResponseWriter, r *http.Request, p principal) {
 	key := r.Header.Get("Idempotency-Key")
-	if key == "" || len(key) > 128 || !printable(key) {
+	if key == "" || message.ValidateIdempotencyKey(key) != nil {
 		writeError(w, http.StatusBadRequest, "invalid_idempotency_key", "an Idempotency-Key header of at most 128 printable ASCII characters is required")
 		return
 	}

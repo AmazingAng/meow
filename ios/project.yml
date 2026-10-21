@@ -88,6 +88,8 @@ targets:
     platform: iOS
     sources:
       - MeowTests
+      - path: ../contracts/fixtures/notifications.json
+        buildPhase: resources
     dependencies:
       - target: Meow
     settings:

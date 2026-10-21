@@ -1,0 +1,205 @@
+[
+  {
+    "name": "claude-result",
+    "kind": "claude-stop",
+    "input": "{\"session_id\":\"session-1\",\"prompt_id\":\"turn-1\",\"cwd\":\"/workspace/project\",\"session_title\":\"部署审查\",\"last_assistant_message\":\"**Done**\\n\\n正文 😺\"}",
+    "summary": true,
+    "language": "",
+    "notification": {
+      "context": {
+        "workspace": "project",
+        "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
+        "session": "部署审查",
+        "session_id": "session-1"
+      },
+      "title": "New result · project",
+      "body": "**Done**\n\n正文 😺",
+      "source": "Claude Code"
+    },
+    "idempotencyKey": "hook-94cc574341187f1332e2385aa6b78513",
+    "send": true,
+    "error": false
+  },
+  {
+    "name": "claude-no-summary",
+    "kind": "claude-stop",
+    "input": "{\"session_id\":\"session-1\",\"prompt_id\":\"turn-1\",\"cwd\":\"/workspace/project\",\"last_assistant_message\":\"Hidden\"}",
+    "summary": false,
+    "language": "",
+    "notification": {
+      "context": {
+        "workspace": "project",
+        "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
+        "session_id": "session-1"
+      },
+      "title": "New result · project",
+      "source": "Claude Code"
+    },
+    "idempotencyKey": "hook-185cc86a82cbc3bd4c6180148bb06f2a",
+    "send": true,
+    "error": false
+  },
+  {
+    "name": "claude-permission",
+    "kind": "claude-notify",
+    "input": "{\"session_id\":\"s1\",\"cwd\":\"/workspace/project\",\"title\":\"Permission needed\",\"message\":\"Allow Bash?\"}",
+    "summary": true,
+    "language": "",
+    "notification": {
+      "context": {
+        "workspace": "project",
+        "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
+        "session_id": "s1"
+      },
+      "type": "alert",
+      "title": "Permission needed · project",
+      "body": "Allow Bash?",
+      "source": "Claude Code",
+      "priority": "high"
+    },
+    "idempotencyKey": "",
+    "send": true,
+    "error": false
+  },
+  {
+    "name": "claude-failure",
+    "kind": "claude-failure",
+    "input": "{\"session_id\":\"s1\",\"prompt_id\":\"p1\",\"error\":\"API error\",\"error_details\":\"Try again\"}",
+    "summary": true,
+    "language": "",
+    "notification": {
+      "context": {
+        "session_id": "s1"
+      },
+      "type": "alert",
+      "title": "Run failed",
+      "body": "API error\nTry again",
+      "source": "Claude Code",
+      "priority": "high"
+    },
+    "idempotencyKey": "hook-6c55ccfd4a9d790a5906648d7d7241c5",
+    "send": true,
+    "error": false
+  },
+  {
+    "name": "codex-notify",
+    "kind": "codex",
+    "input": "{\"type\":\"agent-turn-complete\",\"thread-id\":\"s1\",\"turn-id\":\"t1\",\"cwd\":\"/workspace/project\",\"thread-name\":\"Review\",\"last-assistant-message\":\"Done\"}",
+    "summary": true,
+    "language": "",
+    "notification": {
+      "context": {
+        "workspace": "project",
+        "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
+        "session": "Review",
+        "session_id": "s1"
+      },
+      "title": "New result · project",
+      "body": "Done",
+      "source": "Codex"
+    },
+    "idempotencyKey": "hook-45396ccdf5e676cd1220524aa4d1aa12",
+    "send": true,
+    "error": false
+  },
+  {
+    "name": "codex-stop",
+    "kind": "codex-stop",
+    "input": "{\"hook_event_name\":\"Stop\",\"session_id\":\"s1\",\"turn_id\":\"t1\",\"cwd\":\"/workspace/project\",\"session_title\":\"Review\",\"last_assistant_message\":\"Done\"}",
+    "summary": true,
+    "language": "",
+    "notification": {
+      "context": {
+        "workspace": "project",
+        "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
+        "session": "Review",
+        "session_id": "s1"
+      },
+      "title": "New result · project",
+      "body": "Done",
+      "source": "Codex"
+    },
+    "idempotencyKey": "hook-45396ccdf5e676cd1220524aa4d1aa12",
+    "send": true,
+    "error": false
+  },
+  {
+    "name": "codex-permission",
+    "kind": "codex-permission",
+    "input": "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"s1\",\"turn_id\":\"t1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"go test ./...\"}}",
+    "summary": true,
+    "language": "",
+    "notification": {
+      "context": {
+        "session_id": "s1"
+      },
+      "type": "alert",
+      "title": "Needs your attention",
+      "body": "Bash\n{\"command\":\"go test ./...\"}",
+      "source": "Codex",
+      "priority": "high"
+    },
+    "idempotencyKey": "",
+    "send": true,
+    "error": false
+  },
+  {
+    "name": "codex-suggestion",
+    "kind": "codex-stop",
+    "input": "{\"hook_event_name\":\"Stop\",\"session_id\":\"s1\",\"turn_id\":\"t1\",\"transcript_path\":null,\"last_assistant_message\":\"{\\\"suggestion\\\":\\\"Next\\\"}\"}",
+    "summary": true,
+    "language": "",
+    "notification": {
+      "title": ""
+    },
+    "idempotencyKey": "",
+    "send": false,
+    "error": false
+  },
+  {
+    "name": "codex-unknown",
+    "kind": "codex",
+    "input": "{\"type\":\"other\"}",
+    "summary": true,
+    "language": "",
+    "notification": {
+      "title": ""
+    },
+    "idempotencyKey": "",
+    "send": false,
+    "error": false
+  },
+  {
+    "name": "codex-invalid-identity",
+    "kind": "codex-stop",
+    "input": "{\"hook_event_name\":\"Stop\",\"session_id\":\"s1\"}",
+    "summary": true,
+    "language": "",
+    "notification": {
+      "title": ""
+    },
+    "idempotencyKey": "",
+    "send": false,
+    "error": true
+  },
+  {
+    "name": "chinese-result",
+    "kind": "claude-stop",
+    "input": "{\"session_id\":\"s1\",\"prompt_id\":\"p1\",\"cwd\":\"/workspace/project\",\"last_assistant_message\":\"完整原文\"}",
+    "summary": true,
+    "language": "zh-Hans",
+    "notification": {
+      "context": {
+        "workspace": "project",
+        "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
+        "session_id": "s1"
+      },
+      "title": "有新结果 · project",
+      "body": "完整原文",
+      "source": "Claude Code"
+    },
+    "idempotencyKey": "hook-b988fe74d0520df60db7823f02e3bd93",
+    "send": true,
+    "error": false
+  }
+]

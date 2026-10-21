@@ -39,7 +39,7 @@ def run(args, name, cwd=ROOT):
 
 def source_state():
     names = ['go.mod', 'go.sum', 'scripts/verify_server_review.py']
-    for folder in ['cli', 'client', 'server']:
+    for folder in ['cli', 'client', 'message', 'adapters', 'contracts', 'server']:
         names += [str(p.relative_to(ROOT)) for p in (ROOT / folder).rglob('*') if p.is_file() and p.suffix in ('.go', '.sql')]
     return {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in sorted(names)}
 
@@ -122,7 +122,7 @@ def mutations():
     results = []
     with tempfile.TemporaryDirectory(prefix='meow-server-mutants-') as folder:
         root = Path(folder)
-        for name in ('cli', 'client', 'server'):
+        for name in ('cli', 'client', 'message', 'adapters', 'contracts', 'server'):
             shutil.copytree(ROOT / name, root / name)
         for name in ('go.mod', 'go.sum'):
             shutil.copy2(ROOT / name, root / name)

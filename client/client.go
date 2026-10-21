@@ -52,27 +52,8 @@ func (e *Error) Temporary() bool {
 	return e.Status == http.StatusTooManyRequests || e.Status >= 500
 }
 
-type Notification struct {
-	Context     *message.Context `json:"context,omitempty"`
-	ID          string           `json:"id"`
-	Type        string           `json:"type"`
-	Title       string           `json:"title"`
-	Body        string           `json:"body"`
-	Source      string           `json:"source"`
-	Priority    string           `json:"priority"`
-	PushStatus  string           `json:"push_status"`
-	PushError   string           `json:"push_error,omitempty"`
-	CreatedAt   time.Time        `json:"created_at"`
-	DeliveredAt *time.Time       `json:"delivered_at"`
-	ReadAt      *time.Time       `json:"read_at"`
-	Question    *struct {
-		ID        string    `json:"id"`
-		Status    string    `json:"status"`
-		Choices   []string  `json:"choices"`
-		Answer    *string   `json:"answer"`
-		ExpiresAt time.Time `json:"expires_at"`
-	} `json:"question,omitempty"`
-}
+// Notification is the shared inbox/detail wire record.
+type Notification = message.Record
 
 type Question struct {
 	ID             string     `json:"id"`
@@ -166,14 +147,8 @@ func (c *Client) do(ctx context.Context, method, path string, idemKey string, in
 
 // ---- agent API (Device Key) ----
 
-type NotifyRequest struct {
-	Context  *message.Context `json:"context,omitempty"`
-	Type     string           `json:"type,omitempty"` // info (default) | alert
-	Title    string           `json:"title"`
-	Body     string           `json:"body,omitempty"`
-	Source   string           `json:"source,omitempty"`   // e.g. "Claude Code"
-	Priority string           `json:"priority,omitempty"` // low | normal (default) | high
-}
+// NotifyRequest remains source-compatible with the standard message model.
+type NotifyRequest = message.Notification
 
 func (c *Client) Notify(ctx context.Context, r NotifyRequest, idemKey string) (*Notification, error) {
 	var n Notification

@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:meow:notification:v1",
+  "title": "Meow V1 notification contract",
+  "description": "Normalized sender request. The /v1 endpoint remains backward compatible; no version field is required. Validate raw input with message.Normalize before checking normalized length limits. Unknown fields are ignored. Stored records are described in $defs.record.",
+  "allOf": [
+    {
+      "$ref": "#/$defs/request"
+    }
+  ],
+  "$defs": {
+    "context": {
+      "type": "object",
+      "properties": {
+        "workspace": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+        },
+        "workspace_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+        },
+        "session": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+        },
+        "session_id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+        }
+      },
+      "additionalProperties": true
+    },
+    "request": {
+      "type": "object",
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Original Markdown/plain text; never a preview."
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Agent or service display label, not an authentication identity."
+        },
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/context"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "default": "normal"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "info",
+            "alert"
+          ],
+          "default": "info"
+        }
+      },
+      "additionalProperties": true
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "title",
+        "body",
+        "source",
+        "priority",
+        "push_status",
+        "created_at",
+        "delivered_at",
+        "read_at"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Original Markdown/plain text; never a preview."
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Agent or service display label, not an authentication identity."
+        },
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/context"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "default": "normal"
+        },
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "info",
+            "alert",
+            "question"
+          ]
+        },
+        "push_status": {
+          "enum": [
+            "queued",
+            "accepted",
+            "failed",
+            "skipped"
+          ]
+        },
+        "push_error": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "delivered_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "read_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "question": {
+          "$ref": "#/$defs/question"
+        }
+      },
+      "additionalProperties": true
+    },
+    "question": {
+      "type": "object",
+      "required": [
+        "id",
+        "status",
+        "choices",
+        "answer",
+        "expires_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "answered",
+            "rejected",
+            "expired",
+            "cancelled"
+          ]
+        },
+        "choices": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "answer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "x-meow-banner": {
+    "maxRunes": 180,
+    "maxLines": 3
+  }
+}

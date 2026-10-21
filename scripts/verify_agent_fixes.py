@@ -24,7 +24,7 @@ FILES = ['cli/internal/setup/codex.go', 'cli/internal/setup/skill.go',
 
 def source_hash():
     names = ['go.mod', 'go.sum', 'scripts/verify_agent_fixes.py']
-    for directory in ('cli', 'client', 'server'):
+    for directory in ('cli', 'client', 'message', 'adapters', 'contracts', 'server'):
         names.extend(str(p.relative_to(ROOT)) for p in (ROOT / directory).rglob('*.go'))
     digest = hashlib.sha256()
     for name in sorted(names):
@@ -85,11 +85,11 @@ def mutation_tests(output):
     mutations = [
         ('ownership', 'cli/internal/setup/codex.go',
          'return known &&', 'return (known || true) &&'),
-        ('continuation', 'cli/cmd/meow/hook.go',
-         'req.Title = withProject("Task complete", in.Cwd)',
-         'if in.StopHookActive { return req, "", false, nil }; req.Title = withProject("Task complete", in.Cwd)'),
-        ('idempotency', 'cli/cmd/meow/hook.go',
-         'in.SessionID, in.PromptID, string(body)', 'in.SessionID, in.PromptID, string(body[:0])+"event"'),
+        ('continuation', 'adapters/claude.go',
+         'e.Notification.Body = in.LastAssistantMessage',
+         'e.Notification.Body = ""'),
+        ('idempotency', 'adapters/adapter.go',
+         'e.EventID, string(b)', 'e.EventID, string(b[:0])+"event"'),
         ('skill-untouched', 'cli/cmd/meow/setup.go', '!exists || !setup.IsMeowSkill(old)', '!exists || len(old) < 0'),
         ('quoted-key', 'cli/internal/setup/codex.go',
          'string(key.Node().Data) == "notify"', 'string(parser.Raw(key.Node().Raw)) == "notify"'),
@@ -97,7 +97,7 @@ def mutation_tests(output):
     results = []
     with tempfile.TemporaryDirectory(prefix='meow-agent-mutants-') as folder:
         copy = Path(folder)
-        for name in ('cli', 'client', 'server'):
+        for name in ('cli', 'client', 'message', 'adapters', 'contracts', 'server'):
             shutil.copytree(ROOT / name, copy / name)
         for name in ('go.mod', 'go.sum'):
             shutil.copy2(ROOT / name, copy / name)

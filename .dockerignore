@@ -1,8 +1,8 @@
-# Only go.mod, go.sum, client/ and server/ are needed to build the server.
+# Only go.mod, go.sum, message/ and server/ are needed to build the server.
 *
 !go.mod
 !go.sum
-!client/
+!message/
 !server/
 **/*_test.go
 **/*.db

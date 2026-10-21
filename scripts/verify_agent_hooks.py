@@ -31,16 +31,16 @@ def run(argv, out, name, *, cwd=ROOT, env=None, stdin=None):
 
 def mutants(out):
     cases = [
-        ('truncation', 'cli/cmd/meow/hook.go', 'summaryRunes = 4000', 'summaryRunes = 200', './cli/cmd/meow', 'TestHookFullBodyAndNewEvents'),
+        ('truncation', 'adapters/format.go', 'message.MaxBody)', '200)', './cli/cmd/meow', 'TestHookFullBodyAndNewEvents'),
         ('retry', 'cli/cmd/meow/hook.go', 'attempt < 3', 'attempt < 1', './cli/cmd/meow', 'TestHookRetriesFrozenPayload'),
         ('trust', 'cli/cmd/meow/codex_lifecycle.go', 'o.finishMigration && (!o.install || !verified)', 'false', './cli/cmd/meow', 'TestCodexStagedMigration'),
         ('backup', 'cli/internal/setup/files.go', 'return backup, RemoveFile(path)', 'os.Remove(backup); return backup, RemoveFile(path)', './cli/cmd/meow', 'TestSetupBacksUpCustomizedLegacySkill'),
-        ('preview', 'server/internal/push/preview.go', 'return ""', 'return text', './server/internal/push', 'TestNotificationPreviewContract'),
+        ('preview', 'message/preview.go', 'return ""', 'return text', './server/internal/push', 'TestNotificationPreviewContract'),
     ]
     results = []
     with tempfile.TemporaryDirectory(prefix='meow-hooks-mutants-') as tmp:
         root = Path(tmp)
-        for name in ('cli', 'client', 'server'):
+        for name in ('cli', 'client', 'message', 'adapters', 'contracts', 'server'):
             shutil.copytree(ROOT / name, root / name)
         shutil.copytree(ROOT / 'ios/MeowTests/Fixtures', root / 'ios/MeowTests/Fixtures')
         for name in ('go.mod', 'go.sum'):
@@ -48,7 +48,7 @@ def mutants(out):
         for name, filename, before, after, package, selector in cases:
             path = root / filename
             original = path.read_text()
-            expected = 3 if name == 'preview' else 1
+            expected = 4 if name == 'preview' else 1
             if original.count(before) != expected:
                 raise RuntimeError('mutation target changed: ' + name)
             path.write_text(original.replace(before, after))
@@ -185,7 +185,7 @@ def main():
     parser.add_argument('--ios-device')
     args = parser.parse_args()
     out = args.output.resolve(); out.mkdir(parents=True, exist_ok=False)
-    go_files = sorted(str(p.relative_to(ROOT)) for folder in ('cli', 'client', 'server') for p in (ROOT / folder).rglob('*.go'))
+    go_files = sorted(str(p.relative_to(ROOT)) for folder in ('cli', 'client', 'message', 'adapters', 'contracts', 'server') for p in (ROOT / folder).rglob('*.go'))
     if run(['gofmt', '-l', *go_files], out, 'format').strip():
         raise RuntimeError('unformatted Go files')
     run(['go', 'vet', './...'], out, 'vet')

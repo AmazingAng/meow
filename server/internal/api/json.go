@@ -66,29 +66,7 @@ func toQuestionJSON(q store.Question) questionJSON {
 	}
 }
 
-type notificationQuestionJSON struct {
-	ID        string    `json:"id"`
-	Status    string    `json:"status"`
-	Choices   []string  `json:"choices"`
-	Answer    *string   `json:"answer"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-type notificationJSON struct {
-	Context     *message.Context          `json:"context,omitempty"`
-	ID          string                    `json:"id"`
-	Type        string                    `json:"type"`
-	Title       string                    `json:"title"`
-	Body        string                    `json:"body"`
-	Source      string                    `json:"source"`
-	Priority    string                    `json:"priority"`
-	PushStatus  string                    `json:"push_status"`
-	PushError   string                    `json:"push_error,omitempty"`
-	CreatedAt   time.Time                 `json:"created_at"`
-	DeliveredAt *time.Time                `json:"delivered_at"`
-	ReadAt      *time.Time                `json:"read_at"`
-	Question    *notificationQuestionJSON `json:"question,omitempty"`
-}
+type notificationJSON = message.Record
 
 func toNotificationJSON(n store.Notification) notificationJSON {
 	out := notificationJSON{
@@ -97,7 +75,7 @@ func toNotificationJSON(n store.Notification) notificationJSON {
 		CreatedAt: n.CreatedAt, DeliveredAt: n.DeliveredAt, ReadAt: n.ReadAt,
 	}
 	if q := n.Question; q != nil {
-		out.Question = &notificationQuestionJSON{
+		out.Question = &message.QuestionState{
 			ID: n.QuestionID, Status: q.Status, Choices: q.Choices, Answer: optional(q.Answer), ExpiresAt: q.ExpiresAt,
 		}
 	}

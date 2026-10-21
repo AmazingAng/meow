@@ -1,0 +1,151 @@
+{
+  "requests": [
+    {
+      "name": "minimal",
+      "input": {
+        "title": "Build completed"
+      },
+      "normalized": {
+        "title": "Build completed",
+        "type": "info",
+        "priority": "normal"
+      }
+    },
+    {
+      "name": "service-session",
+      "input": {
+        "title": " 部署完成 ",
+        "body": " **全部通过** 😺 ",
+        "source": " CI ",
+        "context": {
+          "workspace": " 工程 ",
+          "session": "发布检查",
+          "session_id": "ci-run-1"
+        }
+      },
+      "normalized": {
+        "title": "部署完成",
+        "body": "**全部通过** 😺",
+        "source": "CI",
+        "context": {
+          "workspace": "工程",
+          "session": "发布检查",
+          "session_id": "ci-run-1"
+        },
+        "type": "info",
+        "priority": "normal"
+      }
+    },
+    {
+      "name": "alert",
+      "input": {
+        "title": "Needs attention",
+        "type": "alert",
+        "priority": "high",
+        "source": "Monitor"
+      },
+      "normalized": {
+        "title": "Needs attention",
+        "type": "alert",
+        "priority": "high",
+        "source": "Monitor"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "missing-title",
+      "input": {},
+      "field": "title"
+    },
+    {
+      "name": "question-input",
+      "input": {
+        "title": "x",
+        "type": "question"
+      },
+      "field": "type"
+    },
+    {
+      "name": "invalid-priority",
+      "input": {
+        "title": "x",
+        "priority": "urgent"
+      },
+      "field": "priority"
+    },
+    {
+      "name": "multiline-session",
+      "input": {
+        "title": "x",
+        "context": {
+          "session": "a\nb"
+        }
+      },
+      "field": "context.session"
+    }
+  ],
+  "records": [
+    {
+      "name": "legacy-info",
+      "notification": {
+        "id": "ntf_contract",
+        "type": "info",
+        "title": "有新结果",
+        "body": "**完整正文** 😺",
+        "source": "Codex",
+        "priority": "normal",
+        "push_status": "accepted",
+        "created_at": "2026-10-21T15:00:00.123456Z",
+        "delivered_at": null,
+        "read_at": null
+      }
+    },
+    {
+      "name": "session-info",
+      "notification": {
+        "id": "ntf_session",
+        "type": "info",
+        "title": "有新结果",
+        "body": "**完整正文** 😺",
+        "source": "Codex",
+        "priority": "normal",
+        "push_status": "accepted",
+        "created_at": "2026-10-21T15:00:00.123456Z",
+        "delivered_at": null,
+        "read_at": null,
+        "context": {
+          "workspace": "工程",
+          "workspace_id": "w1",
+          "session": "部署审查",
+          "session_id": "s1"
+        }
+      }
+    },
+    {
+      "name": "legacy-question",
+      "notification": {
+        "id": "ntf_question",
+        "type": "question",
+        "title": "有新结果",
+        "body": "**完整正文** 😺",
+        "source": "Codex",
+        "priority": "normal",
+        "push_status": "accepted",
+        "created_at": "2026-10-21T15:00:00.123456Z",
+        "delivered_at": null,
+        "read_at": null,
+        "question": {
+          "id": "q1",
+          "status": "answered",
+          "choices": [
+            "approve",
+            "reject"
+          ],
+          "answer": "approve",
+          "expires_at": "2026-10-21T15:10:00Z"
+        }
+      }
+    }
+  ]
+}

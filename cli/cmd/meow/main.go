@@ -47,6 +47,8 @@ Usage:
   meow version
 
 Send flags:
+  --json           read a standard notification JSON object (argument or stdin)
+  --idempotency-key K  reuse K when retrying one service event
   --title T        title (the message becomes the body)
   --priority P     low | normal | high (default normal)
   --alert          mark as an alert instead of info
@@ -213,30 +215,43 @@ func cmdSend(args []string) int {
 	fs.StringVar(&origin.WorkspaceID, "workspace-id", os.Getenv("MEOW_WORKSPACE_ID"), "")
 	fs.StringVar(&origin.Session, "session", os.Getenv("MEOW_SESSION"), "")
 	fs.StringVar(&origin.SessionID, "session-id", os.Getenv("MEOW_SESSION_ID"), "")
+	asJSON := fs.Bool("json", false, "")
+	idemKey := fs.String("idempotency-key", "", "")
 	quiet := fs.Bool("quiet", false, "")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return usageErr(err.Error())
 	}
-	msg := strings.Join(pos, " ")
-	if msg == "" {
-		if msg, err = stdinText(); err != nil {
-			return fail(err)
+	if err := message.ValidateIdempotencyKey(*idemKey); err != nil {
+		return usageErr(err.Error())
+	}
+	var req client.NotifyRequest
+	if *asJSON {
+		req, err = jsonNotificationInput(fs, pos)
+		if err != nil {
+			return usageErr(err.Error())
 		}
-	}
-	req := client.NotifyRequest{Title: *title, Body: msg, Source: *source, Priority: *priority}
-	if origin != (message.Context{}) {
-		req.Context = &origin
-	}
-	if req.Title == "" {
-		req.Title, req.Body, _ = strings.Cut(msg, "\n")
-		req.Body = strings.TrimSpace(req.Body)
-	}
-	if req.Title == "" {
-		return usageErr("nothing to send: give a message or pipe one on stdin")
-	}
-	if *alert {
-		req.Type = "alert"
+	} else {
+		msg := strings.Join(pos, " ")
+		if msg == "" {
+			if msg, err = stdinText(); err != nil {
+				return fail(err)
+			}
+		}
+		req = client.NotifyRequest{Title: *title, Body: msg, Source: *source, Priority: *priority}
+		if origin != (message.Context{}) {
+			req.Context = &origin
+		}
+		if req.Title == "" {
+			req.Title, req.Body, _ = strings.Cut(msg, "\n")
+			req.Body = strings.TrimSpace(req.Body)
+		}
+		if req.Title == "" {
+			return usageErr("nothing to send: give a message or pipe one on stdin")
+		}
+		if *alert {
+			req.Type = "alert"
+		}
 	}
 	c, err := newClient()
 	if err != nil {
@@ -244,7 +259,10 @@ func cmdSend(args []string) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	idem := newIdemKey()
+	idem := *idemKey
+	if idem == "" {
+		idem = newIdemKey()
+	}
 	n, err := retry(ctx, func() (*client.Notification, error) { return c.Notify(ctx, req, idem) })
 	if err != nil {
 		return fail(err)

@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	maxTitle  = 256
-	maxBodyCh = 4000
-	maxSource = 64
+	maxTitle  = message.MaxTitle
+	maxBodyCh = message.MaxBody
+	maxSource = message.MaxSource
 	maxAnswer = 2000
 	maxChoice = 32
 
@@ -43,14 +43,7 @@ func (s *Server) whoami(w http.ResponseWriter, r *http.Request, p principal) {
 	writeJSON(w, http.StatusOK, map[string]any{"key": toKeyJSON(*p.key, ""), "device": toDeviceJSON(d), "push_registered": registered})
 }
 
-type notifyInput struct {
-	Context  *message.Context `json:"context,omitempty"`
-	Type     string           `json:"type"`
-	Title    string           `json:"title"`
-	Body     string           `json:"body"`
-	Source   string           `json:"source"`
-	Priority string           `json:"priority"`
-}
+type notifyInput = message.Notification
 
 // readNotifyInput accepts JSON, or plain text for one-line curl usage:
 //
@@ -84,24 +77,12 @@ func (s *Server) createNotification(w http.ResponseWriter, r *http.Request, p pr
 	if !ok {
 		return
 	}
-	in.Title, in.Body, in.Source = strings.TrimSpace(in.Title), strings.TrimSpace(in.Body), strings.TrimSpace(in.Source)
-	if in.Type == "" {
-		in.Type = "info"
-	}
-	if in.Priority == "" {
-		in.Priority = "normal"
-	}
-	if !checkEnum(w, "type", in.Type, "info", "alert") ||
-		!checkEnum(w, "priority", in.Priority, "low", "normal", "high") ||
-		!checkText(w, "title", in.Title, true, maxTitle) ||
-		!checkText(w, "body", in.Body, false, maxBodyCh) ||
-		!checkText(w, "source", in.Source, false, maxSource) {
+	in, err := in.Normalize()
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_request", err.Error())
 		return
 	}
-	if !checkContext(w, in.Context) {
-		return
-	}
-	idem, ok := idempotency(w, r, in)
+	idem, ok := idempotency(w, r, in.CanonicalJSON())
 	if !ok {
 		return
 	}

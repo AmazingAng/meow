@@ -46,7 +46,7 @@ def mutants(output):
     result = []
     with tempfile.TemporaryDirectory(prefix='meow-notify-mutants-') as directory:
         root = Path(directory)
-        for folder in ['cli', 'client', 'server']:
+        for folder in ['cli', 'client', 'message', 'adapters', 'contracts', 'server']:
             shutil.copytree(ROOT / folder, root / folder)
         for name in ['go.mod', 'go.sum']:
             shutil.copy2(ROOT / name, root / name)

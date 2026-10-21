@@ -17,8 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
+	"meow.blue/meow/message"
 	"meow.blue/meow/server/internal/store"
 )
 
@@ -281,8 +281,8 @@ func idempotency(w http.ResponseWriter, r *http.Request, input any) (store.Idem,
 	if key == "" {
 		return store.Idem{}, true
 	}
-	if len(key) > 128 || !printable(key) {
-		writeError(w, http.StatusBadRequest, "invalid_idempotency_key", "Idempotency-Key must be at most 128 printable ASCII characters")
+	if err := message.ValidateIdempotencyKey(key); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_idempotency_key", err.Error())
 		return store.Idem{}, false
 	}
 	b, _ := json.Marshal(input)
@@ -290,30 +290,13 @@ func idempotency(w http.ResponseWriter, r *http.Request, input any) (store.Idem,
 	return store.Idem{Key: key, RequestHash: hex.EncodeToString(sum[:])}, true
 }
 
-func printable(s string) bool {
-	for i := range len(s) {
-		if s[i] < 0x21 || s[i] > 0x7e {
-			return false
-		}
-	}
-	return true
-}
-
 // checkText validates a user-supplied string field.
 func checkText(w http.ResponseWriter, field, v string, required bool, maxRunes int) bool {
-	msg := ""
-	switch {
-	case !utf8.ValidString(v) || strings.ContainsRune(v, 0):
-		msg = field + " must be valid UTF-8 text"
-	case required && v == "":
-		msg = field + " is required"
-	case utf8.RuneCountInString(v) > maxRunes:
-		msg = field + " must be at most " + strconv.Itoa(maxRunes) + " characters"
-	default:
-		return true
+	if err := message.ValidateText(field, v, required, maxRunes); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_request", err.Error())
+		return false
 	}
-	writeError(w, http.StatusUnprocessableEntity, "invalid_request", msg)
-	return false
+	return true
 }
 
 func checkEnum(w http.ResponseWriter, field, v string, allowed ...string) bool {

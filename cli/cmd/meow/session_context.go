@@ -2,15 +2,12 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
-	"unicode"
 
+	"meow.blue/meow/adapters"
 	"meow.blue/meow/message"
 )
 
@@ -19,14 +16,9 @@ import (
 const metadataTailLimit = 2 << 20
 
 func hookContext(agent, cwd, id, name, transcript string) *message.Context {
-	c := &message.Context{SessionID: cleanContextLabel(id, 128), Session: cleanContextLabel(name, 200)}
-	if cwd != "" {
-		path := filepath.Clean(cwd)
-		if base := filepath.Base(path); base != "/" && base != "." {
-			c.Workspace = cleanContextLabel(base, 200)
-		}
-		digest := sha256.Sum256([]byte(path))
-		c.WorkspaceID = hex.EncodeToString(digest[:16])
+	c := (adapters.Origin{Source: agent, Cwd: cwd, SessionID: id, SessionName: name, TranscriptPath: transcript}).Context()
+	if c == nil {
+		return nil
 	}
 	if c.Session == "" && c.SessionID != "" {
 		switch agent {
@@ -47,21 +39,10 @@ func hookContext(agent, cwd, id, name, transcript string) *message.Context {
 			}
 		}
 	}
-	if *c == (message.Context{}) {
-		return nil
-	}
 	return c
 }
 
-func cleanContextLabel(s string, limit int) string {
-	s = strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, strings.ToValidUTF8(s, ""))
-	return truncateRunes(strings.TrimSpace(s), limit)
-}
+func cleanContextLabel(s string, limit int) string { return message.CleanLabel(s, limit) }
 
 func readSessionName(path, id string, claude bool) string {
 	// Reject directories and special files before opening (e.g. a pipe).
@@ -105,14 +86,14 @@ func readSessionName(path, id string, claude bool) string {
 			continue
 		}
 		if !claude && row.ID == id {
-			return cleanContextLabel(row.Name, 200)
+			return cleanContextLabel(row.Name, message.MaxContextName)
 		}
 		if claude && row.SessionID == id {
 			if row.Type == "custom-title" {
-				return cleanContextLabel(row.CustomTitle, 200)
+				return cleanContextLabel(row.CustomTitle, message.MaxContextName)
 			}
 			if row.Type == "ai-title" && ai == "" {
-				ai = cleanContextLabel(row.AITitle, 200)
+				ai = cleanContextLabel(row.AITitle, message.MaxContextName)
 			}
 		}
 	}

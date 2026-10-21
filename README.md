@@ -203,6 +203,12 @@ meow setup --server https://your-meow-server     # asks for the Device Key, conn
 - Explicit `meow send` notifications and automatic Stop reminders are not deduplicated against each other in V1. No heuristic time window can silently suppress a result.
 - Codex Stop skips temporary suggestion output only when `transcript_path` is explicitly `null` and the complete reply is a single `suggestion` (string/null) or `suggestions` (array of titled records) JSON envelope. Persistent chats, other JSON/results, missing metadata and permission requests still notify. Stop does not expose Desktop's `composer_predictions` source marker, so this is a conservative compatibility filter, not a general background-task classifier. An intentional ephemeral turn returning that exact envelope is also skipped; use `meow send` for such a result. Legacy `notify` has no transcript metadata and is unchanged.
 
+## Notification modules and integrations
+
+Agents and ordinary services share the same V1 notification object. `message/` owns the protocol and validation, `adapters/` converts external events, and `client/` handles HTTP transport. Existing CLI commands and the `/v1` API remain compatible. Services can send a JSON object with `meow send --json --idempotency-key EVENT_ID < notification.json` or POST the same object directly.
+
+See the [module boundaries and integration guide](docs/architecture.md), [JSON Schema](contracts/notification-v1.schema.json), and [cross-language fixtures](contracts/fixtures/notifications.json). Built-in adapters retain their previous titles, original body policy, filtering and idempotency keys.
+
 ## HTTP API
 
 All requests use `Authorization: Bearer <token>`. There are two credentials:

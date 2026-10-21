@@ -41,7 +41,7 @@ def mutations(out):
     results = []
     with tempfile.TemporaryDirectory(prefix='meow-context-mutants-') as tmp:
         root = Path(tmp)
-        for name in ['cli', 'client', 'message', 'server']:
+        for name in ['cli', 'client', 'message', 'adapters', 'contracts', 'server']:
             shutil.copytree(ROOT / name, root / name)
         for name in ['go.mod', 'go.sum']:
             shutil.copy2(ROOT / name, root / name)
@@ -140,7 +140,7 @@ def live_cli(out):
 
 
 def coverage_gate(go_records, swift_records):
-    expected = {'cli/cmd/meow/session_context.go', 'server/internal/api/context.go'}
+    expected = {'cli/cmd/meow/session_context.go', 'message/normalize.go'}
     if set(go_records) != expected or not swift_records:
         raise RuntimeError('missing core coverage records')
     resolver = (ROOT / 'cli/cmd/meow/session_context.go').read_text().splitlines()
@@ -165,7 +165,7 @@ def coverage_gate(go_records, swift_records):
 
 
 def coverage(out):
-    go_records = {'cli/cmd/meow/session_context.go': [], 'server/internal/api/context.go': []}
+    go_records = {'cli/cmd/meow/session_context.go': [], 'message/normalize.go': []}
     for line in (out / 'go.cover').read_text().splitlines():
         match = re.match(r'meow.blue/meow/(.+):(\d+)\.\d+,\d+\.\d+ \d+ (\d+)$', line)
         if match and match[1] in go_records:

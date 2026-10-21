@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"meow.blue/meow/message"
 	"meow.blue/meow/server/internal/store"
 )
 
@@ -19,7 +20,7 @@ const (
 )
 
 const (
-	maxAlertBody = 180 // runes shown in the banner; the app shows the full text
+	maxAlertBody = message.MaxPreviewRunes // runes shown in the banner; the app shows the full text
 	// Bundled by both iOS targets; older apps fall back to the system sound.
 	NotificationSound = "meow.wav"
 	// MaxPayload is the APNs limit for alert notifications.
@@ -58,16 +59,7 @@ func interruptionLevel(priority string) string {
 	return "active"
 }
 
-func truncate(s string, n int) string {
-	if utf8.RuneCountInString(s) <= n {
-		return s
-	}
-	if n <= 0 {
-		return ""
-	}
-	r := []rune(s)
-	return string(r[:n-1]) + "…"
-}
+func truncate(s string, n int) string { return message.Truncate(s, n) }
 
 // BuildMessage renders a notification as an APNs alert. With a source the
 // banner reads "Claude Code / Deploy to production?", matching the design.
