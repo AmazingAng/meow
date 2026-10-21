@@ -289,11 +289,11 @@ struct NotificationRow: View {
         let needsAnswer = n.question?.isOpen(at: now) == true
         return HStack(alignment: .top, spacing: 12) {
             if !typeSize.isAccessibilitySize {
-                SourceAvatar(source: n.source, size: 32)
+                SourceAvatar(source: n.source, size: 32, context: n.context)
             }
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(n.title)
+                    Text(verbatim: n.inboxTitle)
                         .font(.headline)
                         .fontWeight(needsAnswer || n.isUnread ? .semibold : .regular)
                         .lineLimit(typeSize.isAccessibilitySize ? nil : 3)
@@ -302,6 +302,12 @@ struct NotificationRow: View {
                         Circle().fill(Color.accentColor).frame(width: 8, height: 8)
                             .accessibilityHidden(true)
                     }
+                }
+                if let session = n.context?.sessionLabel {
+                    Label { Text(verbatim: session) } icon: { Image(systemName: "bubble.left") }
+                        .font(.subheadline.weight(.medium))
+                        .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if typeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: 4) { metadata }
@@ -326,9 +332,10 @@ struct NotificationRow: View {
 
     @ViewBuilder
     private var metadata: some View {
-        Text(notification.source.isEmpty ? "Meow" : notification.source)
-            .font(.subheadline)
+        Text(verbatim: notification.originSummary)
+            .font(.caption)
             .foregroundStyle(.secondary)
+            .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
             .fixedSize(horizontal: false, vertical: true)
         if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
         RelativeTime(date: notification.createdAt)

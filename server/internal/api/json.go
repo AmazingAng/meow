@@ -3,6 +3,7 @@ package api
 import (
 	"time"
 
+	"meow.blue/meow/message"
 	"meow.blue/meow/server/internal/store"
 )
 
@@ -74,6 +75,7 @@ type notificationQuestionJSON struct {
 }
 
 type notificationJSON struct {
+	Context     *message.Context          `json:"context,omitempty"`
 	ID          string                    `json:"id"`
 	Type        string                    `json:"type"`
 	Title       string                    `json:"title"`
@@ -91,7 +93,7 @@ type notificationJSON struct {
 func toNotificationJSON(n store.Notification) notificationJSON {
 	out := notificationJSON{
 		ID: n.ID, Type: n.Type, Title: n.Title, Body: n.Body, Source: n.Source, Priority: n.Priority,
-		PushStatus: n.PushStatus, PushError: n.PushError,
+		PushStatus: n.PushStatus, PushError: n.PushError, Context: n.Context,
 		CreatedAt: n.CreatedAt, DeliveredAt: n.DeliveredAt, ReadAt: n.ReadAt,
 	}
 	if q := n.Question; q != nil {

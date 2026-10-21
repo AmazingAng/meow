@@ -11,9 +11,12 @@ struct DetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         HStack(spacing: 12) {
-                            SourceAvatar(source: n.source, size: 44)
+                            SourceAvatar(source: n.source, size: 44, context: n.context)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(n.source.isEmpty ? "Meow" : n.source).font(.headline)
+                                Text(verbatim: n.originSummary).font(.headline)
+                                if let session = n.context?.sessionLabel {
+                                    Text(verbatim: session).font(.subheadline).textSelection(.enabled)
+                                }
                                 Text(n.createdAt.formatted(date: .abbreviated, time: .shortened))
                                     .font(.subheadline).foregroundStyle(.secondary)
                             }

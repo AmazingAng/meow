@@ -29,6 +29,7 @@ struct MeowNotification: Codable, Identifiable, Hashable, Sendable {
     var deliveredAt: Date?
     var readAt: Date?
     var question: Question?
+    var context: NotificationOrigin? = nil
 
     var isUnread: Bool { readAt == nil }
 }

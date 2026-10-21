@@ -499,6 +499,22 @@ extension LocalInboxModelTests {
         XCTAssertEqual(restarted.notifications.count, 2)
     }
 
+    func testLocalSearchMatchesSessionWorkspaceAndIdentityWithoutHTTP() async throws {
+        var n = localItem("session-message", title: "Result")
+        n.context = .init(workspace: "项目甲", workspaceId: "project-key", session: "部署审查", sessionId: "thread-123")
+        try await store.save([n, localItem("other", title: "Different")], scope: scope)
+        let calls = LocalCallCounter()
+        LocalInboxProtocol.install { _ in calls.increment(); throw URLError(.notConnectedToInternet) }
+        let model = AppModel(inboxStore: store)
+        await model.refresh()
+        let before = calls.value
+        for query in ["部署审查", "项目甲", "thread-123", "project-key"] {
+            model.search = query
+            XCTAssertEqual(model.notifications.map(\.id), ["session-message"])
+        }
+        XCTAssertEqual(calls.value, before)
+    }
+
     func testLocalSearchTreatsUnicodePunctuationAndSQLSyntaxLiterally() async throws {
         var first = localItem("first", title: "测试 CAFÉ 😺")
         first.body = "100%_ and ' OR 1=1 --"

@@ -35,6 +35,8 @@ const (
 
 // claudeHookInput is the JSON Claude Code sends on stdin to Stop and Notification hooks.
 type claudeHookInput struct {
+	SessionTitle         string `json:"session_title"`
+	TranscriptPath       string `json:"transcript_path"`
 	SessionID            string `json:"session_id"`
 	PromptID             string `json:"prompt_id"`
 	Cwd                  string `json:"cwd"`
@@ -49,6 +51,7 @@ type claudeHookInput struct {
 
 // codexNotifyPayload is the JSON Codex passes as the last argument to its notify command.
 type codexNotifyPayload struct {
+	ThreadName           string  `json:"thread-name"`
 	Type                 string  `json:"type"`
 	ThreadID             string  `json:"thread-id"`
 	TurnID               string  `json:"turn-id"`
@@ -187,6 +190,7 @@ func buildHookNotification(kind string, input []byte, summary bool) (req client.
 			return req, "", false, fmt.Errorf("invalid hook input: missing event fields")
 		}
 		req.Source = "Claude Code"
+		req.Context = hookContext(req.Source, in.Cwd, in.SessionID, in.SessionTitle, in.TranscriptPath)
 		if kind == "claude-stop" {
 			// stop_hook_active describes a previous continuation, not whether
 			// this response is final. A nonblocking notifier must not suppress it.
@@ -226,6 +230,7 @@ func buildHookNotification(kind string, input []byte, summary bool) (req client.
 			return req, "", false, nil
 		}
 		req.Source = "Codex"
+		req.Context = hookContext(req.Source, p.Cwd, p.ThreadID, p.ThreadName, "")
 		req.Title = withProject(hookTitle("result"), p.Cwd)
 		if summary && p.LastAssistantMessage != nil {
 			req.Body = summarize(*p.LastAssistantMessage)
@@ -248,6 +253,7 @@ func buildHookNotification(kind string, input []byte, summary bool) (req client.
 			return req, "", false, nil
 		}
 		req.Source = "Codex"
+		req.Context = hookContext(req.Source, p.Cwd, p.SessionID, p.SessionTitle, "")
 		req.Title = withProject(hookTitle("result"), p.Cwd)
 		if summary {
 			req.Body = summarize(p.LastAssistantMessage)
@@ -351,6 +357,7 @@ func hookTitle(kind string) string {
 }
 
 type codexHookInput struct {
+	SessionTitle         string          `json:"session_title"`
 	SessionID            string          `json:"session_id"`
 	TurnID               string          `json:"turn_id"`
 	TranscriptPath       json.RawMessage `json:"transcript_path"`

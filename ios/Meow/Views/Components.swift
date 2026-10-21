@@ -38,16 +38,17 @@ enum AvatarStyle {
 struct SourceAvatar: View {
     var source: String
     var size: CGFloat = 40
+    var context: NotificationOrigin? = nil
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
         let initials = AvatarStyle.initials(for: source)
         Group {
             if initials.isEmpty {
-                shape.fill(Color.accentColor.gradient)
+                shape.fill(avatarFill)
                     .overlay(Image("LogoWhite").resizable().scaledToFit().padding(size * 0.17))
             } else {
-                shape.fill(AvatarStyle.palette[AvatarStyle.colorIndex(for: source)].gradient)
+                shape.fill(avatarFill)
                     .overlay(
                         Text(verbatim: initials)
                             .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
@@ -58,6 +59,15 @@ struct SourceAvatar: View {
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
+    }
+
+    private var avatarFill: AnyShapeStyle {
+        guard let context else {
+            let color = source.isEmpty ? Color.accentColor : AvatarStyle.palette[AvatarStyle.colorIndex(for: source)]
+            return AnyShapeStyle(color.gradient)
+        }
+        let rgb = OriginColor(source: source, context: context)
+        return AnyShapeStyle(Color(red: rgb.red, green: rgb.green, blue: rgb.blue))
     }
 }
 

@@ -603,7 +603,8 @@ final class AppModel {
             }
             return inFilter && (query.isEmpty || notification.title.localizedCaseInsensitiveContains(query)
                 || notification.body.localizedCaseInsensitiveContains(query)
-                || notification.source.localizedCaseInsensitiveContains(query))
+                || notification.source.localizedCaseInsensitiveContains(query)
+                || notification.context?.searchText.localizedCaseInsensitiveContains(query) == true)
         }
     }
 

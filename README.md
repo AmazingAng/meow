@@ -197,6 +197,9 @@ meow setup --server https://your-meow-server     # asks for the Device Key, conn
 - During staging, an existing Codex notify handler (including Computer Use) runs alongside Meow with its original arguments. Uninstall restores it. `--force` explicitly replaces it. The foreign handler has a separate 30-second limit.
 - Hooks retry transport failures, HTTP 429 and 5xx up to **three total attempts**, with 1s/2s backoff, 5 seconds per request and a 20-second overall budget. Quota exhaustion and other permanent errors are not retried. Each attempt reuses the same body and idempotency key.
 - Hooks print nothing and exit 0; sanitized failures go to `hook.log`. New lifecycle hooks run asynchronously, but host shutdown can cancel them: this is best-effort delivery, not a persistent queue. `MEOW_HOOK_DISABLED=1` silences Meow, while preserving a forwarded handler.
+- Agent reminders carry optional session context. The inbox shows the session name (or a short ID), agent and workspace. Avatar colors are stable: agents have a color family, workspaces use nearby hues and sessions use related tones. Session/workspace IDs keep colors unchanged after a rename. Existing messages without context remain readable, but their original session cannot be reconstructed.
+- Codex names come from the latest matching record in `$CODEX_HOME/session_index.jsonl` (default `~/.codex`). Claude names come from `custom-title` / `ai-title` records in the hook event's own `transcript_path`, preferring an explicit name. Lookups inspect at most the last 2 MiB of a regular file; missing, unreadable or out-of-window metadata falls back to the session ID and never prevents a notification. Full local workspace paths are hashed before sending.
+- Other agents/scripts can supply `meow send --source "Agent" --workspace "project" --workspace-id "project-1" --session "Deploy review" --session-id "session-1" "Finished"`. The corresponding `MEOW_WORKSPACE`, `MEOW_WORKSPACE_ID`, `MEOW_SESSION` and `MEOW_SESSION_ID` variables provide defaults. Names are display labels; provide IDs to distinguish identically named workspaces/sessions and retain identity across renames.
 - Explicit `meow send` notifications and automatic Stop reminders are not deduplicated against each other in V1. No heuristic time window can silently suppress a result.
 - Codex Stop skips temporary suggestion output only when `transcript_path` is explicitly `null` and the complete reply is a single `suggestion` (string/null) or `suggestions` (array of titled records) JSON envelope. Persistent chats, other JSON/results, missing metadata and permission requests still notify. Stop does not expose Desktop's `composer_predictions` source marker, so this is a conservative compatibility filter, not a general background-task classifier. An intentional ephemeral turn returning that exact envelope is also skipped; use `meow send` for such a result. Legacy `notify` has no transcript metadata and is unchanged.
 
@@ -211,7 +214,7 @@ Only SHA-256 hashes of both are stored.
 
 | Endpoint | Credential | |
 | --- | --- | --- |
-| `POST /v1/notifications` | Device Key | JSON `{title, body, source, priority, type}` or a plain-text body |
+| `POST /v1/notifications` | Device Key | JSON `{title, body, source, priority, type, context?}` or a plain-text body |
 | `POST /v1/questions` | Device Key | `{question, body, source, choices, timeout}` → `{id, status, expires_at, …}` |
 | `GET /v1/questions/{id}` | Device Key with `ask`, or device token | current state |
 | `GET /v1/questions/{id}/wait?timeout=30` | Device Key | long poll until resolved, at most 60s |
@@ -226,6 +229,8 @@ Only SHA-256 hashes of both are stored.
 ```sh
 curl -H "Authorization: Bearer $MEOW_KEY" -d "Build completed" "$MEOW_SERVER/v1/notifications"
 ```
+
+The optional notification `context` object accepts `workspace`, `workspace_id`, `session` and `session_id`. Display names allow 200 Unicode characters; IDs allow 128. Values are trimmed and must be single-line text without control characters. Context is returned by notification detail and inbox endpoints and included in creation idempotency. Omitting it preserves the previous request format. Update the server, CLI and iOS app for session context to appear end to end; server startup migrates SQLite to schema v3 while preserving history.
 
 In the iOS inbox, swipe left and tap the trash icon to delete one message. The header trash menu clears a selected time range after confirmation. Time ranges use the iPhone's local calendar and apply to all messages, including those hidden by search or unread filters. Deletion removes server records and the local cache; it cannot be undone. Update the server before using these controls; unsupported endpoints and network failures keep local messages and show an error. Bulk deletion requires both bounds (`0 <= from < before <= 253402300799999`); missing, duplicate and unknown query parameters are rejected. Deleting a legacy question message also removes its question and responses and wakes waiting clients with `404`; it never approves anything. Creation idempotency records keep their normal retention to prevent sender retries from recreating deleted messages. An APNs notification already accepted by Apple may remain in Notification Center.
 

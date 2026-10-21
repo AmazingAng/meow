@@ -18,6 +18,7 @@ import (
 
 	"meow.blue/meow/cli/internal/config"
 	"meow.blue/meow/client"
+	"meow.blue/meow/message"
 )
 
 var version = "dev"
@@ -50,6 +51,10 @@ Send flags:
   --priority P     low | normal | high (default normal)
   --alert          mark as an alert instead of info
   --source S       sender label, e.g. "Claude Code" (default $MEOW_SOURCE)
+  --workspace W    project/workspace label (default $MEOW_WORKSPACE)
+  --workspace-id I stable workspace identity (default $MEOW_WORKSPACE_ID)
+  --session S      session label (default $MEOW_SESSION)
+  --session-id I   stable session identity (default $MEOW_SESSION_ID)
 
 Meow V1 is notification-only. Respond to questions in the agent on your computer.
 
@@ -203,6 +208,11 @@ func cmdSend(args []string) int {
 	priority := fs.String("priority", "normal", "")
 	alert := fs.Bool("alert", false, "")
 	source := fs.String("source", os.Getenv("MEOW_SOURCE"), "")
+	origin := message.Context{}
+	fs.StringVar(&origin.Workspace, "workspace", os.Getenv("MEOW_WORKSPACE"), "")
+	fs.StringVar(&origin.WorkspaceID, "workspace-id", os.Getenv("MEOW_WORKSPACE_ID"), "")
+	fs.StringVar(&origin.Session, "session", os.Getenv("MEOW_SESSION"), "")
+	fs.StringVar(&origin.SessionID, "session-id", os.Getenv("MEOW_SESSION_ID"), "")
 	quiet := fs.Bool("quiet", false, "")
 	pos, err := parse(fs, args)
 	if err != nil {
@@ -215,6 +225,9 @@ func cmdSend(args []string) int {
 		}
 	}
 	req := client.NotifyRequest{Title: *title, Body: msg, Source: *source, Priority: *priority}
+	if origin != (message.Context{}) {
+		req.Context = &origin
+	}
 	if req.Title == "" {
 		req.Title, req.Body, _ = strings.Cut(msg, "\n")
 		req.Body = strings.TrimSpace(req.Body)

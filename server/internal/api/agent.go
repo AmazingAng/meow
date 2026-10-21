@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"meow.blue/meow/message"
 	"meow.blue/meow/server/internal/store"
 )
 
@@ -43,11 +44,12 @@ func (s *Server) whoami(w http.ResponseWriter, r *http.Request, p principal) {
 }
 
 type notifyInput struct {
-	Type     string `json:"type"`
-	Title    string `json:"title"`
-	Body     string `json:"body"`
-	Source   string `json:"source"`
-	Priority string `json:"priority"`
+	Context  *message.Context `json:"context,omitempty"`
+	Type     string           `json:"type"`
+	Title    string           `json:"title"`
+	Body     string           `json:"body"`
+	Source   string           `json:"source"`
+	Priority string           `json:"priority"`
 }
 
 // readNotifyInput accepts JSON, or plain text for one-line curl usage:
@@ -96,13 +98,16 @@ func (s *Server) createNotification(w http.ResponseWriter, r *http.Request, p pr
 		!checkText(w, "source", in.Source, false, maxSource) {
 		return
 	}
+	if !checkContext(w, in.Context) {
+		return
+	}
 	idem, ok := idempotency(w, r, in)
 	if !ok {
 		return
 	}
 	n, replay, err := s.st.CreateNotification(r.Context(), store.NewNotification{
 		DeviceID: p.key.DeviceID, KeyID: p.key.ID,
-		Type: in.Type, Title: in.Title, Body: in.Body, Source: in.Source, Priority: in.Priority,
+		Type: in.Type, Title: in.Title, Body: in.Body, Source: in.Source, Priority: in.Priority, Context: in.Context,
 	}, idem)
 	if s.idemFailed(w, r, err) {
 		return
