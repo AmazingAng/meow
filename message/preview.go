@@ -1,7 +1,10 @@
 package message
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
+	"html"
 	"strings"
 	"unicode/utf8"
 
@@ -9,8 +12,8 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	extast "github.com/yuin/goldmark/extension/ast"
+	markdownhtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
-	"github.com/yuin/goldmark/util"
 )
 
 const MaxPreviewRunes = 180
@@ -55,7 +58,17 @@ func plainMarkdown(markdown string) string {
 			return ast.WalkContinue, nil
 		}
 		switch node.Kind() {
-		case ast.KindFencedCodeBlock, ast.KindCodeBlock, ast.KindHTMLBlock:
+		case ast.KindFencedCodeBlock, ast.KindCodeBlock:
+			return ast.WalkSkipChildren, nil
+		case ast.KindHTMLBlock:
+			// Foundation presents raw HTML literally. Preserve its contents as
+			// text too; skipping the node can erase the entire notification.
+			n := node.(*ast.HTMLBlock)
+			value := string(n.Lines().Value(source))
+			if n.HasClosure() {
+				value += string(n.ClosureLine.Value(source))
+			}
+			blocks = append(blocks, value)
 			return ast.WalkSkipChildren, nil
 		case ast.KindParagraph, ast.KindHeading, ast.KindTextBlock:
 			if value := strings.TrimSpace(inlineText(node, source)); value != "" {
@@ -76,7 +89,7 @@ func plainMarkdown(markdown string) string {
 		}
 		return ast.WalkContinue, nil
 	})
-	return strings.Join(blocks, "\n")
+	return strings.TrimSpace(strings.Join(blocks, "\n"))
 }
 
 func inlineText(node ast.Node, source []byte) string {
@@ -88,19 +101,37 @@ func inlineText(node ast.Node, source []byte) string {
 		switch n := child.(type) {
 		case *ast.Text:
 			value := n.Segment.Value(source)
-			if !n.IsRaw() {
-				value = util.ResolveEntityNames(util.ResolveNumericReferences(util.UnescapePunctuations(value)))
+			if n.IsRaw() {
+				result.Write(value)
+			} else {
+				result.WriteString(markdownText(value))
 			}
-			result.Write(value)
 			if n.SoftLineBreak() || n.HardLineBreak() {
 				result.WriteByte('\n')
 			}
 		case *ast.String:
-			result.Write(n.Value)
+			if n.IsCode() || n.IsRaw() {
+				result.Write(n.Value)
+			} else {
+				result.WriteString(markdownText(n.Value))
+			}
 		case *ast.AutoLink:
 			result.Write(n.Label(source))
+		case *ast.RawHTML:
+			result.Write(n.Segments.Value(source))
 		}
 		return ast.WalkContinue, nil
 	})
 	return result.String()
+}
+
+func markdownText(source []byte) string {
+	// Goldmark resolves escapes and references in one pass, without interpreting
+	// their results again. Undo only the HTML escaping added by that writer;
+	// for example, both \&amp; and &#38;amp; must remain the literal "&amp;".
+	var escaped bytes.Buffer
+	writer := bufio.NewWriter(&escaped)
+	markdownhtml.DefaultWriter.Write(writer, source)
+	_ = writer.Flush() // bytes.Buffer writes cannot fail.
+	return html.UnescapeString(escaped.String())
 }

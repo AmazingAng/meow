@@ -183,3 +183,48 @@ extension NotificationBodyTests {
         XCTAssertEqual(body.original, raw)
     }
 }
+
+extension NotificationBodyTests {
+    func testEmptyTableCellsKeepTheirOriginalColumns() throws {
+        let body = NotificationBody("""
+        | | Bark | Meow |
+        | --- | --- | --- |
+        | 服务端保存正文 | 不保存 | 保存到 SQLite |
+        | 手机查看历史 | | 本地缓存 |
+        | | | |
+        | 删除消息 | **手机记录** | |
+        """)
+        let id = try XCTUnwrap(body.blocks.first?.tableID)
+        let rows = body.tableRows(id)
+        XCTAssertEqual(rows.map { $0.cells.map { String($0.characters) } }, [
+            ["", "Bark", "Meow"],
+            ["服务端保存正文", "不保存", "保存到 SQLite"],
+            ["手机查看历史", "", "本地缓存"],
+            ["", "", ""],
+            ["删除消息", "手机记录", ""]
+        ])
+        XCTAssertTrue(rows[0].isHeader)
+        XCTAssertFalse(rows[1].isHeader)
+        XCTAssertTrue(rows[4].cells[1].runs.contains {
+            $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
+        })
+    }
+
+    func testEntirelyEmptyHeaderAndMultipleTables() throws {
+        let body = NotificationBody("""
+        | | |
+        | --- | --- |
+        | left | right |
+
+        separator
+
+        | A | B | C |
+        | --- | --- | --- |
+        | only first |
+        """)
+        let ids = Array(Set(body.blocks.compactMap(\.tableID))).sorted()
+        XCTAssertEqual(ids.count, 2)
+        XCTAssertEqual(body.tableRows(ids[0]).map { $0.cells.map { String($0.characters) } }, [["", ""], ["left", "right"]])
+        XCTAssertEqual(body.tableRows(ids[1]).map { $0.cells.map { String($0.characters) } }, [["A", "B", "C"], ["only first", "", ""]])
+    }
+}

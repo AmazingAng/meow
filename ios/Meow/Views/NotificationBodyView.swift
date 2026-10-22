@@ -54,22 +54,31 @@ struct NotificationBodyView: View {
     }
 
     private func tableView(_ id: Int) -> some View {
-        let cells = content.blocks.filter { $0.tableID == id }
-        let rows = cells.reduce(into: [Int]()) { rows, cell in
-            if let row = cell.rowID, rows.last != row { rows.append(row) }
+        let rows = content.tableRows(id)
+        // Give Text a concrete width before measuring its wrapped height.
+        // A flexible maxWidth lets Grid measure a one-line height first, which
+        // causes rows to overlap at accessibility text sizes.
+        let font = UIFont.preferredFont(forTextStyle: .body)
+        let measurementFont = UIFont(descriptor: font.fontDescriptor.withSymbolicTraits(.traitBold) ?? font.fontDescriptor,
+                                     size: font.pointSize)
+        let widths = (rows.first?.cells.indices ?? 0..<0).map { column in
+            min(240, max(40, rows.map {
+                ceil((String($0.cells[column].characters) as NSString).size(withAttributes: [.font: measurementFont]).width)
+            }.max() ?? 40))
         }
         return ScrollView(.horizontal) {
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-                ForEach(rows, id: \.self) { row in
+            Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 10) {
+                ForEach(rows, id: \.index) { row in
                     GridRow {
-                        let columns = cells.filter { $0.rowID == row }
-                        ForEach(columns.indices, id: \.self) { column in
-                            Text(columns[column].text)
-                                .fontWeight(columns[column].isTableHeader ? .semibold : .regular)
-                                .frame(maxWidth: 240, alignment: .leading)
+                        ForEach(row.cells.indices, id: \.self) { column in
+                            Text(row.cells[column])
+                                .fontWeight(row.isHeader ? .semibold : .regular)
+                                .frame(width: widths[column], alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("notification.table.\(id).\(row.index).\(column)")
                         }
                     }
-                    Divider()
+                    Divider().gridCellUnsizedAxes(.horizontal)
                 }
             }
             .padding(12)

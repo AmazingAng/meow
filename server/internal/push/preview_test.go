@@ -64,3 +64,29 @@ func FuzzPreviewBounded(f *testing.F) {
 		}
 	})
 }
+
+// The source must be rendered before either the body preview or the final
+// title+body payload is shortened. iOS cannot recover discarded delimiters.
+func TestBuildMessageParsesLongMarkdownBeforeTruncating(t *testing.T) {
+	for _, source := range []string{"", "Codex"} {
+		n := store.Notification{Title: "New result", Body: "**" + strings.Repeat("猫", 200) + "**", Source: source}
+		m, err := BuildMessage(store.PushTarget{Notification: n})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload struct {
+			APS struct{ Alert struct{ Body string } }
+		}
+		if err := json.Unmarshal(m.Payload, &payload); err != nil {
+			t.Fatal(err)
+		}
+		prefix := ""
+		if source != "" {
+			prefix = "New result\n"
+		}
+		want := truncate(prefix+strings.Repeat("猫", 200), 180)
+		if payload.APS.Alert.Body != want {
+			t.Fatalf("source=%q got=%q want=%q", source, payload.APS.Alert.Body, want)
+		}
+	}
+}
