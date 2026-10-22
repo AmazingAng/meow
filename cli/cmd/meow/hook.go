@@ -149,6 +149,9 @@ func forwardNotify(ctx context.Context, argv []string, payload string) {
 
 // buildHookNotification supplies host policies to the pure adapter pipeline.
 func buildHookNotification(kind string, input []byte, summary bool) (client.NotifyRequest, string, bool, error) {
+	if kind == "codex-permission" && len(input) <= adapters.MaxInputBytes && codexAutomaticallyReviewed(input) {
+		return client.NotifyRequest{}, "", false, nil
+	}
 	r, err := adapters.Build(kind, input, adapters.Options{IncludeSummary: summary, Language: os.Getenv("MEOW_LANGUAGE"),
 		ResolveContext: func(o adapters.Origin) *message.Context {
 			return hookContext(o.Source, o.Cwd, o.SessionID, o.SessionName, o.TranscriptPath)
