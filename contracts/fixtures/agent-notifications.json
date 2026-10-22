@@ -135,7 +135,7 @@
       },
       "type": "alert",
       "title": "Needs your attention",
-      "body": "Bash\n{\"command\":\"go test ./...\"}",
+      "body": "Bash\n\n```sh\ngo test ./...\n```",
       "source": "Codex",
       "priority": "high"
     },

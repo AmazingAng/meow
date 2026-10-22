@@ -28,7 +28,7 @@ func TestHookFullBodyAndNewEvents(t *testing.T) {
 	}
 	for _, tc := range []struct{ kind, input, title, body string }{
 		{"claude-failure", `{"session_id":"s","prompt_id":"p","error":"rate_limit","error_details":"Try later"}`, "Run failed", "rate_limit\nTry later"},
-		{"codex-permission", `{"session_id":"s","turn_id":"t","hook_event_name":"PermissionRequest","tool_name":"shell","tool_input":{"command":"git push"}}`, "Needs your attention", "shell\n{\"command\":\"git push\"}"},
+		{"codex-permission", `{"session_id":"s","turn_id":"t","hook_event_name":"PermissionRequest","tool_name":"shell","tool_input":{"command":"git push"}}`, "Needs your attention", "shell\n\n```sh\ngit push\n```"},
 	} {
 		req, _, send, err := buildHookNotification(tc.kind, []byte(tc.input), true)
 		if err != nil || !send || req.Title != tc.title || req.Body != tc.body || req.Priority != "high" {

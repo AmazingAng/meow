@@ -93,7 +93,7 @@ func TestInvalidAdapterInputsAndResolver(t *testing.T) {
 	}
 }
 
-func TestFormattingAndRawPermissionBody(t *testing.T) {
+func TestFormattingAndPermissionBody(t *testing.T) {
 	for _, c := range []struct{ kind, lang, want string }{{ResultTitle, "en", "New result"}, {ResultTitle, "zh", "有新结果"}, {AttentionTitle, "zh-Hans", "需要你确认"}, {FailureTitle, "zh-CN", "运行出错"}, {FailureTitle, "en", "Run failed"}, {AttentionTitle, "en", "Needs your attention"}} {
 		if got := Title(c.kind, c.lang); got != c.want {
 			t.Fatalf("title=%q", got)
@@ -104,7 +104,7 @@ func TestFormattingAndRawPermissionBody(t *testing.T) {
 	}
 	raw := []byte("{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"s\",\"turn_id\":\"t\",\"tool_name\":\"Bash\",\"tool_input\":{\n  \"command\": \"go test\"\n}}")
 	r, err := Build("codex-permission", raw, Options{IncludeSummary: true})
-	if err != nil || r.Notification.Body != "Bash\n{\n  \"command\": \"go test\"\n}" {
+	if err != nil || r.Notification.Body != "Bash\n\n```sh\ngo test\n```" {
 		t.Fatalf("raw body=%q %v", r.Notification.Body, err)
 	}
 	if (Origin{}).Context() != nil {

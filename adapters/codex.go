@@ -52,7 +52,7 @@ func decodeCodexHook(name string, data []byte) (Event, bool, error) {
 		e.DedupeNamespace = ""
 		e.Notification.Type = message.TypeAlert
 		e.Notification.Priority = message.PriorityHigh
-		e.Notification.Body = strings.TrimSpace(p.ToolName + "\n" + string(p.ToolInput))
+		e.Notification.Body = permissionBody(p.ToolName, p.ToolInput)
 	}
 	return e, true, nil
 }
