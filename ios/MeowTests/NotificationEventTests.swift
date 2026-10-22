@@ -12,13 +12,14 @@ final class NotificationEventTests: XCTestCase {
         return try MeowJSON.decoder.decode(MeowNotification.self, from: JSONSerialization.data(withJSONObject: object))
     }
 
-    func testCategoryUsesEventAndAlwaysPreservesCustomTitle() throws {
+    func testCategoryUsesEventAndSessionWithoutChangingOriginalTitle() throws {
         for (event, symbol) in [("result", "bubble.left"), ("attention", "checklist"), ("failure", "exclamationmark.triangle")] {
             for title in ["Build 19 is ready", "自定义标题", "Le déploiement est prêt"] {
                 let n = try notification(title: title, event: event)
                 XCTAssertEqual(n.inboxCategory?.symbol, symbol)
-                XCTAssertEqual(n.compactHeadline, title)
-                XCTAssertEqual(n.compactMetadata, "部署审查 · Codex · meow")
+                XCTAssertEqual(n.compactHeadline, "部署审查")
+                XCTAssertEqual(n.title, title)
+                XCTAssertEqual(n.compactMetadata, "meow · Codex")
                 XCTAssertEqual(n.priority, "low")
                 XCTAssertEqual(n.type, .info)
             }
@@ -29,7 +30,8 @@ final class NotificationEventTests: XCTestCase {
         for title in ["New result", "Needs your attention", "Run failed", "有新结果", "需要你确认", "运行出错"] {
             let n = try notification(title: title, event: nil)
             XCTAssertNil(n.inboxCategory)
-            XCTAssertEqual(n.compactHeadline, title)
+            XCTAssertEqual(n.compactHeadline, "部署审查")
+            XCTAssertEqual(n.title, title)
         }
     }
 

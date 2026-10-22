@@ -27,38 +27,48 @@ final class InboxPresentationTests: XCTestCase {
         XCTAssertEqual(Set((groups.pending + groups.activity).map(\.id)), Set(input.map(\.id)))
         XCTAssertTrue(InboxPresentation(input, now: now.addingTimeInterval(10)).pending.isEmpty)
     }
-    func testExplicitCategoriesKeepTitleAndSession() {
+    func testRowsLeadWithSessionAndProjectBeforeAgent() {
         var n = item("n")
         n.context = .init(workspace: "meow", session: "修复通知", sessionId: "s1")
-        for (title, event) in [("New result", NotificationEvent.result), ("有新结果", .result), ("Needs your attention", .attention), ("需要你确认", .attention), ("Run failed", .failure), ("运行出错", .failure)] {
+        for event in [NotificationEvent.result, .attention, .failure] {
             n.event = event
-            n.title = title + " · meow"
-            XCTAssertNotNil(n.inboxCategory)
-            XCTAssertEqual(n.compactHeadline, title)
-            XCTAssertEqual(n.compactMetadata, "修复通知 · Codex · meow")
+            n.title = "Custom notification title · meow"
+            XCTAssertEqual(n.inboxCategory, event)
+            XCTAssertEqual(n.compactHeadline, "修复通知")
+            XCTAssertEqual(n.compactMetadata, "meow · Codex")
+            XCTAssertEqual(n.title, "Custom notification title · meow")
         }
+        // Older notifications can have session context without an event field.
         n.event = nil
-        n.title = "New result from the benchmark"
+        n.title = "New result · meow"
         XCTAssertNil(n.inboxCategory)
-        XCTAssertEqual(n.compactHeadline, n.title)
-        XCTAssertEqual(n.compactMetadata, "修复通知 · Codex · meow")
+        XCTAssertEqual(n.compactHeadline, "修复通知")
+        XCTAssertEqual(n.compactMetadata, "meow · Codex")
     }
 
-    func testCompactRowsKeepTitlesWhenSessionIsMissingAndLegacyMessagesIntact() {
+    func testMissingSessionUsesIDThenNeutralLabelForEvents() {
         var n = item("n")
-        n.title = "Needs your attention · meow"
-        XCTAssertNil(n.inboxCategory)
-        XCTAssertEqual(n.compactHeadline, n.title)
-        n.context = .init(workspace: "meow")
-        XCTAssertNil(n.inboxCategory)
         n.event = .attention
-        XCTAssertEqual(n.inboxCategory, .attention)
-        XCTAssertEqual(n.compactHeadline, "Needs your attention")
-        n.context?.sessionId = "session-42"
-        XCTAssertEqual(n.compactHeadline, "Needs your attention")
-        XCTAssertEqual(n.compactMetadata, "Session · session-42 · Codex · meow")
+        n.title = "Needs your attention · meow"
+        n.context = .init(workspace: "meow", sessionId: "session-42")
+        XCTAssertEqual(n.compactHeadline, "Session · session-42")
+        XCTAssertEqual(n.compactMetadata, "meow · Codex")
         n.context?.sessionId = " "
-        XCTAssertEqual(n.compactHeadline, "Needs your attention")
+        XCTAssertEqual(n.compactHeadline, "Session")
+        n.context = nil
+        XCTAssertEqual(n.compactHeadline, "Session")
+        XCTAssertEqual(n.compactMetadata, "Codex")
     }
 
+    func testOrdinaryServiceWithoutSessionKeepsItsTitle() {
+        var n = item("n")
+        n.title = "Backup completed"
+        n.context = .init(workspace: "backups")
+        XCTAssertEqual(n.compactHeadline, "Backup completed")
+        XCTAssertEqual(n.compactMetadata, "backups · Codex")
+        n.source = "   "
+        XCTAssertEqual(n.compactMetadata, "backups · Meow")
+        n.context = nil
+        XCTAssertEqual(n.compactMetadata, "Meow")
+    }
 }

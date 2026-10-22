@@ -17,8 +17,9 @@ final class LiveEventTests: XCTestCase {
         for n in saved {
             if let event = n.event {
                 XCTAssertEqual(n.inboxCategory, event)
-                XCTAssertEqual(n.compactHeadline, "自定义标题")
-                XCTAssertEqual(n.compactMetadata, "部署审查 · CI · meow")
+                XCTAssertEqual(n.compactHeadline, "部署审查")
+                XCTAssertEqual(n.title, "自定义标题")
+                XCTAssertEqual(n.compactMetadata, "meow · CI")
                 XCTAssertEqual(n.priority, "low")
             } else {
                 XCTAssertEqual(n.title, "New result")
