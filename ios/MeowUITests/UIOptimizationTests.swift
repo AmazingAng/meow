@@ -231,6 +231,35 @@ final class UIOptimizationTests: XCTestCase {
         capture("body-markdown-accessible-list", app)
     }
 
+    func test10EmptyTableHeaderKeepsColumnsAligned() {
+        scenario("empty-table-header")
+        let app = open(id: "ntf_info", chinese: true)
+        let bark = app.staticTexts["Bark"]
+        let meow = app.staticTexts.matching(NSPredicate(format: "label == %@ AND identifier BEGINSWITH %@", "Meow", "notification.table.")).firstMatch
+        XCTAssertTrue(bark.waitForExistence(timeout: 10))
+        XCTAssertTrue(meow.exists)
+        let firstColumn = app.staticTexts["服务端保存正文"]
+        let secondColumn = app.staticTexts["不保存"]
+        let thirdColumn = app.staticTexts["保存到 SQLite"]
+        XCTAssertGreaterThan(bark.frame.minX, firstColumn.frame.minX + 40)
+        XCTAssertEqual(bark.frame.minX, secondColumn.frame.minX, accuracy: 1)
+        XCTAssertEqual(meow.frame.minX, thirdColumn.frame.minX, accuracy: 1)
+        XCTAssertEqual(app.staticTexts["最后一列"].frame.minX, thirdColumn.frame.minX, accuracy: 1)
+        let longCell = app.staticTexts["当前设计同时删除服务器记录与本地缓存"]
+        XCTAssertLessThanOrEqual(longCell.frame.width, 241)
+        XCTAssertGreaterThan(longCell.frame.height, thirdColumn.frame.height)
+        capture("empty-table-header-zh", app)
+        app.terminate()
+
+        let large = open(id: "ntf_info", large: true, chinese: true)
+        XCTAssertTrue(large.staticTexts["Bark"].waitForExistence(timeout: 10))
+        let firstLargeRow = large.staticTexts["服务端保存正文"]
+        reveal(firstLargeRow, in: large)
+        XCTAssertLessThan(firstLargeRow.frame.maxY, large.staticTexts["手机查看历史"].frame.minY)
+        XCTAssertLessThan(large.staticTexts["手机查看历史"].frame.maxY, large.staticTexts["服务端补拉历史"].frame.minY)
+        capture("empty-table-header-large-zh", large)
+    }
+
     func test06UrgentQuestionBeyondFirstPageAppearsFirst() {
         scenario("pagination")
         let app = open()

@@ -76,6 +76,8 @@ class Fixture(BaseHTTPRequestHandler):
                 self.items[:] = [later] + [dict(info, id=f'ntf_info_{i}') for i in range(49)] + [soon]
             elif scenario == 'activity':
                 self.items[:] = [info]
+            elif scenario == 'empty-table-header':
+                self.items[:] = [dict(info, title='New result · meow', body='**Bark Server 不持久保存通知正文和消息历史。**\n\n与目前 Meow 的区别是：\n\n| | Bark | Meow |\n| --- | --- | --- |\n| 服务端保存正文 | 不保存 | 保存到 SQLite |\n| 手机查看历史 | 本地记录 | 本地缓存，可向服务器同步 |\n| 服务端补拉历史 | 不提供 | 支持 |\n| 删除消息 | 删除手机本地记录 | 当前设计同时删除服务器记录与本地缓存 |\n| 空单元格 | | 最后一列 |')]
             elif scenario == 'compact-categories':
                 records = [
                     ('result', 'New result', 'Codex', 'Refine notification layout', 'The inbox now uses three lines per notification.'),

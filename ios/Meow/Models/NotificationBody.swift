@@ -26,12 +26,54 @@ struct NotificationBody {
                 return $0.kind == .tableHeaderRow
             }?.identity
         }
+        var columnIndex: Int? {
+            for intent in intents {
+                if case .tableCell(let index) = intent.kind { return index }
+            }
+            return nil
+        }
+        var tableColumns: [PresentationIntent.TableColumn] {
+            for intent in intents {
+                if case .table(let columns) = intent.kind { return columns }
+            }
+            return []
+        }
+        var tableRowIndex: Int? {
+            for intent in intents {
+                if case .tableRow(let index) = intent.kind { return index }
+                if intent.kind == .tableHeaderRow { return 0 }
+            }
+            return nil
+        }
         var isTableHeader: Bool { intents.contains { $0.kind == .tableHeaderRow } }
     }
 
     let original: String
     let json: String?
     let blocks: [Block]
+
+    struct TableRow {
+        let index: Int
+        let cells: [AttributedString]
+        var isHeader: Bool { index == 0 }
+    }
+
+    /// Empty cells have no attributed runs. Use the declared column count and
+    /// cell indices, rather than treating the surviving runs as adjacent cells.
+    func tableRows(_ id: Int) -> [TableRow] {
+        let cells = blocks.filter { $0.tableID == id }
+        guard let first = cells.first,
+              let lastRow = cells.compactMap(\.tableRowIndex).max() else { return [] }
+        return (0...lastRow).map { row in
+            var values = Array(repeating: AttributedString(""), count: first.tableColumns.count)
+            for cell in cells where cell.tableRowIndex == row {
+                if let column = cell.columnIndex, values.indices.contains(column) {
+                    values[column].append(cell.text)
+                }
+            }
+            return TableRow(index: row, cells: values)
+        }
+    }
 
     /// Compact inbox text uses the same parsed content as the detail view.
     /// Parse before truncating so a cut inside **bold** or `code` cannot expose

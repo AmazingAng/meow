@@ -126,17 +126,20 @@ def live(out):
 def native(out):
     helper.native_package(out)
     tests = out / 'package/Tests'
-    for name in ['NotificationEventTests.swift', 'ProtocolContractTests.swift']:
+    for name in ['NotificationEventTests.swift', 'ProtocolContractTests.swift', 'NotificationPreviewTests.swift']:
         shutil.copy2(ROOT / 'ios/MeowTests' / name, tests / name)
+    preview = tests / 'NotificationPreviewTests.swift'
+    preview.write_text(preview.read_text().replace('Bundle(for: Self.self)', 'Bundle.module'))
     shutil.copy2(ROOT / 'scripts/notification_events/LiveEventTests.swift', tests / 'LiveEventTests.swift')
     for src, name in [(ROOT / 'contracts/fixtures/notifications.json', 'notifications.json'),
+                      (ROOT / 'ios/MeowTests/Fixtures/notification-preview.json', 'notification-preview.json'),
                       (ROOT / 'ios/Meow/Resources/Sounds/meow.wav', 'meow.wav'),
                       (out / 'live-notifications.json', 'live-notifications.json')]: shutil.copy2(src, tests / name)
     manifest = out / 'package/Package.swift'
     text = manifest.read_text()
     old = 'path: "Tests")'
     if text.count(old) != 1: raise RuntimeError('test manifest shape changed')
-    manifest.write_text(text.replace(old, 'path: "Tests", resources: [.copy("notifications.json"), .copy("meow.wav"), .copy("live-notifications.json")])'))
+    manifest.write_text(text.replace(old, 'path: "Tests", resources: [.copy("notifications.json"), .copy("notification-preview.json"), .copy("meow.wav"), .copy("live-notifications.json")])'))
     run(['swift', 'test', '--package-path', str(out / 'package'), '--enable-code-coverage'], out, 'native')
     log = (out / 'native.log').read_text()
     count = len(re.findall(r"Test Case '.+' passed", log))
@@ -158,6 +161,8 @@ def mutations(out):
             ('api-event', 'server/internal/api/json.go', 'Event: n.Event,', 'Event: "",', './server/internal/api', 'TestNotificationEventHTTP'),
             ('query-event', 'server/internal/api/agent.go', 'message.EventKind(q.Get("event"))', '""', './server/internal/api', 'TestPlainTextNotificationEvent'),
             ('adapter-event', 'adapters/claude.go', 'e.Notification.Event = message.EventResult', 'e.Notification.Event = ""', './adapters', 'TestAgentEventsAreExplicit'),
+            ('generated-prose-entity', 'message/preview.go', 'result.WriteString(markdownText(n.Value))', 'result.Write(n.Value)', './message', 'TestInlineGeneratedTextPreservesLiteralIntent'),
+            ('generated-literal-entity', 'message/preview.go', 'if n.IsCode() || n.IsRaw() {', 'if false {', './message', 'TestInlineGeneratedTextPreservesLiteralIntent'),
             ('migration-event', 'server/internal/store/store.go', 'if v < 5 {', 'if v < 4 {', './server/internal/store', 'TestEventMigrationPersistenceAndBackup'),
         ]
         for name, filename, old, new, package, selector in cases:
