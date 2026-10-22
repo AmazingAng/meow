@@ -293,21 +293,17 @@ struct NotificationRow: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(verbatim: n.inboxTitle)
+                    categoryIcon
+                        .font(.system(size: 18, weight: .medium))
+                    Text(verbatim: n.compactHeadline)
                         .font(.headline)
                         .fontWeight(needsAnswer || n.isUnread ? .semibold : .regular)
-                        .lineLimit(typeSize.isAccessibilitySize ? nil : 3)
+                        .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if n.isUnread {
                         Circle().fill(Color.accentColor).frame(width: 8, height: 8)
                             .accessibilityHidden(true)
                     }
-                }
-                if let session = n.context?.sessionLabel {
-                    Label { Text(verbatim: session) } icon: { Image(systemName: "bubble.left") }
-                        .font(.subheadline.weight(.medium))
-                        .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if typeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: 4) { metadata }
@@ -320,9 +316,6 @@ struct NotificationRow: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
                 }
-                if let question = n.question {
-                    QuestionStatusTag(question: question)
-                }
             }
         }
         .padding(.vertical, 8)
@@ -331,11 +324,27 @@ struct NotificationRow: View {
     }
 
     @ViewBuilder
+    private var categoryIcon: some View {
+        if let question = notification.question {
+            let look = QuestionAppearance(question, now: now)
+            Image(systemName: look.icon)
+                .foregroundStyle(look.color)
+                .accessibilityLabel(Text(look.tag))
+        } else {
+            let category = notification.inboxCategory
+            Image(systemName: category?.symbol ?? (notification.type == .alert ? "exclamationmark.bubble" : "bubble.left"))
+                .foregroundStyle(category == .failure ? Color.red :
+                    (category == .attention || notification.type == .alert ? Color.orange : Color.accentColor))
+                .accessibilityLabel(Text(verbatim: category == nil ? "" : notification.inboxTitle))
+        }
+    }
+
+    @ViewBuilder
     private var metadata: some View {
-        Text(verbatim: notification.originSummary)
+        Text(verbatim: notification.compactMetadata)
             .font(.caption)
             .foregroundStyle(.secondary)
-            .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+            .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
             .fixedSize(horizontal: false, vertical: true)
         if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
         RelativeTime(date: notification.createdAt)

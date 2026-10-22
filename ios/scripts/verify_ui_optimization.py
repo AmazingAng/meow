@@ -76,6 +76,19 @@ class Fixture(BaseHTTPRequestHandler):
                 self.items[:] = [later] + [dict(info, id=f'ntf_info_{i}') for i in range(49)] + [soon]
             elif scenario == 'activity':
                 self.items[:] = [info]
+            elif scenario == 'compact-categories':
+                records = [
+                    ('result', 'New result', 'Codex', 'Refine notification layout', 'The inbox now uses three lines per notification.'),
+                    ('attention', 'Needs your attention', 'Claude Code', '发布前检查', '需要确认后才能继续发布。请在电脑端处理。'),
+                    ('failure', '运行出错', 'Claude Code', '检查服务连接', '连接超时，请检查服务器状态。'),
+                    ('custom', 'Build 19 is ready', 'Codex', 'Release preparation', 'All checks passed. Ready for device testing.'),
+                    ('legacy', 'Deployment completed', 'Codex', None, 'Older notifications keep their original title.'),
+                ]
+                self.items[:] = [dict(info, id='ntf_' + key, title=title + (' · meow' if session else ''),
+                                     source=source, body=body, priority='high' if key in ('attention', 'failure') else 'normal',
+                                     type='alert' if key in ('attention', 'failure') else 'info',
+                                     context=dict(workspace='meow', session=session, session_id=key) if session else None)
+                                 for key, title, source, session, body in records]
             elif scenario == 'formatting':
                 bodies = {
                     'markdown': '## 推送已恢复\n\n收到，这条回复用于测试桌面版的自动推送。回复结束后，留意 Meow 是否收到 **「New result」** 通知。\n\n- **Markdown** 正常显示\n- 使用 `meow doctor` 检查连接\n\n> 完整正文仍可在详细信息中查看。\n\n```sh\nmeow doctor\n```\n\n| 项目 | 状态 |\n| --- | --- |\n| App | 正常 |\n| Hook | 正常 |',

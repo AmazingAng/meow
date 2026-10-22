@@ -27,4 +27,33 @@ final class InboxPresentationTests: XCTestCase {
         XCTAssertEqual(Set((groups.pending + groups.activity).map(\.id)), Set(input.map(\.id)))
         XCTAssertTrue(InboxPresentation(input, now: now.addingTimeInterval(10)).pending.isEmpty)
     }
+    func testStandardCategoriesUseSessionWithoutDiscardingCustomTitles() {
+        var n = item("n")
+        n.context = .init(workspace: "meow", session: "修复通知", sessionId: "s1")
+        for title in ["New result", "有新结果", "Needs your attention", "需要你确认", "Run failed", "运行出错"] {
+            n.title = title + " · meow"
+            XCTAssertNotNil(n.inboxCategory)
+            XCTAssertEqual(n.compactHeadline, "修复通知")
+            XCTAssertEqual(n.compactMetadata, "Codex · meow")
+        }
+        n.title = "New result from the benchmark"
+        XCTAssertNil(n.inboxCategory)
+        XCTAssertEqual(n.compactHeadline, n.title)
+        XCTAssertEqual(n.compactMetadata, "Codex · meow · 修复通知")
+    }
+
+    func testCompactRowsKeepTitlesWhenSessionIsMissingAndLegacyMessagesIntact() {
+        var n = item("n")
+        n.title = "Needs your attention · meow"
+        XCTAssertNil(n.inboxCategory)
+        XCTAssertEqual(n.compactHeadline, n.title)
+        n.context = .init(workspace: "meow")
+        XCTAssertEqual(n.inboxCategory, .attention)
+        XCTAssertEqual(n.compactHeadline, "Needs your attention")
+        n.context?.sessionId = "session-42"
+        XCTAssertEqual(n.compactHeadline, n.context?.sessionLabel)
+        n.context?.sessionId = " "
+        XCTAssertEqual(n.compactHeadline, "Needs your attention")
+    }
+
 }
