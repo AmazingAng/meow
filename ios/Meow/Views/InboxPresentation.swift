@@ -18,20 +18,10 @@ struct InboxPresentation {
     }
 }
 
-/// Only the exact standard hook titles are categories. Custom titles remain
-/// visible, even when they contain words such as "result" or "attention".
-enum InboxCategory {
-    case result, attention, failure
+/// Event classification is part of the protocol, never inferred from display text.
+typealias InboxCategory = NotificationEvent
 
-    init?(title: String) {
-        switch title {
-        case "New result", "有新结果": self = .result
-        case "Needs your attention", "需要你确认": self = .attention
-        case "Run failed", "运行出错": self = .failure
-        default: return nil
-        }
-    }
-
+extension NotificationEvent {
     var symbol: String {
         switch self {
         case .result: "bubble.left"
@@ -42,19 +32,11 @@ enum InboxCategory {
 }
 
 extension MeowNotification {
-    var inboxCategory: InboxCategory? { InboxCategory(title: inboxTitle) }
+    var inboxCategory: InboxCategory? { event }
 
-    var compactHeadline: String {
-        if inboxCategory != nil, let session = context?.sessionLabel { return session }
-        return inboxTitle
-    }
+    var compactHeadline: String { inboxTitle }
 
     var compactMetadata: String {
-        // A custom headline carries information: keep its session on the
-        // metadata line instead of replacing the headline or adding a fourth row.
-        if inboxCategory == nil, let session = context?.sessionLabel {
-            return originSummary + " · " + session
-        }
-        return originSummary
+        [context?.sessionLabel, originSummary].compactMap { $0 }.joined(separator: " · ")
     }
 }

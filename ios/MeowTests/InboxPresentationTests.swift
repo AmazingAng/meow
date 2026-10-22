@@ -27,19 +27,21 @@ final class InboxPresentationTests: XCTestCase {
         XCTAssertEqual(Set((groups.pending + groups.activity).map(\.id)), Set(input.map(\.id)))
         XCTAssertTrue(InboxPresentation(input, now: now.addingTimeInterval(10)).pending.isEmpty)
     }
-    func testStandardCategoriesUseSessionWithoutDiscardingCustomTitles() {
+    func testExplicitCategoriesKeepTitleAndSession() {
         var n = item("n")
         n.context = .init(workspace: "meow", session: "修复通知", sessionId: "s1")
-        for title in ["New result", "有新结果", "Needs your attention", "需要你确认", "Run failed", "运行出错"] {
+        for (title, event) in [("New result", NotificationEvent.result), ("有新结果", .result), ("Needs your attention", .attention), ("需要你确认", .attention), ("Run failed", .failure), ("运行出错", .failure)] {
+            n.event = event
             n.title = title + " · meow"
             XCTAssertNotNil(n.inboxCategory)
-            XCTAssertEqual(n.compactHeadline, "修复通知")
-            XCTAssertEqual(n.compactMetadata, "Codex · meow")
+            XCTAssertEqual(n.compactHeadline, title)
+            XCTAssertEqual(n.compactMetadata, "修复通知 · Codex · meow")
         }
+        n.event = nil
         n.title = "New result from the benchmark"
         XCTAssertNil(n.inboxCategory)
         XCTAssertEqual(n.compactHeadline, n.title)
-        XCTAssertEqual(n.compactMetadata, "Codex · meow · 修复通知")
+        XCTAssertEqual(n.compactMetadata, "修复通知 · Codex · meow")
     }
 
     func testCompactRowsKeepTitlesWhenSessionIsMissingAndLegacyMessagesIntact() {
@@ -48,10 +50,13 @@ final class InboxPresentationTests: XCTestCase {
         XCTAssertNil(n.inboxCategory)
         XCTAssertEqual(n.compactHeadline, n.title)
         n.context = .init(workspace: "meow")
+        XCTAssertNil(n.inboxCategory)
+        n.event = .attention
         XCTAssertEqual(n.inboxCategory, .attention)
         XCTAssertEqual(n.compactHeadline, "Needs your attention")
         n.context?.sessionId = "session-42"
-        XCTAssertEqual(n.compactHeadline, n.context?.sessionLabel)
+        XCTAssertEqual(n.compactHeadline, "Needs your attention")
+        XCTAssertEqual(n.compactMetadata, "Session · session-42 · Codex · meow")
         n.context?.sessionId = " "
         XCTAssertEqual(n.compactHeadline, "Needs your attention")
     }

@@ -14,7 +14,7 @@ func TestContextMigrationPersistenceAndBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = st.w.Exec(`ALTER TABLE notifications DROP COLUMN context; PRAGMA user_version=2`); err != nil {
+	if _, err = st.w.Exec(`ALTER TABLE notifications DROP COLUMN event; ALTER TABLE notifications DROP COLUMN context; PRAGMA user_version=2`); err != nil {
 		t.Fatal(err)
 	}
 	if err = st.Close(); err != nil {

@@ -32,14 +32,17 @@ func decodeClaude(name string, data []byte) (Event, bool, error) {
 	switch name {
 	case "claude-stop":
 		e.Template = ResultTitle
+		e.Notification.Event = message.EventResult
 		e.DedupeNamespace = name
 		e.Notification.Body = in.LastAssistantMessage
 	case "claude-failure":
 		e.Template = FailureTitle
+		e.Notification.Event = message.EventFailure
 		e.DedupeNamespace = name
 		e.Notification.Body = strings.TrimSpace(in.Error + "\n" + in.ErrorDetails)
 	case "claude-notify":
 		e.Template = AttentionTitle
+		e.Notification.Event = message.EventAttention
 		e.Notification.Title = strings.TrimSpace(in.Title)
 		e.Notification.Body = in.Message
 	}

@@ -30,7 +30,7 @@ var schemaSQL string
 //go:embed gateway.sql
 var gatewaySQL string
 
-const schemaVersion = 4
+const schemaVersion = 5
 
 var (
 	ErrNotFound            = errors.New("not found")
@@ -168,6 +168,11 @@ func (s *Store) migrate(ctx context.Context) error {
 			if _, err := tx.ExecContext(ctx, `INSERT INTO notification_receipts
 				SELECT id, device_id, created_at FROM notifications WHERE created_at > ?
 				ON CONFLICT(notification_id) DO NOTHING`, ms(s.now().Add(-24*time.Hour))); err != nil {
+				return err
+			}
+		}
+		if v < 5 {
+			if _, err := tx.ExecContext(ctx, `ALTER TABLE notifications ADD COLUMN event TEXT NOT NULL DEFAULT '' CHECK(event IN ('','result','attention','failure'))`); err != nil {
 				return err
 			}
 		}
@@ -471,6 +476,7 @@ func saveIdem(ctx context.Context, tx *sql.Tx, keyID string, idem Idem, resType,
 // ---- notifications ----
 
 type Notification struct {
+	Event       message.EventKind
 	Context     *message.Context
 	ID          string
 	DeviceID    string
@@ -498,7 +504,7 @@ type QuestionState struct {
 
 const notificationSelect = `SELECT n.id, n.device_id, COALESCE(n.key_id, ''), n.type, n.title, n.body, n.source, n.priority,
 	COALESCE(n.question_id, ''), n.push_status, COALESCE(n.push_error, ''), n.created_at, n.delivered_at, n.read_at,
-	q.status, q.answer, q.choices, q.expires_at, n.context
+	q.status, q.answer, q.choices, q.expires_at, n.context, n.event
 	FROM notifications n LEFT JOIN questions q ON q.id = n.question_id`
 
 func scanNotification(row scanner) (Notification, error) {
@@ -508,7 +514,7 @@ func scanNotification(row scanner) (Notification, error) {
 	var qStatus, qAnswer, qChoices, origin sql.NullString
 	if err := row.Scan(&n.ID, &n.DeviceID, &n.KeyID, &n.Type, &n.Title, &n.Body, &n.Source, &n.Priority,
 		&n.QuestionID, &n.PushStatus, &n.PushError, &created, &delivered, &read,
-		&qStatus, &qAnswer, &qChoices, &qExpires, &origin); err != nil {
+		&qStatus, &qAnswer, &qChoices, &qExpires, &origin, &n.Event); err != nil {
 		return n, noRows(err)
 	}
 	if origin.Valid {
@@ -528,6 +534,7 @@ func scanNotification(row scanner) (Notification, error) {
 }
 
 type NewNotification struct {
+	Event    message.EventKind
 	Context  *message.Context
 	DeviceID string
 	KeyID    string
@@ -550,9 +557,9 @@ func insertNotification(ctx context.Context, tx *sql.Tx, n Notification) error {
 		origin = string(b)
 	}
 	_, err := tx.ExecContext(ctx, `INSERT INTO notifications
-		(id, device_id, key_id, type, title, body, source, priority, question_id, push_status, created_at, context)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		n.ID, n.DeviceID, n.KeyID, n.Type, n.Title, n.Body, n.Source, n.Priority, qid, n.PushStatus, ms(n.CreatedAt), origin)
+		(id, device_id, key_id, type, title, body, source, priority, question_id, push_status, created_at, context, event)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		n.ID, n.DeviceID, n.KeyID, n.Type, n.Title, n.Body, n.Source, n.Priority, qid, n.PushStatus, ms(n.CreatedAt), origin, n.Event)
 	if err != nil {
 		return err
 	}
@@ -563,7 +570,7 @@ func insertNotification(ctx context.Context, tx *sql.Tx, n Notification) error {
 
 func newNotification(nn NewNotification, now time.Time) Notification {
 	return Notification{
-		ID: ids.New("ntf"), DeviceID: nn.DeviceID, KeyID: nn.KeyID, Type: nn.Type, Title: nn.Title,
+		Event: nn.Event, ID: ids.New("ntf"), DeviceID: nn.DeviceID, KeyID: nn.KeyID, Type: nn.Type, Title: nn.Title,
 		Body: nn.Body, Source: nn.Source, Priority: nn.Priority, Context: nn.Context, PushStatus: PushQueued, CreatedAt: now,
 	}
 }

@@ -207,7 +207,7 @@ meow setup --server https://your-meow-server     # asks for the Device Key, conn
 
 Agents and ordinary services share the same V1 notification object. `message/` owns the protocol and validation, `adapters/` converts external events, and `client/` handles HTTP transport. Existing CLI commands and the `/v1` API remain compatible. Services can send a JSON object with `meow send --json --idempotency-key EVENT_ID < notification.json` or POST the same object directly.
 
-See the [module boundaries and integration guide](docs/architecture.md), [JSON Schema](contracts/notification-v1.schema.json), and [cross-language fixtures](contracts/fixtures/notifications.json). Built-in adapters retain their titles, filtering and idempotency keys. Codex permission reminders include only the human explanation (`description` / `justification`); tool names, commands and other parameters stay on the computer. Without an explanation the notification still shows its attention title and session context. `--no-summary` omits the body.
+See the [module boundaries and integration guide](docs/architecture.md), [JSON Schema](contracts/notification-v1.schema.json), and [cross-language fixtures](contracts/fixtures/notifications.json). Built-in adapters emit explicit `event` values (`result`, `attention`, `failure`), independently of titles, `type` and `priority`. Events without this optional field remain generic. Codex permission reminders include only the human explanation (`description` / `justification`); tool names, commands and other parameters stay on the computer. Without an explanation the notification still shows its attention title and session context. `--no-summary` omits the body.
 
 ## HTTP API
 
@@ -220,7 +220,7 @@ Only SHA-256 hashes of both are stored.
 
 | Endpoint | Credential | |
 | --- | --- | --- |
-| `POST /v1/notifications` | Device Key | JSON `{title, body, source, priority, type, context?}` or a plain-text body |
+| `POST /v1/notifications` | Device Key | JSON `{title, body, source, priority, type, event?, context?}` or a plain-text body |
 | `POST /v1/questions` | Device Key | `{question, body, source, choices, timeout}` → `{id, status, expires_at, …}` |
 | `GET /v1/questions/{id}` | Device Key with `ask`, or device token | current state |
 | `GET /v1/questions/{id}/wait?timeout=30` | Device Key | long poll until resolved, at most 60s |

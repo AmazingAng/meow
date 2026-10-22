@@ -24,7 +24,7 @@ func decodeCodexNotify(data []byte) (Event, bool, error) {
 	if p.Type != "agent-turn-complete" {
 		return Event{}, false, nil
 	}
-	e := Event{Notification: message.Notification{Source: "Codex"}, Origin: Origin{Cwd: p.Cwd, SessionID: p.ThreadID, SessionName: p.ThreadName}, Template: ResultTitle, DedupeNamespace: "codex", EventID: p.TurnID}
+	e := Event{Notification: message.Notification{Event: message.EventResult, Source: "Codex"}, Origin: Origin{Cwd: p.Cwd, SessionID: p.ThreadID, SessionName: p.ThreadName}, Template: ResultTitle, DedupeNamespace: "codex", EventID: p.TurnID}
 	if p.LastAssistantMessage != nil {
 		e.Notification.Body = *p.LastAssistantMessage
 	}
@@ -46,9 +46,10 @@ func decodeCodexHook(name string, data []byte) (Event, bool, error) {
 	if name == "codex-stop" && p.isTemporarySuggestion() {
 		return Event{}, false, nil
 	}
-	e := Event{Notification: message.Notification{Source: "Codex", Body: p.LastAssistantMessage}, Origin: Origin{Cwd: p.Cwd, SessionID: p.SessionID, SessionName: p.SessionTitle}, Template: ResultTitle, DedupeNamespace: "codex", EventID: p.TurnID}
+	e := Event{Notification: message.Notification{Event: message.EventResult, Source: "Codex", Body: p.LastAssistantMessage}, Origin: Origin{Cwd: p.Cwd, SessionID: p.SessionID, SessionName: p.SessionTitle}, Template: ResultTitle, DedupeNamespace: "codex", EventID: p.TurnID}
 	if name == "codex-permission" {
 		e.Template = AttentionTitle
+		e.Notification.Event = message.EventAttention
 		e.DedupeNamespace = ""
 		e.Notification.Type = message.TypeAlert
 		e.Notification.Priority = message.PriorityHigh

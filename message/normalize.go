@@ -53,6 +53,9 @@ func (n Notification) Normalize() (Notification, error) {
 	if n.Priority == "" {
 		n.Priority = PriorityNormal
 	}
+	if n.Event != "" && n.Event != EventResult && n.Event != EventAttention && n.Event != EventFailure {
+		return n, &ValidationError{"event", "must be one of result, attention, failure"}
+	}
 	if n.Type != TypeInfo && n.Type != TypeAlert {
 		return n, &ValidationError{"type", "must be one of info, alert"}
 	}
@@ -97,13 +100,14 @@ func (n Notification) Normalize() (Notification, error) {
 // normalized values. Context stays omitted when absent, including old retries.
 func (n Notification) CanonicalJSON() json.RawMessage {
 	b, _ := json.Marshal(struct {
-		Context  *Context `json:"context,omitempty"`
-		Type     string   `json:"type"`
-		Title    string   `json:"title"`
-		Body     string   `json:"body"`
-		Source   string   `json:"source"`
-		Priority string   `json:"priority"`
-	}{n.Context, n.Type, n.Title, n.Body, n.Source, n.Priority}) // closed string-only model
+		Context  *Context  `json:"context,omitempty"`
+		Event    EventKind `json:"event,omitempty"`
+		Type     string    `json:"type"`
+		Title    string    `json:"title"`
+		Body     string    `json:"body"`
+		Source   string    `json:"source"`
+		Priority string    `json:"priority"`
+	}{n.Context, n.Event, n.Type, n.Title, n.Body, n.Source, n.Priority}) // closed string-only model
 	return b
 }
 

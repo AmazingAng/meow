@@ -181,7 +181,7 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(row.label.contains("Refine notification layout"))
         XCTAssertLessThan(row.frame.height, 120, "standard text should fit the compact three-line row")
         XCTAssertTrue(app.staticTexts["Build 19 is ready"].exists, "custom notification titles remain visible")
-        XCTAssertFalse(app.staticTexts["New result"].exists, "the category is an icon, not a separate text row")
+        XCTAssertTrue(app.staticTexts["New result"].exists, "event metadata must never hide the title")
         capture("compact-categories", app)
         row.tap()
         XCTAssertTrue(app.staticTexts["New result · meow"].waitForExistence(timeout: 5), "detail preserves the original title")

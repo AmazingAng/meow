@@ -84,7 +84,7 @@ class Fixture(BaseHTTPRequestHandler):
                     ('custom', 'Build 19 is ready', 'Codex', 'Release preparation', 'All checks passed. Ready for device testing.'),
                     ('legacy', 'Deployment completed', 'Codex', None, 'Older notifications keep their original title.'),
                 ]
-                self.items[:] = [dict(info, id='ntf_' + key, title=title + (' · meow' if session else ''),
+                self.items[:] = [dict(info, **({'event': key} if key in ('result', 'attention', 'failure') else {}), id='ntf_' + key, title=title + (' · meow' if session else ''),
                                      source=source, body=body, priority='high' if key in ('attention', 'failure') else 'normal',
                                      type='alert' if key in ('attention', 'failure') else 'info',
                                      context=dict(workspace='meow', session=session, session_id=key) if session else None)

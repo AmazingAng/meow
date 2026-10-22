@@ -82,6 +82,9 @@
             "alert"
           ],
           "default": "info"
+        },
+        "event": {
+          "$ref": "#/$defs/event"
         }
       },
       "additionalProperties": true
@@ -176,6 +179,9 @@
         },
         "question": {
           "$ref": "#/$defs/question"
+        },
+        "event": {
+          "$ref": "#/$defs/event"
         }
       },
       "additionalProperties": true
@@ -223,6 +229,15 @@
         }
       },
       "additionalProperties": true
+    },
+    "event": {
+      "type": "string",
+      "enum": [
+        "result",
+        "attention",
+        "failure"
+      ],
+      "description": "Optional semantic event. Omitted or empty input is unspecified and omitted after normalization; never inferred from title. Independent of type and priority."
     }
   },
   "x-meow-banner": {

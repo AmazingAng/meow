@@ -1,6 +1,6 @@
 # Meow notification modules
 
-Meow uses one V1 notification contract for agents, CI jobs, monitors and ordinary services. The existing `/v1/notifications` endpoint and CLI commands remain compatible. This refactor adds no database migration, mandatory version field, external dependency or runtime plugin loader.
+Meow uses one V1 notification contract for agents, CI jobs, monitors and ordinary services. The existing `/v1/notifications` endpoint and CLI commands remain compatible. The protocol has no mandatory version field, external dependency or runtime plugin loader. SQLite schema v5 adds an optional semantic event; pre-v5 rows remain unspecified.
 
 ## Module boundaries
 
@@ -42,6 +42,7 @@ Machine-readable schema: [notification-v1.schema.json](../contracts/notification
 
 ```json
 {
+  "event": "result",
   "title": "Deployment completed",
   "body": "**All tests passed.**\nReady for the next step.",
   "source": "CI",
@@ -62,6 +63,7 @@ Machine-readable schema: [notification-v1.schema.json](../contracts/notification
 | `body` | Original UTF-8 Markdown/plain text; optional, up to 4000 code points. JSON or code may be stored as a string. Never send an object as `body`. |
 | `source` | Optional agent/service display label, up to 64 code points. It is not an authentication identity. |
 | `type` | `info` or `alert`; omitted/empty defaults to `info`. `alert` means attention is needed, not that a task succeeded or failed. |
+| `event` | Optional `result`, `attention`, `failure`: new output (not necessarily success), human attention required, or execution failure. Omitted/empty input is unspecified and omitted from normalized JSON. Unknown nonempty values return 422. Never inferred from titles, bodies or priority. |
 | `priority` | `low`, `normal`, `high`; omitted/empty defaults to `normal`. Delivery interruption level is separate from event type. |
 | `context` | Optional object: `workspace` / `session` labels up to 200 code points, `workspace_id` / `session_id` identities up to 128. Values are trimmed, single-line and contain no control characters. |
 
@@ -71,11 +73,16 @@ Names are display labels; IDs retain identity across renames. Use stable IDs to 
 
 The original body is preserved by the server. `message.Preview` parses Markdown to plain text before limiting a banner preview to 180 code points and three lines. Complete JSON objects/arrays and code blocks are omitted; emphasis, link labels and table cells become readable plain text, while escaped punctuation and inline-code literals survive. Go uses Goldmark and Swift uses Foundation, checked against shared fixtures. Updated direct APNs payloads mark the preview as `meow.preview_format = "plain"` so the iOS extension does not parse literal punctuation twice. Legacy direct payloads are normalized by the extension; relay previews are rendered from the full origin body. Inbox/Markdown detail presentation is a separate layer.
 
+The iOS inbox selects event icons only from `event`. It always retains the notification headline, then displays session and Agent/workspace metadata, then a body preview. Original titles remain in details. Persisted history keeps the field in local JSON blobs, independently of server cache expiry. `event` does not change sound, priority, permissions or notification actions.
+
 ## Service integration
 
 A service that can send standard JSON needs no custom adapter.
 
 ```sh
+# A custom title and explicit semantic event can also be sent with flags.
+meow send --event result --title "Backup completed" "Snapshot stored successfully."
+
 # notification.json contains the standard object above.
 meow send --json --idempotency-key "ci-run-123" < notification.json
 
@@ -87,13 +94,13 @@ curl --fail-with-body "$MEOW_SERVER/v1/notifications" \
   --data-binary @notification.json
 ```
 
-`meow send --json` also accepts one quoted JSON argument. It retains normal nonzero CLI errors and supports `--quiet` and `--idempotency-key`. Content flags (`--title`, `--source`, `--priority`, context flags, etc.) cannot be mixed with JSON; the JSON object is authoritative. `MEOW_SERVER` / `MEOW_KEY` still configure the transport. Plain `meow send` and its environment defaults remain supported.
+`meow send --json` also accepts one quoted JSON argument. It retains normal nonzero CLI errors and supports `--quiet` and `--idempotency-key`. Content flags (`--event`, `--title`, `--source`, `--priority`, context flags, etc.) cannot be mixed with JSON; the JSON object is authoritative. `MEOW_SERVER` / `MEOW_KEY` still configure the transport. Plain `meow send` and its environment defaults remain supported.
 
 For Go services:
 
 ```go
 notification := message.Notification{
-    Title: "Backup completed", Source: "Backup service",
+    Event: message.EventResult, Title: "Backup completed", Source: "Backup service",
     Body: "Snapshot stored successfully.",
     Context: &message.Context{Session: "Nightly backup", SessionID: "backup-123"},
 }
@@ -103,7 +110,7 @@ _, err = client.New(serverURL, deviceKey).Notify(ctx, normalized, "backup-123")
 return err
 ```
 
-`Idempotency-Key` is a transport header, not a JSON field or a session ID. Reuse it only for retries of the same event/payload; use a new key for a new event. It accepts up to 128 non-space printable ASCII characters. The API fingerprints `Notification.CanonicalJSON()` after normalization, preserving the old V1 byte representation and retries created before session context existed. Native agent adapters retain their previous event/body-based hook keys. Events without a stable event identity receive one per-invocation key in the CLI, reused for transport attempts.
+`Idempotency-Key` is a transport header, not a JSON field or a session ID. Reuse it only for retries of the same event/payload; use a new key for a new event. It accepts up to 128 non-space printable ASCII characters. The API fingerprints `Notification.CanonicalJSON()` after normalization, preserving the old V1 byte representation and retries created before session context existed. Specified events participate in the API fingerprint and native adapter payload-based keys; omitted events preserve the exact prior canonical representation. Retrying the same idempotency key with a different event returns `idempotency_mismatch`. Events without a stable event identity receive one per-invocation key in the CLI, reused for transport attempts.
 
 ## Agent adapters
 

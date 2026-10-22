@@ -335,7 +335,16 @@ struct NotificationRow: View {
             Image(systemName: category?.symbol ?? (notification.type == .alert ? "exclamationmark.bubble" : "bubble.left"))
                 .foregroundStyle(category == .failure ? Color.red :
                     (category == .attention || notification.type == .alert ? Color.orange : Color.accentColor))
-                .accessibilityLabel(Text(verbatim: category == nil ? "" : notification.inboxTitle))
+                .accessibilityLabel(categoryAccessibilityLabel)
+        }
+    }
+
+    private var categoryAccessibilityLabel: Text {
+        switch notification.inboxCategory {
+        case .result: Text("New result")
+        case .attention: Text("Needs attention")
+        case .failure: Text("Run failed")
+        case nil: Text(verbatim: "")
         }
     }
 

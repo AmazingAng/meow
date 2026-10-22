@@ -1,5 +1,9 @@
 import Foundation
 
+enum NotificationEvent: String, Codable, CaseIterable, Sendable {
+    case result, attention, failure
+}
+
 enum QuestionStatus: String, Codable, Sendable {
     case pending, answered, rejected, expired, cancelled
 }
@@ -30,6 +34,7 @@ struct MeowNotification: Codable, Identifiable, Hashable, Sendable {
     var readAt: Date?
     var question: Question?
     var context: NotificationOrigin? = nil
+    var event: NotificationEvent? = nil
 
     var isUnread: Bool { readAt == nil }
 }
