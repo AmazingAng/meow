@@ -291,7 +291,8 @@ final class UIOptimizationTests: XCTestCase {
         let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_info").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         let navigation = app.navigationBars.firstMatch
-        XCTAssertLessThan(row.frame.minY - navigation.frame.maxY, 48,
+        let firstRow = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "notification.")).firstMatch
+        XCTAssertLessThan(firstRow.frame.minY - navigation.frame.maxY, 48,
                           "the first message should follow the compact navigation bar")
         XCTAssertFalse(app.staticTexts["Other notifications"].exists)
         XCTAssertFalse(app.textFields["inbox.searchField"].exists)
@@ -310,11 +311,128 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertFalse(field.exists)
 
         app.buttons["inbox.filterMenu"].tap()
-        app.buttons["Mark all as read"].tap()
+        app.buttons["Mark all messages as read"].tap()
         selectFilter("unread", in: app)
         XCTAssertTrue(app.staticTexts["All caught up"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["inbox.filterMenu"].isHittable)
         selectFilter("all", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
     }
+    private func browse(_ mode: String, in app: XCUIApplication) {
+        let menu = app.buttons["inbox.filterMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
+        app.buttons["inbox.browseMenu"].tap()
+        let option = app.buttons["browse." + mode]
+        XCTAssertTrue(option.waitForExistence(timeout: 5)); option.tap()
+    }
+
+    func test20LocalGroupingMergeAndUnmerge() {
+        scenario("grouping")
+        let app = open()
+        browse("sessions", in: app)
+        XCTAssertTrue(app.staticTexts["Deploy"].firstMatch.waitForExistence(timeout: 10))
+        capture("grouping-sessions", app)
+        app.buttons["inbox.filterMenu"].tap()
+        app.buttons["inbox.selectGroups"].tap()
+        app.staticTexts["Deploy"].firstMatch.tap()
+        app.staticTexts["Review"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["inbox.merge"].isEnabled)
+        XCTAssertTrue(app.buttons["inbox.merge"].isHittable)
+        XCTAssertFalse(app.tabBars.firstMatch.exists)
+        app.buttons["inbox.merge"].tap()
+        let merged = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "inbox.group.merge:")).firstMatch
+        XCTAssertTrue(merged.waitForExistence(timeout: 10))
+        capture("grouping-merged", app)
+        merged.tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "notification.ntf_group_a1").firstMatch.waitForExistence(timeout: 10))
+        capture("grouping-group-messages", app)
+        app.buttons["group.actions"].tap()
+        app.buttons["group.members"].tap()
+        XCTAssertTrue(app.buttons["group.unmerge"].waitForExistence(timeout: 5))
+        capture("grouping-members", app)
+        app.buttons["group.unmerge"].tap()
+        XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Deploy"].firstMatch.waitForExistence(timeout: 5))
+        browse("workspaces", in: app)
+        XCTAssertTrue(app.staticTexts["meow"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts.matching(identifier: "meow").count, 1)
+        capture("grouping-projects", app)
+        browse("messages", in: app)
+    }
+
+    func test21GroupSearchReadsOnlyMatchingMessagesAndModeSurvivesRestart() {
+        scenario("grouping")
+        let app = open()
+        browse("sessions", in: app)
+        XCTAssertTrue(app.staticTexts["Deploy"].firstMatch.waitForExistence(timeout: 10))
+        app.staticTexts["Deploy"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["group.search"].waitForExistence(timeout: 5))
+        app.buttons["group.search"].tap()
+        let field = app.textFields["group.searchField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText("needle")
+        let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_group_a1").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        let other = app.descendants(matching: .any).matching(identifier: "notification.ntf_group_a2").firstMatch
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: other)
+        wait(for: [gone], timeout: 5)
+        app.buttons["group.actions"].tap()
+        let mark = app.buttons["group.markRead"]
+        XCTAssertTrue(mark.isEnabled); mark.tap()
+        let done = expectation(description: "only matching message read")
+        // Allow the local action to commit before querying the independent fixture.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
+            URLSession.shared.dataTask(with: URL(string: self.server + "/fixture/stats")!) { data, _, error in
+                XCTAssertNil(error)
+                let value = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Int] }
+                XCTAssertEqual(value?["unread"], 4)
+                done.fulfill()
+            }.resume()
+        }
+        wait(for: [done], timeout: 5)
+        capture("grouping-matching-read", app)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.textFields["inbox.searchField"].waitForExistence(timeout: 5), "the inherited search must remain visible on return")
+        XCTAssertTrue(app.staticTexts["0 matching unread messages"].waitForExistence(timeout: 5))
+        capture("grouping-search-context", app)
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.staticTexts["Deploy"].firstMatch.waitForExistence(timeout: 10))
+        capture("grouping-restored-mode", app)
+        browse("messages", in: app)
+    }
+
+    func test22GroupedInboxLargeChineseText() {
+        scenario("grouping")
+        let app = open(large: true, chinese: true)
+        browse("workspaces", in: app)
+        XCTAssertTrue(app.staticTexts["meow"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["inbox.filterMenu"].isHittable)
+        capture("grouping-large-zh", app)
+        browse("messages", in: app)
+    }
+
+    func test23SourceGroupDetailBackAndUnreadEmptyState() {
+        scenario("grouping")
+        let app = open()
+        browse("sources", in: app)
+        app.buttons["inbox.filterMenu"].tap()
+        app.buttons["filter.unread"].tap()
+        let source = app.staticTexts["Monitor"].firstMatch
+        XCTAssertTrue(source.waitForExistence(timeout: 10))
+        capture("grouping-sources", app)
+        source.tap()
+        let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_group_legacy").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5)); row.tap()
+        XCTAssertTrue(app.staticTexts["legacy service result"].firstMatch.waitForExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.staticTexts["No matching messages"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["group.actions"].exists, "empty groups keep their page until the user leaves")
+        capture("grouping-empty", app)
+        app.buttons["Clear search and filters"].tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 5))
+        XCTAssertTrue(source.exists)
+        browse("messages", in: app)
+    }
+
 }

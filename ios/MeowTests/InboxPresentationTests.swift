@@ -51,12 +51,12 @@ final class InboxPresentationTests: XCTestCase {
         n.event = .attention
         n.title = "Needs your attention · meow"
         n.context = .init(workspace: "meow", sessionId: "session-42")
-        XCTAssertEqual(n.compactHeadline, "Session · session-42")
+        XCTAssertEqual(n.compactHeadline, String(localized: "Session") + " · session-42")
         XCTAssertEqual(n.compactMetadata, "meow · Codex")
         n.context?.sessionId = " "
-        XCTAssertEqual(n.compactHeadline, "Session")
+        XCTAssertEqual(n.compactHeadline, String(localized: "Session"))
         n.context = nil
-        XCTAssertEqual(n.compactHeadline, "Session")
+        XCTAssertEqual(n.compactHeadline, String(localized: "Session"))
         XCTAssertEqual(n.compactMetadata, "Codex")
     }
 

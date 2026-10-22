@@ -63,7 +63,7 @@ class Fixture(BaseHTTPRequestHandler):
     def get(self):
         url = urlsplit(self.path)
         if url.path == '/fixture/stats':
-            return self.send_json({'responses': type(self).response_count})
+            return self.send_json({'responses': type(self).response_count, 'unread': sum(n['read_at'] is None for n in self.items)})
         if url.path == '/fixture/reset':
             self.reset()
             return self.send_json({})
@@ -91,6 +91,17 @@ class Fixture(BaseHTTPRequestHandler):
                                      type='alert' if key in ('attention', 'failure') else 'info',
                                      context=dict(workspace='meow', session=session, session_id=key) if session else None)
                                  for key, title, source, session, body in records]
+            elif scenario == 'grouping':
+                rows = [
+                    ('group_a1', 'Codex', 'meow', 'wa', 'Deploy', 'needle first result'),
+                    ('group_a2', 'Codex', 'meow', 'wa', 'Deploy', 'second unrelated result'),
+                    ('group_b', 'Codex', 'meow', 'wb', 'Review', 'review result'),
+                    ('group_c', 'Claude Code', 'xapi', 'wc', 'Design', 'design result'),
+                    ('group_legacy', 'Monitor', None, None, None, 'legacy service result'),
+                ]
+                self.items[:] = [dict(info, id='ntf_' + key, source=source, body=body, event='result', read_at=None,
+                                     context=dict(workspace=workspace, workspace_id=wid, session=session, session_id=key) if session else None)
+                                 for key, source, workspace, wid, session, body in rows]
             elif scenario == 'formatting':
                 bodies = {
                     'markdown': '## 推送已恢复\n\n收到，这条回复用于测试桌面版的自动推送。回复结束后，留意 Meow 是否收到 **「New result」** 通知。\n\n- **Markdown** 正常显示\n- 使用 `meow doctor` 检查连接\n\n> 完整正文仍可在详细信息中查看。\n\n```sh\nmeow doctor\n```\n\n| 项目 | 状态 |\n| --- | --- |\n| App | 正常 |\n| Hook | 正常 |',
@@ -176,6 +187,7 @@ def main():
     parser.add_argument('--runtime', default='com.apple.CoreSimulator.SimRuntime.iOS-26-5')
     parser.add_argument('--ui-only', action='store_true', help='Skip already verified unit tests when checking another screen size.')
     parser.add_argument('--test-case', help='Run one UIOptimizationTests method for a focused recheck.')
+    parser.add_argument('--appearance', choices=['light', 'dark'], help='Set the disposable simulator appearance before testing.')
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -186,6 +198,10 @@ def main():
     try:
         run(['xcodegen', 'generate', '--spec', 'ios/project.yml'])
         device = run(['xcrun', 'simctl', 'create', 'Meow UI Polish Temporary', args.device_type, args.runtime]).strip()
+        if args.appearance:
+            run(['xcrun', 'simctl', 'boot', device])
+            run(['xcrun', 'simctl', 'bootstatus', device, '-b'])
+            run(['xcrun', 'simctl', 'ui', device, 'appearance', args.appearance])
         env = os.environ.copy()
         env['TEST_RUNNER_MEOW_UI_OPTIMIZATION_SERVER'] = 'http://127.0.0.1:' + str(server.server_port)
         bundle = output / 'ui.xcresult'

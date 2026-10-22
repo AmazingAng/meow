@@ -47,7 +47,8 @@ def package(output):
     shutil.copy2(ROOT / 'ios/scripts/frontend_recovery/Platform.swift', path / 'Sources/Platform.swift')
     shutil.copy2(ROOT / 'ios/MeowTests/FrontendRecoveryTests.swift', path / 'Tests/FrontendRecoveryTests.swift')
     shutil.copy2(ROOT / 'ios/Meow/Views/InboxPresentation.swift', path / 'Sources/InboxPresentation.swift')
-    for name in ['InboxPresentationTests.swift', 'PendingInboxTests.swift', 'LocalInboxTests.swift', 'OnboardingDetectionTests.swift']:
+    shutil.copy2(ROOT / 'ios/Meow/Models/InboxGrouping.swift', path / 'Sources/InboxGrouping.swift')
+    for name in ['InboxPresentationTests.swift', 'PendingInboxTests.swift', 'LocalInboxTests.swift', 'OnboardingDetectionTests.swift', 'InboxGroupingTests.swift', 'InboxGroupingModelTests.swift']:
         shutil.copy2(ROOT / 'ios/MeowTests' / name, path / 'Tests' / name)
     original = (ROOT / 'ios/MeowTests/MeowTests.swift').read_text()
     header = r'^(?:private final class ReviewURLProtocol[^\n]+|final class SessionRegressionTests: XCTestCase|extension SessionRegressionTests|final class OnboardingCommandTests: XCTestCase) \{'
@@ -142,7 +143,7 @@ def mutations(output):
          'guard !isRegistering, !isChangingServer, server != newServer else { return false }'),
         ('read-rollback', 'AppModel.swift', 'current.readAt == readAt', 'current.readAt == Date.distantPast'),
         ('read-new-session', 'AppModel.swift',
-         'guard generation == sessionGeneration, readRequests[id] == request else { return }', 'guard true else { return }'),
+         'guard generation == sessionGeneration, readRequests[id] == request else { return false }', 'guard true else { return false }'),
         ('read-new-counts', 'AppModel.swift', 'if revision == countsRevision { counts.unread += unreadDelta }',
          'if true { counts.unread += unreadDelta }'),
         ('read-mark-all', 'AppModel.swift', '            readRequests = [:]\n', '            // no read invalidation\n'),

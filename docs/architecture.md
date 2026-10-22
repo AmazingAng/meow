@@ -174,3 +174,13 @@ The iOS inbox merges remote records into its per-server/device local SQLite hist
 Upgrade clients before shortening the server cache: old clients treated a complete server snapshot as authoritative local history. Local history is removed by explicit app deletion, the existing server/device reset flow, or uninstalling the app; new devices can only retrieve the remaining server window. Logical expiration does not erase historical backups or guarantee SQLite/WAL byte sanitization.
 
 Run `python3 -B scripts/verify_bounded_cache.py --output dist/cache-check --docker` to verify the retention lifecycle, quota/idempotency boundaries, real Go-server to native Swift history persistence, migration rollback, fault injection, Compose wiring and iOS SDK compilation. Omit `--docker` only when Docker is unavailable; the report records that omission. No simulator or phone installation is performed.
+
+## Local inbox grouping
+
+The iOS navigation menu offers Messages, Sessions, Projects and Sources. `InboxGrouping` derives groups from the complete local history before applying search, unread filtering and display pagination. Session identity uses source, workspace identity and session name (session ID only when the name is absent). Project groups deliberately combine matching project names across workspace IDs and agents. Missing metadata remains accessible through the source or Unclassified group.
+
+Manual merges retain a flat set of base-group identities, independently for each view and server/device scope. New matching messages join automatically. Empty members are hidden while their merge identities remain saved. Unmerge changes the presentation without deleting messages or changing their read state. Browsing mode and merge rules persist in local preferences; resetting the server/device clears its history and merge rules.
+
+Aggregation runs outside the main actor, with cancellation and revision/scope checks before publishing results. Group read actions freeze the matching message IDs and reuse the existing single-message read API with at most four requests in flight. Failed items roll back individually and expose a retry action; expired server records remain locally readable. The separately labelled global read action keeps its existing scope. This feature changes neither system notification grouping nor the server, gateway or CLI contract.
+
+Product rules and acceptance criteria: [Inbox grouping PRD](prd/Meow_Inbox_Grouping_PRD.md). Run `python3 -B ios/scripts/verify_ui_optimization.py --output <new-output-directory>` for native iOS model tests, simulator navigation/merge/search checks and exported screenshots against an isolated local fixture. This does not test live APNs delivery or install the app on a phone.

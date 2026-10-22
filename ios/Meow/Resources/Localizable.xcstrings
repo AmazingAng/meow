@@ -11,12 +11,52 @@
         }
       }
     },
+    "%@ · %lld groups": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 等 %lld 组"
+          }
+        }
+      }
+    },
+    "%@ · %lld sources": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 等 %lld 个来源"
+          }
+        }
+      }
+    },
     "%@: All messages in this time range will be permanently deleted from this server and this iPhone, including messages hidden by search or filters.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "%@：将从服务器和这台 iPhone 永久删除此时间范围内的全部消息，包括被搜索或筛选隐藏的消息。"
+          }
+        }
+      }
+    },
+    "%lld combined groups": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已合并 %lld 个分组"
+          }
+        }
+      }
+    },
+    "%lld matching unread messages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条匹配的未读消息"
           }
         }
       }
@@ -241,6 +281,16 @@
         }
       }
     },
+    "Browse inbox": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览收件箱"
+          }
+        }
+      }
+    },
     "Build and install": {
       "localizations": {
         "zh-Hans": {
@@ -403,6 +453,16 @@
         }
       }
     },
+    "Clear search and filters": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除搜索和筛选"
+          }
+        }
+      }
+    },
     "Confirm the approval": {
       "localizations": {
         "zh-Hans": {
@@ -560,6 +620,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法删除消息。%@"
+          }
+        }
+      }
+    },
+    "Couldn't mark %lld messages as read. Retry from the group menu.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 %lld 条消息未能标为已读，请从分组菜单重试。"
           }
         }
       }
@@ -946,6 +1016,36 @@
         }
       }
     },
+    "Group": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分组"
+          }
+        }
+      }
+    },
+    "Group actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分组操作"
+          }
+        }
+      }
+    },
+    "Group members": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "组内成员"
+          }
+        }
+      }
+    },
     "High": {
       "localizations": {
         "zh-Hans": {
@@ -1137,6 +1237,26 @@
         }
       }
     },
+    "Mark all messages as read": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部消息标记为已读"
+          }
+        }
+      }
+    },
+    "Mark matching messages as read": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将匹配消息标为已读"
+          }
+        }
+      }
+    },
     "Meow V1 does not send saved replies. You can copy this text and respond on your computer.": {
       "localizations": {
         "zh-Hans": {
@@ -1183,6 +1303,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "喵！"
+          }
+        }
+      }
+    },
+    "Merge selected groups": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并所选分组"
+          }
+        }
+      }
+    },
+    "Merged group": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已合并的分组"
+          }
+        }
+      }
+    },
+    "Messages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "消息"
           }
         }
       }
@@ -1257,6 +1407,16 @@
         }
       }
     },
+    "No matching messages": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的消息"
+          }
+        }
+      }
+    },
     "No notifications need attention": {
       "localizations": {
         "zh-Hans": {
@@ -1313,6 +1473,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "未推送"
+          }
+        }
+      }
+    },
+    "Not selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择"
           }
         }
       }
@@ -1447,6 +1617,16 @@
         }
       }
     },
+    "Only the local grouping changes. Messages and read states are kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅修改本机分组，消息及已读状态均会保留。"
+          }
+        }
+      }
+    },
     "Open Settings": {
       "localizations": {
         "zh-Hans": {
@@ -1555,6 +1735,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "优先级"
+          }
+        }
+      }
+    },
+    "Projects": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目"
           }
         }
       }
@@ -1781,6 +1971,16 @@
         }
       }
     },
+    "Retry failed reads": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试失败的已读操作"
+          }
+        }
+      }
+    },
     "Retry push registration": {
       "localizations": {
         "zh-Hans": {
@@ -1867,6 +2067,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "安全"
+          }
+        }
+      }
+    },
+    "Select groups": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择分组"
+          }
+        }
+      }
+    },
+    "Selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选择"
           }
         }
       }
@@ -2019,6 +2239,16 @@
         }
       }
     },
+    "Sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话"
+          }
+        }
+      }
+    },
     "Settings": {
       "localizations": {
         "zh-Hans": {
@@ -2065,6 +2295,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "即将到期的优先"
+          }
+        }
+      }
+    },
+    "Sources": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源"
           }
         }
       }
@@ -2263,6 +2503,16 @@
         }
       }
     },
+    "This group has no messages matching the current filters.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此分组中没有符合当前筛选条件的消息。"
+          }
+        }
+      }
+    },
     "This iPhone is no longer registered with the server. Change or reset the server in Settings.": {
       "extractionState": "stale",
       "localizations": {
@@ -2415,12 +2665,42 @@
         }
       }
     },
+    "Unclassified": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未归类"
+          }
+        }
+      }
+    },
+    "Unmerge group": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解除合并"
+          }
+        }
+      }
+    },
     "Unread": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "未读"
+          }
+        }
+      }
+    },
+    "Unread attention or failure": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有未读的提醒或失败消息"
           }
         }
       }

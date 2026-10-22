@@ -89,7 +89,7 @@ final class AppModel {
 
     // MARK: Inbox
 
-    private(set) var savedNotifications: [MeowNotification] = []
+    private(set) var savedNotifications: [MeowNotification] = [] { didSet { rebuildInboxGroups() } }
     private var displayLimit = 50
     var notifications: [MeowNotification] {
         let matches = matchingNotifications
@@ -112,11 +112,35 @@ final class AppModel {
     private(set) var loadError: String?
     private(set) var inboxStorageError: String?
     var filter = Filter.all {
-        didSet { if filter != oldValue { displayLimit = 50 } }
+        didSet { if filter != oldValue { displayLimit = 50; groupDisplayLimit = 50; rebuildInboxGroups() } }
     }
     var search = "" {
-        didSet { if search != oldValue { displayLimit = 50 } }
+        didSet { if search != oldValue { displayLimit = 50; groupDisplayLimit = 50; rebuildInboxGroups() } }
     }
+    var inboxMode = InboxGroupingMode.messages {
+        didSet {
+            guard inboxMode != oldValue else { return }
+            groupingStore.mode = inboxMode
+            groupDisplayLimit = 50
+            inboxPath = []
+            allInboxGroups = []
+            rebuildInboxGroups()
+        }
+    }
+    private(set) var allInboxGroups: [InboxGroup] = []
+    private(set) var isGroupingInbox = false
+    private var groupDisplayLimit = 50
+    var visibleInboxGroups: [InboxGroup] { Array(matchingInboxGroups.prefix(groupDisplayLimit)) }
+    var matchingInboxGroups: [InboxGroup] { allInboxGroups.filter { !$0.matches.isEmpty } }
+    var hasMoreInboxGroups: Bool { matchingInboxGroups.count > groupDisplayLimit }
+    var inboxGroupingScope: String? { inboxScope }
+    private(set) var isMarkingGroupRead = false
+    private(set) var isMarkingAllRead = false
+    private(set) var failedGroupReadIDs: Set<String> = []
+    @ObservationIgnored private var groupingTask: Task<Void, Never>?
+    @ObservationIgnored private var groupingRevision = 0
+    @ObservationIgnored private let groupingStore: InboxGroupingStore
+
     /// Notifications opened from a push that may not be in the current page.
     private(set) var details: [String: MeowNotification] = [:]
     /// Answers saved on the device and not yet accepted, by question ID.
@@ -159,10 +183,12 @@ final class AppModel {
     }
 
     init(replies: ReplyQueue = .shared, pushSession: URLSession = MeowTransport.gateway,
-         inboxStore: InboxStore = .shared) {
+         inboxStore: InboxStore = .shared, groupingStore: InboxGroupingStore = InboxGroupingStore()) {
         self.replies = replies
         self.pushSession = pushSession
         self.inboxStore = inboxStore
+        self.groupingStore = groupingStore
+        self.inboxMode = groupingStore.mode
         if let scope = inboxScope,
            let saved = MeowShared.defaults.dictionary(forKey: Keys.sentTests),
            saved["scope"] as? String == scope,
@@ -252,6 +278,7 @@ final class AppModel {
             store(key: reg.key)
             await replies.resume()
             isRegistered = true
+            rebuildInboxGroups()
             if let apnsToken { sendAPNsToken(apnsToken) }
         } catch {
             alert = Self.describe(error)
@@ -279,7 +306,7 @@ final class AppModel {
             return false
         }
         if let scope = inboxScope {
-            do { try await inboxStore.erase(scope: scope) }
+            do { try await inboxStore.erase(scope: scope); groupingStore.erase(scope: scope) }
             catch {
                 await replies.resume()
                 alert = String(localized: "Couldn't remove saved messages. Your server has been kept. (\(error.localizedDescription))")
@@ -314,6 +341,13 @@ final class AppModel {
         sentTestIDs = []
         sendingTestCount = 0
         MeowShared.defaults.removeObject(forKey: Keys.sentTests)
+        groupingTask?.cancel()
+        groupingRevision += 1
+        allInboxGroups = []
+        isGroupingInbox = false
+        isMarkingGroupRead = false
+        isMarkingAllRead = false
+        failedGroupReadIDs = []
         savedNotifications = []
         serverNotificationIDs = []
         serverUnreadIDs = []
@@ -322,6 +356,7 @@ final class AppModel {
         details = [:]
         counts = InboxCounts()
         displayLimit = 50
+        groupDisplayLimit = 50
         filter = .all
         search = ""
         mutationRevision = 0
@@ -732,6 +767,84 @@ final class AppModel {
         }
     }
 
+    // MARK: Local grouping
+
+    private func rebuildInboxGroups() {
+        groupingRevision += 1
+        let revision = groupingRevision
+        groupingTask?.cancel()
+        guard inboxMode != .messages, !isChangingServer, let scope = inboxScope else {
+            allInboxGroups = []; isGroupingInbox = false
+            return
+        }
+        let items = savedNotifications, mode = inboxMode, query = search
+        let unreadOnly = filter == .unread, rules = groupingStore.load(scope: scope)
+        isGroupingInbox = true
+        groupingTask = Task {
+            let work = Task.detached(priority: .userInitiated) {
+                InboxGrouping.build(items, mode: mode, scope: scope, rules: rules, query: query, unreadOnly: unreadOnly)
+            }
+            let groups = await withTaskCancellationHandler(operation: { await work.value }, onCancel: { work.cancel() })
+            guard !Task.isCancelled, revision == groupingRevision, scope == inboxScope, !isChangingServer else { return }
+            allInboxGroups = groups
+            isGroupingInbox = false
+        }
+    }
+
+    func waitForInboxGrouping() async { await groupingTask?.value }
+    func loadMoreInboxGroups() { groupDisplayLimit += 50 }
+    func inboxGroup(_ id: String) -> InboxGroup? { allInboxGroups.first { $0.id == id } }
+
+    func mergeInboxGroups(_ ids: Set<String>) {
+        guard !isGroupingInbox, !isChangingServer, let scope = inboxScope, inboxMode != .messages else { return }
+        let selected = allInboxGroups.filter { ids.contains($0.id) }
+        guard selected.count >= 2 else { return }
+        var members: [String: InboxGroupMember] = [:]
+        for group in selected { for member in group.members { members[member.id] = member } }
+        let memberIDs = Set(members.keys)
+        var rules = groupingStore.load(scope: scope)
+        rules.removeAll { $0.mode == inboxMode && !$0.members.allSatisfy { !memberIDs.contains($0.id) } }
+        rules.append(InboxMergeRule(mode: inboxMode, members: members.values.sorted { $0.id < $1.id }))
+        groupingStore.save(rules, scope: scope)
+        rebuildInboxGroups()
+    }
+
+    func unmergeInboxGroup(_ group: InboxGroup) {
+        guard !isChangingServer, let scope = inboxScope, let mergeID = group.mergeID else { return }
+        var rules = groupingStore.load(scope: scope)
+        rules.removeAll { $0.id == mergeID && $0.mode == group.mode }
+        groupingStore.save(rules, scope: scope)
+        rebuildInboxGroups()
+    }
+
+    /// Freeze the complete matching ID set, including rows not yet displayed.
+    func markMatchingRead(_ ids: Set<String>) async {
+        guard !isMarkingGroupRead, !isMarkingAllRead, !isChangingServer else { return }
+        let generation = sessionGeneration
+        let targets = ids.filter { notification(id: $0)?.isUnread == true && readRequests[$0] == nil }.sorted()
+        guard !targets.isEmpty else { return }
+        isMarkingGroupRead = true
+        failedGroupReadIDs = []
+        defer { if generation == sessionGeneration { isMarkingGroupRead = false } }
+        var failed: Set<String> = []
+        await withTaskGroup(of: (String, Bool).self) { group in
+            var next = targets.makeIterator()
+            for _ in 0..<4 {
+                if let id = next.next() { group.addTask { (id, await self.markRead(id, reportFailure: false)) } }
+            }
+            while let (id, success) = await group.next() {
+                guard generation == sessionGeneration, !isChangingServer else { group.cancelAll(); break }
+                if !success { failed.insert(id) }
+                if let id = next.next() { group.addTask { (id, await self.markRead(id, reportFailure: false)) } }
+            }
+        }
+        guard generation == sessionGeneration, !isChangingServer else { return }
+        failedGroupReadIDs = failed
+        if !failed.isEmpty {
+            toast = Toast(message: String(localized: "Couldn't mark \(failed.count) messages as read. Retry from the group menu."))
+        }
+    }
+
     func loadMore() async {
         guard nextCursor != nil else { return }
         displayLimit += 50
@@ -846,8 +959,9 @@ final class AppModel {
         }
     }
 
-    func markRead(_ id: String) async {
-        guard readRequests[id] == nil, var n = notification(id: id), n.isUnread, let api else { return }
+    @discardableResult
+    func markRead(_ id: String, reportFailure: Bool = true) async -> Bool {
+        guard !Task.isCancelled, !isChangingServer, readRequests[id] == nil, var n = notification(id: id), n.isUnread, let api else { return false }
         let generation = sessionGeneration
         let revision = countsRevision
         let request = UUID()
@@ -864,7 +978,7 @@ final class AppModel {
         } catch let error as MeowAPIError where error.status == 404 && error.code == "not_found" {
             // The saved message outlived its server cache. Its read state is local.
         } catch {
-            guard generation == sessionGeneration, readRequests[id] == request else { return }
+            guard generation == sessionGeneration, readRequests[id] == request else { return false }
             if var current = notification(id: id), current.readAt == readAt {
                 current.readAt = nil
                 upsert(current)
@@ -872,22 +986,26 @@ final class AppModel {
                 else if let serverCounts { counts = countsIncludingHistory(serverCounts) }
                 updateBadge()
             }
-            if !Self.isCancellation(error) {
+            if reportFailure && !Self.isCancellation(error) {
                 toast = Toast(message: String(localized: "Couldn't mark as read. \(Self.describe(error))"))
             }
+            return false
         }
+        return generation == sessionGeneration && !isChangingServer
     }
 
     func markAllRead() async {
-        guard let api else { return }
+        guard !isChangingServer, !isMarkingAllRead, !isMarkingGroupRead, let api else { return }
         let generation = sessionGeneration
+        isMarkingAllRead = true
+        defer { if generation == sessionGeneration { isMarkingAllRead = false } }
         do {
             try await api.markAllRead()
-            guard generation == sessionGeneration else { return }
+            guard generation == sessionGeneration, !isChangingServer else { return }
             readRequests = [:]
-            for i in savedNotifications.indices where savedNotifications[i].readAt == nil {
-                savedNotifications[i].readAt = .now
-            }
+            var updated = savedNotifications
+            for i in updated.indices where updated[i].readAt == nil { updated[i].readAt = .now }
+            savedNotifications = updated
             for (id, var n) in details where n.readAt == nil {
                 n.readAt = .now
                 details[id] = n
@@ -897,6 +1015,7 @@ final class AppModel {
             changed(savedNotifications.map(\.id))
             updateBadge()
         } catch {
+            guard generation == sessionGeneration, !isChangingServer, !Self.isCancellation(error) else { return }
             alert = Self.describe(error)
         }
     }
