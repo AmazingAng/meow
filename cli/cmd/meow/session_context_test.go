@@ -181,8 +181,8 @@ func TestContextMetadataFrozenAcrossTransportRetry(t *testing.T) {
 	defer server.Close()
 	t.Setenv("MEOW_SERVER", server.URL)
 	t.Setenv("MEOW_KEY", "meow_test")
-	output := captureOutput(t, "", func() {
-		if cmdHook([]string{"codex", `{"type":"agent-turn-complete","thread-id":"s1","turn-id":"t1","cwd":"/w/p"}`}) != 0 {
+	output := captureOutput(t, `{"hook_event_name":"Stop","session_id":"s1","turn_id":"t1","cwd":"/w/p"}`, func() {
+		if cmdHook([]string{"codex-stop"}) != 0 {
 			t.Error("hook failed")
 		}
 	})

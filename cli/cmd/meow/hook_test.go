@@ -137,8 +137,8 @@ func TestHookSendsAndStaysSilent(t *testing.T) {
 		t.Fatalf("auth=%q idem=%q", auth, idem)
 	}
 
-	codexPayload := `{"type":"agent-turn-complete","thread-id":"t","turn-id":"1","cwd":"/w/web","last-assistant-message":"ok"}`
-	out = captureOutput(t, "", func() { code = run([]string{"hook", "codex", codexPayload}) })
+	codexPayload := `{"hook_event_name":"Stop","session_id":"t","turn_id":"1","cwd":"/w/web","last_assistant_message":"ok"}`
+	out = captureOutput(t, codexPayload, func() { code = run([]string{"hook", "codex-stop"}) })
 	if code != 0 || out != "" || len(got) != 2 || got[1]["source"] != "Codex" {
 		t.Fatalf("codex: exit=%d output=%q sent=%v", code, out, got)
 	}

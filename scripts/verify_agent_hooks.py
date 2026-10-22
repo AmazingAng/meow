@@ -33,7 +33,7 @@ def mutants(out):
     cases = [
         ('truncation', 'adapters/format.go', 'message.MaxBody)', '200)', './cli/cmd/meow', 'TestHookFullBodyAndNewEvents'),
         ('retry', 'cli/cmd/meow/hook.go', 'attempt < 3', 'attempt < 1', './cli/cmd/meow', 'TestHookRetriesFrozenPayload'),
-        ('trust', 'cli/cmd/meow/codex_lifecycle.go', 'o.finishMigration && (!o.install || !verified)', 'false', './cli/cmd/meow', 'TestCodexStagedMigration'),
+        ('retired-notify', 'cli/cmd/meow/hook.go', 'if kind == "codex" {\n\t\treturn', 'if false {\n\t\treturn', './cli/cmd/meow', 'TestCodexRetiredNotifyNeverSends'),
         ('backup', 'cli/internal/setup/files.go', 'return backup, RemoveFile(path)', 'os.Remove(backup); return backup, RemoveFile(path)', './cli/cmd/meow', 'TestSetupBacksUpCustomizedLegacySkill'),
         ('preview', 'message/preview.go', 'return ""', 'return text', './server/internal/push', 'TestNotificationPreviewContract'),
     ]
@@ -118,12 +118,12 @@ def real_cli(out):
                     raise RuntimeError('hook was not silent')
             body = ('完整正文😺\n' * 70) + 'IMPORTANT TAIL'
             stop = dict(session_id='s', turn_id='t', hook_event_name='Stop', last_assistant_message=body)
-            hook('codex-stop', stop, 'live-probe')
             if request('/v1/inbox', token=registration['device_token'])['notifications']:
-                raise RuntimeError('probe duplicated active fallback')
-            run([str(binary), 'setup', 'codex', '--finish-migration', '--yes', '--no-test'], out, 'live-migrate', env=env)
+                raise RuntimeError('no-test setup sent a notification before a hook ran')
+            hook('codex', {'type': 'agent-turn-complete', 'last-assistant-message': '{"suggestion":"Next"}'}, 'live-retired-notify')
             hook('codex-stop', stop, 'live-stop')
             hook('codex-stop', stop, 'live-stop-replay')
+            hook('codex-stop', dict(session_id='suggestion', turn_id='suggestion-turn', hook_event_name='Stop', transcript_path=None, last_assistant_message='{"suggestion":"Next"}'), 'live-suggestion')
             hook('codex-permission', dict(session_id='s', turn_id='t', hook_event_name='PermissionRequest', tool_name='Bash', tool_input={'command': 'git push'}), 'live-permission')
             hook('claude-failure', dict(session_id='s', prompt_id='p', error='rate_limit', error_details='Try later'), 'live-failure')
             hook('claude-stop', dict(session_id='s', prompt_id='p2', last_assistant_message='{"suggestions":[]}'), 'live-structured')
@@ -137,7 +137,7 @@ def real_cli(out):
                 raise RuntimeError('missing permission/error priority')
             for agent in ('claude', 'codex'):
                 run([str(binary), 'setup', agent, '--uninstall', '--yes'], out, 'live-uninstall-' + agent, env=env)
-            return dict(stored=4, replay_deduplicated=True, full_body=True, staged_migration=True)
+            return dict(stored=4, replay_deduplicated=True, full_body=True, hooks_only=True)
         finally:
             process.terminate()
             try:

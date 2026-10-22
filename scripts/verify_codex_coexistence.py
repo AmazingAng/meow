@@ -30,17 +30,17 @@ def reject_control(path, gate):
 def mutants(output):
     mutations = [
         ('preservation', 'cli/cmd/meow/setup.go',
-         'if o.install && !o.force && len(original) > 0 {',
-         'if o.install && !o.force && len(original) > 999 {'),
+         'if ours {',
+         'if ours && false {'),
         ('restoration', 'cli/cmd/meow/setup.go',
-         'if !o.install && ours && len(original) > 0 {\n\t\tdata, err = setup.CodexConfig',
-         'if !o.install && ours && len(original) > 999 {\n\t\tdata, err = setup.CodexConfig'),
+         'if len(original) > 0 {\n\t\t\tdata, err = setup.CodexConfig',
+         'if len(original) > 999 {\n\t\t\tdata, err = setup.CodexConfig'),
         ('raw-payload', 'cli/cmd/meow/hook.go',
          'forwardNotify(ctx, forwarded, payload)', 'forwardNotify(ctx, forwarded, "{}")'),
         ('disabled-meow', 'cli/cmd/meow/hook.go',
          'if len(forwarded) > 0 {', 'if len(forwarded) > 0 && os.Getenv("MEOW_HOOK_DISABLED") != "1" {'),
         ('invalid-config', 'cli/cmd/meow/setup.go',
-         'original, err := setup.CodexOriginalNotify(old, o.executables()...)\n\tif err != nil {\n\t\treturn nil, nil, fmt.Errorf("%s: %w", tilde(path), err)\n\t}',
+         'original, err := setup.CodexOriginalNotify(old, o.executables()...)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf("%s: %w", tilde(path), err)\n\t}',
          'original, _ := setup.CodexOriginalNotify(old, o.executables()...)'),
     ]
     result = []
@@ -59,7 +59,7 @@ def mutants(output):
                 path.write_text(original.replace(old, new))
                 digest = hashlib.sha256(path.read_bytes()).hexdigest()
                 runs = {}
-                for label, selector in [('full', 'TestCodex(Coexistence|Forward|Malformed)'),
+                for label, selector in [('full', 'TestCodex(Coexistence|Forward|Malformed|Retired)'),
                                         ('property', 'TestCodexCoexistenceGeneratedArgumentRoundTrips')]:
                     run = subprocess.run(['go', 'test', './cli/cmd/meow', '-run', selector,
                                           '-count=1', '-json', '-timeout=20s'], cwd=root,

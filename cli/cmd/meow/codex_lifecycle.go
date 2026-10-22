@@ -38,35 +38,26 @@ func planCodex(o setupOptions) ([]fileChange, []string, error) {
 		return nil, nil, fmt.Errorf("hooks.json: %w", err)
 	}
 	verified := codexReceiptMatches(dir, commands["Stop"]) && containsCommand(old, "Stop", commands["Stop"]) && setup.EquivalentJSON(old, data)
-	if o.finishMigration && (!o.install || !verified) {
-		return nil, nil, fmt.Errorf("migration requires the current Stop hook to run first; trust it in Codex /hooks, finish a turn, then retry")
-	}
-	legacy := o
-	// A previously completed migration stays completed on repeated setup. Changed
-	// definitions lack matching evidence and get the fallback again.
-	if o.install && (o.finishMigration || (verified && !codexLegacyActive())) {
-		legacy.install = false
-	}
-	changes, notes, err := planCodexNotify(legacy)
+	changes, err := planLegacyCodexCleanup(o)
 	if err != nil {
 		return nil, nil, err
 	}
-	// Install hooks before removing a fallback. Config writes themselves are atomic
-	// and backed up; an interrupted install leaves a recoverable staged state.
+	// Write hooks before cleaning the old entry. Both edits are backed up and
+	// atomic; repeating setup completes an interrupted upgrade.
 	if !setup.EquivalentJSON(old, data) {
 		change := fileChange{path: path, data: data, exists: exists, lines: []string{"merge Meow Stop and PermissionRequest async hooks; preserve other handlers"}}
 		changes = append([]fileChange{change}, changes...)
 	}
+	var notes []string
 	if o.install {
-		notes = []string{"Start a new Codex session. Open /hooks to review and trust the Meow hooks; changed commands require trust again."}
-		if legacy.install {
-			notes = append(notes, "Legacy notify remains active. After a Stop hook runs, use meow setup codex --finish-migration to switch; keep the same --no-summary setting if used.")
+		notes = []string{"Codex uses Meow lifecycle hooks. Start a new Codex session to load the configuration."}
+		if verified {
+			notes = append(notes, "A Stop hook run was previously observed. Check /hooks for current authorization and confirm a real task result arrives on your iPhone.")
 		} else {
-			notes = append(notes, "Legacy Meow notify is retired; any original notify handler is restored. Older Codex clients without lifecycle hooks will not send Meow notifications.")
+			notes = append(notes, "Next: open /hooks in Codex and authorize both Meow hooks, then finish a normal task and check its result on your iPhone.",
+				"Waiting for hook authorization or first execution. Automatic task notifications require authorized hooks; use a Codex version with lifecycle hook support.")
 		}
-		if !verified {
-			notes = append(notes, "Hook execution/trust is unverified. meow doctor reports observed execution, not the current Codex trust decision.")
-		}
+		notes = append(notes, "The setup test checks CLI-to-server delivery only; it does not verify Codex hooks.")
 		home, _ := os.UserHomeDir()
 		notes = append(notes, skillHint(filepath.Join(home, ".agents", "skills", "meow", "SKILL.md"), "codex")...)
 	}
@@ -157,7 +148,7 @@ func recordCodexHookRun(input []byte, summary bool) error {
 	}
 	return os.Rename(f.Name(), receiptPath(dir))
 }
-func codexLegacyActive() bool {
+func codexLegacyConfigured() bool {
 	dir, err := codexDir()
 	if err != nil {
 		return false
@@ -186,10 +177,11 @@ func codexHookStatus() (string, bool) {
 		return "Codex lifecycle hooks missing; run meow setup codex", false
 	}
 	for _, summary := range []bool{true, false} {
-		command := codexCommands(setupOptions{exe: exe, summary: summary})["Stop"]
-		if containsCommand(b, "Stop", command) && codexReceiptMatches(dir, command) {
+		commands := codexCommands(setupOptions{exe: exe, summary: summary})
+		command := commands["Stop"]
+		if containsCommand(b, "Stop", command) && containsCommand(b, "PermissionRequest", commands["PermissionRequest"]) && codexReceiptMatches(dir, command) {
 			return "Codex Stop hook execution previously observed; current trust cannot be verified (check /hooks)", true
 		}
 	}
-	return "Codex lifecycle execution/trust unverified; check /hooks, then finish a turn", false
+	return "Codex waiting for hook authorization or first execution; open /hooks, authorize both Meow hooks, then finish a normal task", false
 }

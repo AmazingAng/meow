@@ -70,6 +70,11 @@ func cmdHook(args []string) (code int) {
 		}()
 		defer func() { <-done; cancel() }()
 	}
+	// An already-running Codex may still have the retired notify command cached.
+	// Preserve its original external handler above, but never send Meow pushes.
+	if kind == "codex" {
+		return
+	}
 	if os.Getenv("MEOW_HOOK_DISABLED") == "1" {
 		return
 	}
@@ -105,9 +110,6 @@ func cmdHook(args []string) (code int) {
 	if kind == "codex-stop" {
 		if err := recordCodexHookRun(input, summary); err != nil {
 			hookLog("codex-stop: cannot record runtime evidence")
-		}
-		if codexLegacyActive() {
-			return
 		}
 	}
 	cfg, err := config.Load()

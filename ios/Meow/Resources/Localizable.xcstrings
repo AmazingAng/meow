@@ -1801,12 +1801,12 @@
         }
       }
     },
-    "Run this command in your computer's terminal. It installs Meow, asks for your Device Key and connects the agents it finds. No Go or GitHub account is needed.": {
+    "Run this command in your computer's terminal. It installs Meow and configures the agents it finds. Paste your Device Key when asked. For Codex, authorize both Meow hooks in /hooks, then finish a task to verify automatic notifications.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在电脑终端运行这条命令，即可安装 Meow、输入 Device Key 并接入检测到的 Agent。无需安装 Go 或登录 GitHub。"
+            "value": "在电脑终端运行这条命令，安装 Meow 并配置检测到的 Agent。按提示粘贴 Device Key。使用 Codex 时，请在 /hooks 中授权两个 Meow Hook，再完成一个任务验证自动通知。"
           }
         }
       }
@@ -1999,6 +1999,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "服务器部署指南"
+          }
+        }
+      }
+    },
+    "Session": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话"
           }
         }
       }
@@ -2619,16 +2635,6 @@
         }
       }
     },
-    "Your agents can reach you now.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "现在你的 Agent 可以找到你了。"
-          }
-        }
-      }
-    },
     "Your answer is saved and will be sent when the connection is back.": {
       "localizations": {
         "zh-Hans": {
@@ -2645,6 +2651,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的回答没有被接受"
+          }
+        }
+      }
+    },
+    "Your computer connection is working. For automatic Codex notifications, authorize both Meow hooks in /hooks and confirm a real task result arrives here.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电脑连接已验证。要接收 Codex 自动通知，请在 /hooks 中授权两个 Meow Hook，并确认这里能收到真实任务的结果。"
           }
         }
       }
@@ -2669,12 +2685,12 @@
         }
       }
     },
-    "meow setup sends one when it finishes. You can also run meow \"Hello\" in your terminal.": {
+    "meow setup sends a CLI connection test. You can also run meow \"Hello\" in your terminal. This test does not verify agent hooks.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "meow setup 完成时会发送一条。你也可以在终端运行 meow \"Hello\"。"
+            "value": "meow setup 会发送一条 CLI 连接测试通知。也可以在终端运行 meow \"Hello\"。这项测试不验证 Agent Hook。"
           }
         }
       }
@@ -2685,22 +2701,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "刚刚"
-          }
-        }
-      }
-    },
-    "Session": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Session"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "会话"
           }
         }
       }

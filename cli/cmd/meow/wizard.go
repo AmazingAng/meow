@@ -134,10 +134,17 @@ func cmdSetupWizard(args []string) int {
 		}
 	}
 
-	// 4. One test for everything.
+	// 4. Verify CLI delivery separately from agent hook authorization.
 	fmt.Fprintln(os.Stderr)
 	if len(connected) > 0 {
 		sendSetupTest(cfg, strings.Join(connected, " and "))
+		fmt.Fprintln(os.Stderr, "CLI connection configured. The setup test does not verify agent hooks; finish a real task and confirm its result on your iPhone.")
+		for _, agent := range connected {
+			if agent == "Codex" {
+				status, _ := codexHookStatus()
+				fmt.Fprintln(os.Stderr, "Codex: "+status)
+			}
+		}
 	}
 	if len(failed) > 0 {
 		fmt.Fprintf(os.Stderr, "✗ Not connected: %s. Fix the problem above and run \"meow setup\" again.\n", strings.Join(failed, ", "))
@@ -203,8 +210,8 @@ func cmdDoctor(args []string) int {
 		if a.id == "codex" && installed {
 			status, observed := codexHookStatus()
 			fmt.Fprintln(os.Stderr, "- "+status)
-			if codexLegacyActive() {
-				report(true, "Codex legacy notify configured; lifecycle migration pending")
+			if codexLegacyConfigured() {
+				report(false, "Old Meow notify configuration found; run meow setup codex to clean it and use lifecycle hooks")
 			} else {
 				report(observed, "Codex lifecycle notifications: "+status)
 			}

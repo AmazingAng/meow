@@ -8,7 +8,7 @@ Meow uses one V1 notification contract for agents, CI jobs, monitors and ordinar
 | --- | --- | --- |
 | `message/` | Sender request, stored wire record, context, defaults, validation, canonical idempotency representation, banner preview | Credentials, HTTP, files, database, agent event schemas |
 | `adapters/` | External event decoding, common event/origin, agent title/body policy, event filtering and deduplication | Environment, filesystem, network, secrets, retries |
-| `cli/cmd/meow/` | Flags/stdin, environment/config, optional local session-name lookup, setup/migration, retry/logging, invoking adapters and client | Copies of the notification protocol or agent parsers |
+| `cli/cmd/meow/` | Flags/stdin, environment/config, optional local session-name lookup, setup and legacy config cleanup, retry/logging, invoking adapters and client | Copies of the notification protocol or agent parsers |
 | `client/` | HTTP, bearer authentication, transport errors, typed request/response | Agent-specific parsing or display policy |
 | `server/internal/api/` | Authentication/scopes, HTTP input/status, idempotency header, standard validation, domain-to-wire presentation | Another notification model or another set of notification limits |
 | `server/internal/store/` | Device isolation, serialized writes, SQLite/domain records, retention | External agent payloads or notification formatting |
@@ -121,7 +121,7 @@ Built-ins:
 | `claude-stop` | Claude event JSON on stdin | New result; does not imply success |
 | `claude-failure` | StopFailure event JSON | Runtime/API error |
 | `claude-notify` | Notification event JSON | Attention needed, including permission/form prompts |
-| `codex` | Legacy notify JSON as final argument | Completed turn |
+| `codex` | Legacy notify JSON for explicit adapter imports | Completed turn; the retired automatic `meow hook codex` command sends no pushes |
 | `codex-stop` | Lifecycle event JSON on stdin | New result; retains existing temporary-suggestion filtering |
 | `codex-permission` | Lifecycle event JSON on stdin | Attention needed |
 | `generic` | Standard notification JSON | Service-provided title/body/type/context; body is retained |

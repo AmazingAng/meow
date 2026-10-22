@@ -80,52 +80,22 @@ func TestClaudeCompletionIdempotencyAfterContinuation(t *testing.T) {
 	}
 }
 
-func TestCodexPlanKeepsCustomExecutableAndForeignCommands(t *testing.T) {
-	fixtureRoot := t.TempDir()
-	t.Setenv("CODEX_HOME", fixtureRoot)
-	t.Setenv("MEOW_CONFIG", filepath.Join(fixtureRoot, "meow.json"))
-	executable := filepath.Join(fixtureRoot, "phone-push")
-	options := setupOptions{install: true, exe: executable}
-	changes, _, err := planCodexNotify(options)
-	if err != nil || len(changes) != 1 {
-		t.Fatalf("initial plan: %v %v", changes, err)
+func TestCodexCleanupFindsRecordedCustomExecutable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("CODEX_HOME", dir)
+	path := filepath.Join(dir, "config.toml")
+	os.WriteFile(path, []byte(`notify = ["/old/phone-push", "hook", "codex"]`+"\n"), 0600)
+	o := setupOptions{install: true, exe: "/new/meow", known: []string{"/old/phone-push"}}
+	changes, err := planLegacyCodexCleanup(o)
+	if err != nil || len(changes) != 1 || strings.Contains(string(changes[0].data), "notify") {
+		t.Fatalf("cleanup: %v %v", changes, err)
 	}
-	configPath := filepath.Join(fixtureRoot, "config.toml")
-	if err := os.WriteFile(configPath, changes[0].data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if again, _, err := planCodexNotify(options); err != nil || len(again) != 0 {
-		t.Fatalf("custom executable reinstall: %v %v", again, err)
-	}
-	options.install = false
-	changes, _, err = planCodexNotify(options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var removed bool
-	for _, change := range changes {
-		if change.path == configPath {
-			removed = true
-			if strings.Contains(string(change.data), "notify") {
-				t.Fatal("custom notify was not removed")
-			}
-		}
-	}
-	if !removed {
-		t.Fatal("custom notify removal was not planned")
-	}
-	foreign := []byte("notify = [\"/opt/other\", \"hook\", \"codex\"]\n")
-	if err := os.WriteFile(configPath, foreign, 0600); err != nil {
-		t.Fatal(err)
-	}
-	options.install = true
-	if kept, _, err := planCodexNotify(options); err != nil || len(kept) != 1 || !strings.Contains(string(kept[0].data), "--forward-notify=") {
-		t.Fatalf("foreign notify must be preserved by coexistence: %v %v", kept, err)
-	}
-	options.force = true
-	changes, notes, err := planCodexNotify(options)
-	if err != nil || len(changes) != 1 || len(notes) == 0 {
-		t.Fatalf("forced plan: %v %v %v", changes, notes, err)
+	foreign := []byte(`notify = ["/opt/other", "hook", "codex"]` + "\n")
+	os.WriteFile(path, foreign, 0600)
+	changes, err = planLegacyCodexCleanup(o)
+	if err != nil || len(changes) != 0 {
+		t.Fatalf("foreign notify touched: %v %v", changes, err)
 	}
 }
 

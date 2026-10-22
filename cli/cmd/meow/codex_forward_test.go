@@ -47,65 +47,33 @@ func notifyArgv(t *testing.T, data []byte) []string {
 	return doc.Notify
 }
 
-func TestCodexCoexistenceInstallReinstallAndRestore(t *testing.T) {
+func TestCodexCoexistenceUpgradeRestoresOriginal(t *testing.T) {
 	original := []string{"/Applications/Codex Computer Use.app/helper", "turn-ended", "雪 ' $(touch never)"}
-	path, options := plannedNotify(t, original)
-	changes, _, err := planCodexNotify(options)
-	if err != nil {
-		t.Fatalf("normal install must preserve existing notify: %v", err)
-	}
-	if len(changes) != 1 {
-		t.Fatalf("changes: %+v", changes)
-	}
-	argv := notifyArgv(t, changes[0].data)
-	if !strings.Contains(strings.Join(argv, " "), forwardFlag(t, original)) {
-		t.Fatalf("original argv lost: %q", argv)
-	}
-	if !strings.Contains(string(changes[0].data), "# preserve me") || !strings.Contains(string(changes[0].data), "[tui]\nnotifications = true") {
-		t.Fatal("unrelated config was modified")
-	}
-	if err := os.WriteFile(path, changes[0].data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if again, _, err := planCodexNotify(options); err != nil || len(again) != 0 {
-		t.Fatalf("reinstall must be idempotent: %v %v", again, err)
-	}
-	options.summary = true
-	options.exe = filepath.Join(filepath.Dir(path), "new-tools", "meow")
-	changes, _, err = planCodexNotify(options)
+	path, o := plannedNotify(t, original)
+	old := []byte("# preserve me\nnotify = " + setup.TOMLArray([]string{o.exe, "hook", "codex", forwardFlag(t, original)}) + "\n[tui]\nnotifications = true\n")
+	os.WriteFile(path, old, 0600)
+	changes, err := planLegacyCodexCleanup(o)
 	if err != nil || len(changes) != 1 {
-		t.Fatalf("upgrade: %v %v", changes, err)
+		t.Fatalf("cleanup: %v %v", changes, err)
 	}
-	if strings.Count(strings.Join(notifyArgv(t, changes[0].data), " "), "--forward-notify=") != 1 {
-		t.Fatal("notify wrapped twice")
+	if !reflect.DeepEqual(notifyArgv(t, changes[0].data), original) || !strings.Contains(string(changes[0].data), "# preserve me") || !strings.Contains(string(changes[0].data), "[tui]\nnotifications = true") {
+		t.Fatal("original handler or unrelated config lost")
 	}
-	if err := os.WriteFile(path, changes[0].data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	options.install = false
-	changes, _, err = planCodexNotify(options)
-	if err != nil || len(changes) != 1 || !reflect.DeepEqual(notifyArgv(t, changes[0].data), original) {
-		t.Fatalf("uninstall didn't restore original: %v %v", changes, err)
+	applyTestPlan(t, changes)
+	if again, err := planLegacyCodexCleanup(o); err != nil || len(again) != 0 {
+		t.Fatalf("repeat changed foreign config: %v %v", again, err)
 	}
 }
 
 func TestCodexCoexistenceGeneratedArgumentRoundTrips(t *testing.T) {
-	path, options := plannedNotify(t, []string{"helper"})
+	path, o := plannedNotify(t, []string{"helper"})
 	property := func(argument string) bool {
 		original := []string{"helper", argument}
-		if os.WriteFile(path, []byte("notify = "+setup.TOMLArray(original)+"\n"), 0600) != nil {
+		old := []byte("notify = " + setup.TOMLArray([]string{o.exe, "hook", "codex", forwardFlag(t, original)}) + "\n")
+		if os.WriteFile(path, old, 0600) != nil {
 			return false
 		}
-		changes, _, err := planCodexNotify(options)
-		if err != nil || len(changes) != 1 {
-			return false
-		}
-		if os.WriteFile(path, changes[0].data, 0600) != nil {
-			return false
-		}
-		remove := options
-		remove.install = false
-		changes, _, err = planCodexNotify(remove)
+		changes, err := planLegacyCodexCleanup(o)
 		return err == nil && len(changes) == 1 && reflect.DeepEqual(notifyArgv(t, changes[0].data), original)
 	}
 	if err := quick.Check(property, &quick.Config{MaxCount: 50}); err != nil {
@@ -116,32 +84,30 @@ func TestCodexCoexistenceGeneratedArgumentRoundTrips(t *testing.T) {
 func TestCodexCoexistenceKeepsBackupThroughSetup(t *testing.T) {
 	ts, _ := fakeMeow(t, true)
 	dir := wizardEnv(t, "meow_good", "codex")
-	path := filepath.Join(dir, "codex", "config.toml")
-	original := []byte("notify = [\"/opt/Computer Use/helper\", \"turn-ended\"]\n")
-	if err := os.WriteFile(path, original, 0600); err != nil {
-		t.Fatal(err)
-	}
+	cfgPath := filepath.Join(dir, "codex", "config.toml")
+	original := []string{"/opt/Computer Use/helper", "turn-ended"}
+	exe := filepath.Join(dir, "bin", "meow")
+	old := []byte("notify = " + setup.TOMLArray([]string{exe, "hook", "codex", forwardFlag(t, original)}) + "\n")
+	os.WriteFile(cfgPath, old, 0600)
 	var code int
 	output := captureOutput(t, "", func() { code = run([]string{"setup", "--server", ts.URL, "--yes"}) })
 	if code != 0 {
-		t.Fatalf("wizard failed: %s", output)
+		t.Fatalf("setup failed: %s", output)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".agents", "skills", "meow", "SKILL.md")); !os.IsNotExist(err) {
-		t.Fatal("setup must leave the Codex skill to skills.sh", err)
+	got, _ := os.ReadFile(cfgPath)
+	if !reflect.DeepEqual(notifyArgv(t, got), original) {
+		t.Fatal("original handler not restored")
 	}
-	if !strings.Contains(output, "npx skills add AmazingAng/meow -g -a codex") {
-		t.Fatal("missing skill hint", output)
-	}
-	backups, err := filepath.Glob(path + ".bak.*")
+	backups, err := filepath.Glob(cfgPath + ".bak.*")
 	if err != nil || len(backups) != 1 {
 		t.Fatalf("backup missing: %v %v", backups, err)
 	}
 	data, err := os.ReadFile(backups[0])
-	if err != nil || string(data) != string(original) {
-		t.Fatal("backup did not preserve original bytes")
+	if err != nil || string(data) != string(old) {
+		t.Fatal("backup bytes changed")
 	}
-	if !strings.Contains(output, "Detected agents: Codex") || !strings.Contains(output, "Not detected: Claude Code") {
-		t.Fatal("agent detection is ambiguous", output)
+	if !strings.Contains(output, "Detected agents: Codex") || !strings.Contains(output, "Waiting for hook authorization or first execution") || !strings.Contains(output, "does not verify agent hooks") {
+		t.Fatal("setup status misleading", output)
 	}
 }
 
@@ -172,7 +138,7 @@ func TestCodexForwardNotifyKeepsArgumentsAndRunsWhenMeowDisabled(t *testing.T) {
 	}
 }
 
-func TestCodexForwardFailureDoesNotBlockMeow(t *testing.T) {
+func TestCodexForwardFailureDoesNotReviveRetiredMeowNotify(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("MEOW_CONFIG", filepath.Join(dir, "config.json"))
 	t.Setenv("MEOW_HOOK_DISABLED", "")
@@ -189,8 +155,8 @@ func TestCodexForwardFailureDoesNotBlockMeow(t *testing.T) {
 	output := captureOutput(t, "", func() {
 		cmdHook([]string{"codex", forwardFlag(t, []string{filepath.Join(dir, "missing executable")}), `{"type":"agent-turn-complete"}`})
 	})
-	if sent.Load() != 1 || output != "" {
-		t.Fatalf("Meow notification lost: sent=%d output=%q", sent.Load(), output)
+	if sent.Load() != 0 || output != "" {
+		t.Fatalf("retired notify sent a push: sent=%d output=%q", sent.Load(), output)
 	}
 }
 
@@ -264,7 +230,7 @@ func TestCodexUninstallLeavesLaterForeignReplacementAlone(t *testing.T) {
 	original := []string{"/opt/other", "turn-ended"}
 	path, options := plannedNotify(t, original)
 	options.install = false
-	changes, _, err := planCodexNotify(options)
+	changes, err := planLegacyCodexCleanup(options)
 	if err != nil || len(changes) != 0 {
 		t.Fatalf("uninstall modified a foreign replacement: %v %v", changes, err)
 	}
@@ -280,7 +246,7 @@ func TestCodexMalformedExistingNotifyIsNeverOverwritten(t *testing.T) {
 		if err := os.WriteFile(path, []byte(source), 0600); err != nil {
 			t.Fatal(err)
 		}
-		changes, _, err := planCodexNotify(options)
+		changes, err := planLegacyCodexCleanup(options)
 		if err == nil || len(changes) != 0 {
 			t.Fatal("invalid existing handler was silently replaced", err)
 		}
@@ -291,43 +257,31 @@ func TestCodexMalformedExistingNotifyIsNeverOverwritten(t *testing.T) {
 	}
 }
 
-func TestCodexForwardRunsAlongsideMeowDelivery(t *testing.T) {
+func TestCodexRetiredNotifyNeverSends(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("MEOW_CONFIG", filepath.Join(dir, "config.json"))
 	t.Setenv("MEOW_HOOK_DISABLED", "")
 	t.Setenv("MEOW_KEY", "meow_fixture")
-	signal := filepath.Join(dir, "delivered")
-	capture := filepath.Join(dir, "helper-result")
-	t.Setenv("MEOW_TEST_SIGNAL", signal)
-	t.Setenv("MEOW_TEST_CAPTURE", capture)
+	var sent atomic.Int32
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := os.WriteFile(signal, []byte("delivered"), 0600); err != nil {
-			t.Error(err)
-		}
+		sent.Add(1)
 		w.WriteHeader(201)
-		w.Write([]byte(`{"id":"fixture"}`))
+		w.Write([]byte(`{"id":"test"}`))
 	}))
 	defer ts.Close()
 	t.Setenv("MEOW_SERVER", ts.URL)
-	helper := filepath.Join(dir, "wait-for-meow")
-	script := "#!/bin/sh\ni=0\nwhile [ ! -f \"$MEOW_TEST_SIGNAL\" ] && [ \"$i\" -lt 200 ]; do i=$((i+1)); /bin/sleep 0.01; done\nif [ -f \"$MEOW_TEST_SIGNAL\" ]; then printf yes; else printf late; fi > \"$MEOW_TEST_CAPTURE\"\n"
-	if err := os.WriteFile(helper, []byte(script), 0700); err != nil {
-		t.Fatal(err)
+	for _, body := range []string{"Actual result", `{"suggestion":"Next"}`, `{"suggestions":[]}`} {
+		payload, _ := json.Marshal(map[string]string{"type": "agent-turn-complete", "last-assistant-message": body})
+		out := captureOutput(t, "", func() {
+			if cmdHook([]string{"codex", string(payload)}) != 0 {
+				t.Error("nonzero")
+			}
+		})
+		if out != "" {
+			t.Fatal(out)
+		}
 	}
-	output := captureOutput(t, "", func() { cmdHook([]string{"codex", forwardFlag(t, []string{helper}), `{"type":"agent-turn-complete"}`}) })
-	result, err := os.ReadFile(capture)
-	if err != nil || string(result) != "yes" || output != "" {
-		t.Fatalf("handlers did not run independently: %q %v", result, err)
-	}
-	// Config/credential failure must still leave the original handler functioning.
-	t.Setenv("MEOW_KEY", "")
-	if err := os.Remove(capture); err != nil {
-		t.Fatal(err)
-	}
-	if output := captureOutput(t, "", func() { cmdHook([]string{"codex", forwardFlag(t, []string{helper}), `{"type":"agent-turn-complete"}`}) }); output != "" {
-		t.Fatal(output)
-	}
-	if result, err := os.ReadFile(capture); err != nil || string(result) != "yes" {
-		t.Fatal("missing Meow key suppressed original handler", err)
+	if sent.Load() != 0 {
+		t.Fatal("retired notify sent pushes", sent.Load())
 	}
 }

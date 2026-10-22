@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -91,6 +92,11 @@ func TestCodexSuggestionDoesNotReachServer(t *testing.T) {
 	t.Setenv("MEOW_SERVER", server.URL)
 	t.Setenv("MEOW_KEY", "meow_test")
 	t.Setenv("MEOW_HOOK_DISABLED", "")
+	// A running Codex can retain the old notify config after upgrading. Stop
+	// must deliver actual results anyway, while filtering ephemeral suggestions.
+	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(`notify = ["meow", "hook", "codex"]`+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	for _, event := range [][]byte{
 		suggestionEvent(t, "Stop", "Actual result", "/sessions/main.jsonl", true),
 		suggestionEvent(t, "Stop", `{"suggestion":"PRIVATE_SUGGESTION"}`, nil, true),

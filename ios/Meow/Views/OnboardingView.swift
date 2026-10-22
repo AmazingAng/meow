@@ -247,7 +247,7 @@ struct OnboardingView: View {
                         .frame(width: 48)
                         .accessibilityHidden(true)
                     Text("Connect your computer").font(.largeTitle.bold())
-                    Text("Run this command in your computer's terminal. It installs Meow, asks for your Device Key and connects the agents it finds. No Go or GitHub account is needed.")
+                    Text("Run this command in your computer's terminal. It installs Meow and configures the agents it finds. Paste your Device Key when asked. For Codex, authorize both Meow hooks in /hooks, then finish a task to verify automatic notifications.")
                         .foregroundStyle(.secondary)
                 }
                 Button { help = .cli } label: {
@@ -306,7 +306,7 @@ struct OnboardingView: View {
                 VStack(spacing: 12) {
                     Text("Connected — received “\(received.title.isEmpty ? received.body : received.title)”")
                         .font(.title2.bold())
-                    Text("Your agents can reach you now.")
+                    Text("Your computer connection is working. For automatic Codex notifications, authorize both Meow hooks in /hooks and confirm a real task result arrives here.")
                         .foregroundStyle(.secondary)
                 }
             } else {
@@ -315,7 +315,7 @@ struct OnboardingView: View {
                 VStack(spacing: 12) {
                     Text("Waiting for a test notification from your computer…")
                         .font(.title2.bold())
-                    Text("meow setup sends one when it finishes. You can also run meow \"Hello\" in your terminal.")
+                    Text("meow setup sends a CLI connection test. You can also run meow \"Hello\" in your terminal. This test does not verify agent hooks.")
                         .foregroundStyle(.secondary)
                 }
             }

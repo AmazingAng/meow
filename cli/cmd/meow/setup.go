@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -25,7 +24,7 @@ const setupUsage = `meow setup — connect a coding agent to Meow
 Usage:
   meow setup [--server URL]    guided: check the server, log in, connect every agent found
   meow setup claude [flags]    Claude Code: Stop, StopFailure and Notification hooks
-  meow setup codex [flags]     Codex: staged lifecycle hooks + legacy notify fallback
+  meow setup codex [flags]     Codex: Stop and PermissionRequest lifecycle hooks
 
 You get a notification when the agent finishes a task or needs you. Reply in
 the agent on your computer. meow setup shows the changes and asks before
@@ -38,16 +37,13 @@ Flags:
   --uninstall    remove what meow setup added
   --no-summary   leave the agent's last message out of notifications
   --no-test      don't send a test notification
-  --finish-migration  (codex) retire legacy notify after a verified hook run
-  --force        (codex) replace an existing notify command
   --yes          apply without asking
 `
 
 type setupOptions struct {
-	install, summary, force bool
-	finishMigration         bool
-	exe                     string   // absolute path of this meow binary (install only)
-	known                   []string // meow binaries setup may have installed before
+	install, summary bool
+	exe              string   // absolute path of this meow binary (install only)
+	known            []string // meow binaries setup may have installed before
 }
 
 // executables lists every meow binary whose hooks belong to meow: this one
@@ -78,8 +74,8 @@ func cmdSetup(args []string) int {
 	noSummary := fs.Bool("no-summary", false, "")
 	fs.Bool("no-skill", false, "") // accepted for compatibility; setup no longer installs the skill
 	noTest := fs.Bool("no-test", false, "")
-	force := fs.Bool("force", false, "")
-	finishMigration := fs.Bool("finish-migration", false, "")
+	fs.Bool("force", false, "")            // accepted for old scripts; foreign notify is always preserved
+	fs.Bool("finish-migration", false, "") // setup always cleans the old Meow notify entry
 	yes := fs.Bool("yes", false, "")
 	pos, err := parse(fs, args[1:])
 	if err != nil {
@@ -99,7 +95,7 @@ func cmdSetup(args []string) int {
 	default:
 		return usageErr(`meow setup supports "claude" and "codex"`)
 	}
-	o := setupOptions{install: !*uninstall, summary: !*noSummary, force: *force, finishMigration: *finishMigration}
+	o := setupOptions{install: !*uninstall, summary: !*noSummary}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -308,76 +304,51 @@ func planClaude(o setupOptions) ([]fileChange, []string, error) {
 	return changes, notes, nil
 }
 
-func planCodexNotify(o setupOptions) ([]fileChange, []string, error) {
+// planLegacyCodexCleanup restores a handler wrapped by an older Meow setup,
+// or removes only Meow's old notify entry. It never installs a notify command.
+func planLegacyCodexCleanup(o setupOptions) ([]fileChange, error) {
 	dir, err := codexDir()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	path := filepath.Join(dir, "config.toml")
 	old, exists, err := setup.ReadOptional(path)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	var argv []string
-	if o.install {
-		argv = []string{o.exe, "hook", "codex"}
-		if !o.summary {
-			argv = append(argv, "--no-summary")
-		}
-	}
-	existing, ours := setup.CodexNotify(old, o.executables()...)
+	_, ours := setup.CodexNotify(old, o.executables()...)
 	original, err := setup.CodexOriginalNotify(old, o.executables()...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w", tilde(path), err)
+		return nil, fmt.Errorf("%s: %w", tilde(path), err)
 	}
-	if o.install && !o.force && len(original) > 0 {
-		encoded, _ := json.Marshal(original)
-		argv = append(argv, setup.ForwardNotifyPrefix+string(encoded))
-	}
-	data, err := setup.CodexConfig(old, argv, o.install, o.force || (o.install && existing != ""), o.executables()...)
-	if !o.install && ours && len(original) > 0 {
-		data, err = setup.CodexConfig(old, original, true, true, o.executables()...)
-	}
-	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w", tilde(path), err)
-	}
-
 	var changes []fileChange
-	if !bytes.Equal(old, data) {
-		c := fileChange{path: path, data: data, exists: exists, lines: []string{"remove the meow notify command"}}
-		if !o.install && ours && len(original) > 0 {
-			c.lines = []string{"restore original notify = " + setup.TOMLArray(original)}
+	if ours {
+		data, err := setup.CodexConfig(old, nil, false, false, o.executables()...)
+		if len(original) > 0 {
+			data, err = setup.CodexConfig(old, original, true, true, o.executables()...)
 		}
-		if o.install {
-			c.lines = []string{"notify = " + setup.TOMLArray(argv)}
-			if existing != "" && !ours && o.force {
-				c.lines = append(c.lines, "replaces: "+existing)
-			}
-			if len(original) > 0 && !o.force {
-				c.lines = append(c.lines, "keeps the existing notification command running alongside Meow")
-			}
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", tilde(path), err)
 		}
-		changes = append(changes, c)
+		if !bytes.Equal(old, data) {
+			lines := []string{"remove the old Meow notify command; notifications use authorized hooks"}
+			if len(original) > 0 {
+				lines = append(lines, "restore original notify = "+setup.TOMLArray(original))
+			}
+			changes = append(changes, fileChange{path: path, data: data, exists: exists, lines: lines})
+		}
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	skill := filepath.Join(home, ".agents", "skills", "meow", "SKILL.md")
 	if c, ok, err := legacySkillChange(skill, o); err != nil {
-		return nil, nil, err
+		return nil, err
 	} else if ok {
 		changes = append(changes, c)
 	}
-
-	var notes []string
-	if o.install {
-		notes = append(notes,
-			"Start a new Codex session to pick up the change.",
-			"If Codex's own terminal notifications are on, you may get both; set notifications = false under [tui] to keep only Meow.")
-		notes = append(notes, skillHint(skill, "codex")...)
-	}
-	return changes, notes, nil
+	return changes, nil
 }
 
 // legacySkillChange removes a SKILL.md written by an earlier meow setup. Its
@@ -447,8 +418,8 @@ func sendSetupTest(cfg config.Config, name string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	_, err := client.New(cfg.Server, cfg.Key).Notify(ctx, client.NotifyRequest{
-		Title:  "Meow is connected to " + name,
-		Body:   "You'll get a notification when a task finishes or needs you.",
+		Title:  "Meow CLI connection test",
+		Body:   "Your computer can send to this iPhone. To verify automatic agent notifications, authorize the agent hooks and finish a real task.",
 		Source: name,
 	}, "")
 	if err != nil {

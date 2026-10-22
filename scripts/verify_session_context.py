@@ -20,9 +20,10 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(args, out, name, *, cwd=ROOT, env=None, check=True):
+def run(args, out, name, *, cwd=ROOT, env=None, check=True, stdin=None):
     with (out / (name + '.log')).open('w') as log:
-        p = subprocess.run(args, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT)
+        p = subprocess.run(args, cwd=cwd, env=env, input=stdin, text=True,
+                           stdout=log, stderr=subprocess.STDOUT)
     if check and p.returncode:
         raise RuntimeError(f'{name} failed; see {out / (name + ".log")}')
     return p.returncode
@@ -116,9 +117,9 @@ def live_cli(out):
                 env['MEOW_KEY'] = reg['key']['secret']
                 home = Path(env['CODEX_HOME']); home.mkdir()
                 (home / 'session_index.jsonl').write_text('{"id":"thread-1","thread_name":"部署审查 😺"}\n')
-                payload = json.dumps({'type':'agent-turn-complete','thread-id':'thread-1','turn-id':'turn-1',
-                                      'cwd':'/private/customer/project','last-assistant-message':'Completed'})
-                run([str(out / 'meow'), 'hook', 'codex', payload], out, 'live-hook', env=env)
+                payload = json.dumps({'hook_event_name':'Stop','session_id':'thread-1','turn_id':'turn-1',
+                                      'cwd':'/private/customer/project','last_assistant_message':'Completed'})
+                run([str(out / 'meow'), 'hook', 'codex-stop'], out, 'live-hook', env=env, stdin=payload)
                 run([str(out / 'meow'), 'send', '--source', 'Another agent', '--workspace', 'project',
                      '--workspace-id', 'w1', '--session', 'Session B', '--session-id', 'thread-2', 'Done'],
                      out, 'live-send', env=env)
@@ -130,7 +131,7 @@ def live_cli(out):
                 detail = request('/v1/notifications/' + by_session['thread-1']['id'], token=reg['device_token'])
                 assert detail['context'] == by_session['thread-1']['context']
                 # Re-delivering the same hook stays idempotent on the real server.
-                run([str(out / 'meow'), 'hook', 'codex', payload], out, 'live-replay', env=env)
+                run([str(out / 'meow'), 'hook', 'codex-stop'], out, 'live-replay', env=env, stdin=payload)
                 assert len(request('/v1/inbox', token=reg['device_token'])['notifications']) == 2
                 return {'notifications': 2, 'hook_session': '部署审查 😺', 'manual_context': True, 'idempotent_replay': True}
             finally:
