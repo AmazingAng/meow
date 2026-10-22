@@ -104,7 +104,7 @@ func TestFormattingAndPermissionBody(t *testing.T) {
 	}
 	raw := []byte("{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"s\",\"turn_id\":\"t\",\"tool_name\":\"Bash\",\"tool_input\":{\n  \"command\": \"go test\"\n}}")
 	r, err := Build("codex-permission", raw, Options{IncludeSummary: true})
-	if err != nil || r.Notification.Body != "Bash\n\n```sh\ngo test\n```" {
+	if err != nil || !r.Send || r.Notification.Body != "" {
 		t.Fatalf("raw body=%q %v", r.Notification.Body, err)
 	}
 	if (Origin{}).Context() != nil {

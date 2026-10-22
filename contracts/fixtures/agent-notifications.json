@@ -126,7 +126,7 @@
   {
     "name": "codex-permission",
     "kind": "codex-permission",
-    "input": "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"s1\",\"turn_id\":\"t1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"go test ./...\"}}",
+    "input": "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"s1\",\"turn_id\":\"t1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"go test ./...\",\"description\":\"Run the test suite?\"}}",
     "summary": true,
     "language": "",
     "notification": {
@@ -135,7 +135,7 @@
       },
       "type": "alert",
       "title": "Needs your attention",
-      "body": "Bash\n\n```sh\ngo test ./...\n```",
+      "body": "Run the test suite?",
       "source": "Codex",
       "priority": "high"
     },
