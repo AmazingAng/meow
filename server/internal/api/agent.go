@@ -63,7 +63,7 @@ func readNotifyInput(w http.ResponseWriter, r *http.Request) (notifyInput, bool)
 	}
 	q := r.URL.Query()
 	text := strings.TrimSpace(strings.ReplaceAll(string(b), "\r\n", "\n"))
-	in = notifyInput{Type: q.Get("type"), Title: q.Get("title"), Source: q.Get("source"), Priority: q.Get("priority")}
+	in = notifyInput{Event: message.EventKind(q.Get("event")), Type: q.Get("type"), Title: q.Get("title"), Source: q.Get("source"), Priority: q.Get("priority")}
 	if in.Title != "" {
 		in.Body = text
 	} else {
@@ -88,7 +88,7 @@ func (s *Server) createNotification(w http.ResponseWriter, r *http.Request, p pr
 	}
 	n, replay, err := s.st.CreateNotification(r.Context(), store.NewNotification{
 		DeviceID: p.key.DeviceID, KeyID: p.key.ID,
-		Type: in.Type, Title: in.Title, Body: in.Body, Source: in.Source, Priority: in.Priority, Context: in.Context,
+		Event: in.Event, Type: in.Type, Title: in.Title, Body: in.Body, Source: in.Source, Priority: in.Priority, Context: in.Context,
 	}, idem)
 	if s.idemFailed(w, r, err) {
 		return

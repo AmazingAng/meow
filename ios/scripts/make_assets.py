@@ -3,7 +3,8 @@
 
 Usage: make_assets.py <design/assets dir> <ios/Meow/Resources/Assets.xcassets>
 
-The logos are re-derived from the opaque app icon master instead of the
+The app icon uses meow-logo-approved-blue-v2.png.
+The supporting logos are re-derived from the opaque app icon master instead of the
 transparent exports, which carry edge specks: the white head is separated
 from the blue background by its red channel, which is ~8 on Meow blue and
 255 on white.
@@ -122,7 +123,7 @@ def main():
     src, catalog = Path(sys.argv[1]), Path(sys.argv[2])
     catalog.mkdir(parents=True, exist_ok=True)
     (catalog / "Contents.json").write_text(json.dumps({"info": INFO}, indent=2))
-    app_icon(src / "meow-appicon-master-v1.png", catalog)
+    app_icon(src / "meow-logo-approved-blue-v2.png", catalog)
     logos(src / "meow-appicon-master-v1.png", catalog)
     mascot(src / "meow-mascot-wave-transparent-v1.png", catalog)
     accent_color(catalog)

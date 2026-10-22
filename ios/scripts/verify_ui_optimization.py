@@ -78,6 +78,19 @@ class Fixture(BaseHTTPRequestHandler):
                 self.items[:] = [info]
             elif scenario == 'empty-table-header':
                 self.items[:] = [dict(info, title='New result · meow', body='**Bark Server 不持久保存通知正文和消息历史。**\n\n与目前 Meow 的区别是：\n\n| | Bark | Meow |\n| --- | --- | --- |\n| 服务端保存正文 | 不保存 | 保存到 SQLite |\n| 手机查看历史 | 本地记录 | 本地缓存，可向服务器同步 |\n| 服务端补拉历史 | 不提供 | 支持 |\n| 删除消息 | 删除手机本地记录 | 当前设计同时删除服务器记录与本地缓存 |\n| 空单元格 | | 最后一列 |')]
+            elif scenario == 'compact-categories':
+                records = [
+                    ('result', 'New result', 'Codex', 'Refine notification layout', 'The inbox now uses three lines per notification.'),
+                    ('attention', 'Needs your attention', 'Claude Code', '发布前检查', '需要确认后才能继续发布。请在电脑端处理。'),
+                    ('failure', '运行出错', 'Claude Code', '检查服务连接', '连接超时，请检查服务器状态。'),
+                    ('custom', 'Build 19 is ready', 'Codex', 'Release preparation', 'All checks passed. Ready for device testing.'),
+                    ('legacy', 'Deployment completed', 'Codex', None, 'Older notifications keep their original title.'),
+                ]
+                self.items[:] = [dict(info, **({'event': key} if key in ('result', 'attention', 'failure') else {}), id='ntf_' + key, title=title + (' · meow' if session else ''),
+                                     source=source, body=body, priority='high' if key in ('attention', 'failure') else 'normal',
+                                     type='alert' if key in ('attention', 'failure') else 'info',
+                                     context=dict(workspace='meow', session=session, session_id=key) if session else None)
+                                 for key, title, source, session, body in records]
             elif scenario == 'formatting':
                 bodies = {
                     'markdown': '## 推送已恢复\n\n收到，这条回复用于测试桌面版的自动推送。回复结束后，留意 Meow 是否收到 **「New result」** 通知。\n\n- **Markdown** 正常显示\n- 使用 `meow doctor` 检查连接\n\n> 完整正文仍可在详细信息中查看。\n\n```sh\nmeow doctor\n```\n\n| 项目 | 状态 |\n| --- | --- |\n| App | 正常 |\n| Hook | 正常 |',

@@ -101,7 +101,7 @@ func TestCacheMigrationBackfillsQuotaWithoutContent(t *testing.T) {
 	r := register(t, s)
 	cachedNotice(t, s, r, "one")
 	// This is a real pre-cache-ledger database, not a schema-version label alone.
-	if _, err := s.w.Exec(`DROP TABLE IF EXISTS notification_receipts; PRAGMA user_version=3`); err != nil {
+	if _, err := s.w.Exec(`DROP TABLE IF EXISTS notification_receipts; ALTER TABLE notifications DROP COLUMN event; PRAGMA user_version=3`); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Close(); err != nil {

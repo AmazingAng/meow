@@ -94,3 +94,9 @@ and Caddy certificate volumes. Export backups before intentionally deleting them
 Both direct-APNs and relay Compose files pass `MEOW_RETENTION` from `.env`, defaulting to `12h`. Content is pruned on startup and every five minutes. Downloaded iPhone history has its own lifetime and is not removed by server expiry. A phone offline longer than the server window cannot backfill expired messages.
 
 Update iOS clients to the version that preserves independent local history **before** shortening the server window. Keep `MEOW_RETENTION=720h` during a staged rollout if older clients remain in use. This server version automatically upgrades the SQLite schema to add a content-free 24-hour send-receipt ledger; make an online backup before upgrading. Older server binaries do not understand the new schema: rollback requires the pre-upgrade backup, not just swapping the binary. TTL does not remove old backup files or guarantee byte erasure from SQLite/WAL.
+
+### Semantic event rollout (schema v5)
+
+Upgrade the server, then the CLI/adapters, then iOS to show event icons. Old clients ignore the additive field; old messages keep their title and remain generic. New CLI/adapters explicitly emit `result`, `attention` or `failure`; custom integrations may omit `event`. Do not infer or backfill events from titles. Existing cache TTL and the App's independent local history are unchanged.
+
+Before the server upgrade, take the online backup described above using the currently running server binary. Schema v5 adds a constrained `event` column and preserves old rows with an empty value. An older server binary refuses v5 databases; rollback requires stopping the new server and restoring the pre-upgrade snapshot (new messages after that snapshot are not included). Keep the live upgraded database separately until the rollback has been checked.

@@ -173,6 +173,27 @@ final class UIOptimizationTests: XCTestCase {
         app.buttons["filter.\(name)"].tap()
     }
 
+    func testCompactNotificationCategories() {
+        scenario("compact-categories")
+        var app = open()
+        let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_result").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(row.label.contains("Refine notification layout"))
+        XCTAssertLessThan(row.frame.height, 120, "standard text should fit the compact three-line row")
+        XCTAssertTrue(app.staticTexts["Build 19 is ready"].exists, "custom notification titles remain visible")
+        XCTAssertTrue(app.staticTexts["New result"].exists, "event metadata must never hide the title")
+        capture("compact-categories", app)
+        row.tap()
+        XCTAssertTrue(app.staticTexts["New result · meow"].waitForExistence(timeout: 5), "detail preserves the original title")
+        app.terminate()
+        app = open(large: true, chinese: true)
+        let largeRow = app.descendants(matching: .any).matching(identifier: "notification.ntf_result").firstMatch
+        XCTAssertTrue(largeRow.waitForExistence(timeout: 10))
+        XCTAssertTrue(largeRow.isHittable)
+        XCTAssertTrue(largeRow.label.contains("Refine notification layout"))
+        capture("compact-categories-accessible", app)
+    }
+
     func test09NotificationBodyFormatting() {
         scenario("formatting")
         var app = open(id: "ntf_envelope", chinese: true)

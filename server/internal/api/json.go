@@ -70,7 +70,7 @@ type notificationJSON = message.Record
 
 func toNotificationJSON(n store.Notification) notificationJSON {
 	out := notificationJSON{
-		ID: n.ID, Type: n.Type, Title: n.Title, Body: n.Body, Source: n.Source, Priority: n.Priority,
+		Event: n.Event, ID: n.ID, Type: n.Type, Title: n.Title, Body: n.Body, Source: n.Source, Priority: n.Priority,
 		PushStatus: n.PushStatus, PushError: n.PushError, Context: n.Context,
 		CreatedAt: n.CreatedAt, DeliveredAt: n.DeliveredAt, ReadAt: n.ReadAt,
 	}

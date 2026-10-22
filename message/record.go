@@ -4,6 +4,7 @@ import "time"
 
 // Record is the stored notification returned by inbox and detail endpoints.
 type Record struct {
+	Event       EventKind      `json:"event,omitempty"`
 	Context     *Context       `json:"context,omitempty"`
 	ID          string         `json:"id"`
 	Type        string         `json:"type"`

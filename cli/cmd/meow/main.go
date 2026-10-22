@@ -50,6 +50,7 @@ Send flags:
   --json           read a standard notification JSON object (argument or stdin)
   --idempotency-key K  reuse K when retrying one service event
   --title T        title (the message becomes the body)
+  --event E        result | attention | failure (optional semantic event)
   --priority P     low | normal | high (default normal)
   --alert          mark as an alert instead of info
   --source S       sender label, e.g. "Claude Code" (default $MEOW_SOURCE)
@@ -207,6 +208,7 @@ func stdinText() (string, error) {
 func cmdSend(args []string) int {
 	fs := flag.NewFlagSet("send", flag.ContinueOnError)
 	title := fs.String("title", "", "")
+	event := fs.String("event", "", "result | attention | failure (optional)")
 	priority := fs.String("priority", "normal", "")
 	alert := fs.Bool("alert", false, "")
 	source := fs.String("source", os.Getenv("MEOW_SOURCE"), "")
@@ -238,7 +240,7 @@ func cmdSend(args []string) int {
 				return fail(err)
 			}
 		}
-		req = client.NotifyRequest{Title: *title, Body: msg, Source: *source, Priority: *priority}
+		req = client.NotifyRequest{Event: message.EventKind(*event), Title: *title, Body: msg, Source: *source, Priority: *priority}
 		if origin != (message.Context{}) {
 			req.Context = &origin
 		}
@@ -252,6 +254,10 @@ func cmdSend(args []string) int {
 		if *alert {
 			req.Type = "alert"
 		}
+	}
+	req, err = req.Normalize()
+	if err != nil {
+		return usageErr(err.Error())
 	}
 	c, err := newClient()
 	if err != nil {

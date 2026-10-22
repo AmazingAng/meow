@@ -6,6 +6,7 @@
     "summary": true,
     "language": "",
     "notification": {
+      "event": "result",
       "context": {
         "workspace": "project",
         "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
@@ -16,7 +17,7 @@
       "body": "**Done**\n\n正文 😺",
       "source": "Claude Code"
     },
-    "idempotencyKey": "hook-94cc574341187f1332e2385aa6b78513",
+    "idempotencyKey": "hook-50ead421c281aae7b4d651c4fd95452c",
     "send": true,
     "error": false
   },
@@ -27,6 +28,7 @@
     "summary": false,
     "language": "",
     "notification": {
+      "event": "result",
       "context": {
         "workspace": "project",
         "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
@@ -35,7 +37,7 @@
       "title": "New result · project",
       "source": "Claude Code"
     },
-    "idempotencyKey": "hook-185cc86a82cbc3bd4c6180148bb06f2a",
+    "idempotencyKey": "hook-f94ae7148e5cfb5385bc369511a40590",
     "send": true,
     "error": false
   },
@@ -46,6 +48,7 @@
     "summary": true,
     "language": "",
     "notification": {
+      "event": "attention",
       "context": {
         "workspace": "project",
         "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
@@ -68,6 +71,7 @@
     "summary": true,
     "language": "",
     "notification": {
+      "event": "failure",
       "context": {
         "session_id": "s1"
       },
@@ -77,7 +81,7 @@
       "source": "Claude Code",
       "priority": "high"
     },
-    "idempotencyKey": "hook-6c55ccfd4a9d790a5906648d7d7241c5",
+    "idempotencyKey": "hook-941cecc52a486c778fb11333fc21082c",
     "send": true,
     "error": false
   },
@@ -88,6 +92,7 @@
     "summary": true,
     "language": "",
     "notification": {
+      "event": "result",
       "context": {
         "workspace": "project",
         "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
@@ -98,7 +103,7 @@
       "body": "Done",
       "source": "Codex"
     },
-    "idempotencyKey": "hook-45396ccdf5e676cd1220524aa4d1aa12",
+    "idempotencyKey": "hook-b312d6a44f9875710b5e14a2b4a8f96f",
     "send": true,
     "error": false
   },
@@ -109,6 +114,7 @@
     "summary": true,
     "language": "",
     "notification": {
+      "event": "result",
       "context": {
         "workspace": "project",
         "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
@@ -119,7 +125,7 @@
       "body": "Done",
       "source": "Codex"
     },
-    "idempotencyKey": "hook-45396ccdf5e676cd1220524aa4d1aa12",
+    "idempotencyKey": "hook-b312d6a44f9875710b5e14a2b4a8f96f",
     "send": true,
     "error": false
   },
@@ -130,6 +136,7 @@
     "summary": true,
     "language": "",
     "notification": {
+      "event": "attention",
       "context": {
         "session_id": "s1"
       },
@@ -189,6 +196,7 @@
     "summary": true,
     "language": "zh-Hans",
     "notification": {
+      "event": "result",
       "context": {
         "workspace": "project",
         "workspace_id": "e3af8a7251583e76fee1fc45993af40a",
@@ -198,7 +206,7 @@
       "body": "完整原文",
       "source": "Claude Code"
     },
-    "idempotencyKey": "hook-b988fe74d0520df60db7823f02e3bd93",
+    "idempotencyKey": "hook-9b87b32ab1273d7bbdcc1959afe48ca0",
     "send": true,
     "error": false
   }

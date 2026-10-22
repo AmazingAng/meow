@@ -22,7 +22,7 @@ func TestGatewayMigrationBackupAndRevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Reconstruct the exact v1 schema from a v2 installation with existing data.
-	if _, err = st.w.Exec(`DROP TABLE gateway_routes; DROP TABLE device_gateway_bindings; ALTER TABLE notifications DROP COLUMN context; PRAGMA user_version=1`); err != nil {
+	if _, err = st.w.Exec(`DROP TABLE gateway_routes; DROP TABLE device_gateway_bindings; ALTER TABLE notifications DROP COLUMN event; ALTER TABLE notifications DROP COLUMN context; PRAGMA user_version=1`); err != nil {
 		t.Fatal(err)
 	}
 	if err = st.Close(); err != nil {

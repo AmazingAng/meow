@@ -17,3 +17,26 @@ struct InboxPresentation {
         activity = notifications.filter { !pendingIDs.contains($0.id) }
     }
 }
+
+/// Event classification is part of the protocol, never inferred from display text.
+typealias InboxCategory = NotificationEvent
+
+extension NotificationEvent {
+    var symbol: String {
+        switch self {
+        case .result: "bubble.left"
+        case .attention: "checklist"
+        case .failure: "exclamationmark.triangle"
+        }
+    }
+}
+
+extension MeowNotification {
+    var inboxCategory: InboxCategory? { event }
+
+    var compactHeadline: String { inboxTitle }
+
+    var compactMetadata: String {
+        [context?.sessionLabel, originSummary].compactMap { $0 }.joined(separator: " · ")
+    }
+}
