@@ -92,12 +92,44 @@ enum NotificationContent {
             .replacingOccurrences(of: "\r", with: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { return "" }
-        if text.hasPrefix("```") && text.hasSuffix("```") { return "" }
         if (text.hasPrefix("{") || text.hasPrefix("[")),
            let data = text.data(using: .utf8), (try? JSONSerialization.jsonObject(with: data)) != nil { return "" }
+        text = plainMarkdown(text)
         let lines = text.components(separatedBy: "\n")
         if lines.count > 3 { text = lines.prefix(3).joined(separator: "\n") + "…" }
         return truncatePreview(text)
+    }
+
+    /// System notification banners accept plain text. Parse the full Markdown
+    /// before truncating, while keeping code literals and escaped punctuation.
+    private static func plainMarkdown(_ source: String) -> String {
+        guard let parsed = try? AttributedString(markdown: source) else { return source }
+        var result = ""
+        var previous: [PresentationIntent.IntentType] = []
+        for run in parsed.runs {
+            let intents = run.presentationIntent?.components ?? []
+            if intents.contains(where: {
+                if case .codeBlock = $0.kind { return true }
+                return $0.kind == .thematicBreak
+            }) { continue }
+            let value = String(parsed[run.range].characters)
+            guard !value.isEmpty else { continue }
+            if !result.isEmpty && intents != previous {
+                let row = intents.first {
+                    if case .tableRow = $0.kind { return true }
+                    return $0.kind == .tableHeaderRow
+                }
+                result += row != nil && previous.contains(row!) ? " · " : "\n"
+            }
+            if run.inlinePresentationIntent?.contains(.softBreak) == true ||
+                run.inlinePresentationIntent?.contains(.lineBreak) == true {
+                result += "\n"
+            } else {
+                result += value
+            }
+            previous = intents
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// A failed fetch never exposes actions or trusts content from a wake payload.
@@ -171,10 +203,21 @@ enum NotificationContent {
 
     private static func displayVerified(_ content: UNNotificationContent, identity: NotificationIdentity?, now: Date) -> UNNotificationContent {
         let updated = content.mutableCopy() as! UNMutableNotificationContent
+        // Older direct servers send raw Markdown. New servers mark their
+        // already rendered preview, so literal asterisks aren't parsed twice.
+        if let metadata = content.userInfo["meow"] as? [String: Any],
+           metadata["relay"] as? Bool != true,
+           metadata["preview_format"] as? String != "plain",
+           identity.map({ $0.accepts(metadata) }) == true {
+            updated.body = preview(content.body)
+            var marked = metadata
+            marked["preview_format"] = "plain"
+            updated.userInfo = ["meow": marked]
+        }
         // Also covers direct pushes, offline fallback and older servers that
         // still send the default system sound. Silent notifications stay silent.
         if updated.sound != nil { updated.sound = MeowShared.notificationSound.sound }
-        guard var m = content.userInfo["meow"] as? [String: Any],
+        guard var m = updated.userInfo["meow"] as? [String: Any],
               m["question_id"] != nil,
               identity.map({ canRespond(m, identity: $0, now: now) }) != true else { return updated }
         updated.categoryIdentifier = NotificationCategory.info

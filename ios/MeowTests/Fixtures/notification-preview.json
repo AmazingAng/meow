@@ -48,5 +48,65 @@
     "name": "array",
     "body": "[1,\"a\"]",
     "expected": ""
+  },
+  {
+    "name": "chinese bold",
+    "body": "**Bark Server 不持久保存通知正文和消息历史。** 它主要接收请求。",
+    "expected": "Bark Server 不持久保存通知正文和消息历史。 它主要接收请求。"
+  },
+  {
+    "name": "inline formatting",
+    "body": "**完成**，*检查* `meow doctor`，看 [文档](https://example.com)。",
+    "expected": "完成，检查 meow doctor，看 文档。"
+  },
+  {
+    "name": "blocks",
+    "body": "# 结果\n\n> **完成**\n\n- 第一项\n- 第二项",
+    "expected": "结果\n完成\n第一项…"
+  },
+  {
+    "name": "long emphasis",
+    "body": "**猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫**",
+    "expected": "猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫猫…"
+  },
+  {
+    "name": "multiline emphasis",
+    "body": "**第一行\n第二行\n第三行\n第四行**",
+    "expected": "第一行\n第二行\n第三行…"
+  },
+  {
+    "name": "literal punctuation",
+    "body": "\\*literal\\* and `**code**` and snake_case",
+    "expected": "*literal* and **code** and snake_case"
+  },
+  {
+    "name": "code then prose",
+    "body": "```sh\necho **literal**\n```\n\n**完成**",
+    "expected": "完成"
+  },
+  {
+    "name": "tilde fence",
+    "body": "~~~sh\necho hello\n~~~",
+    "expected": ""
+  },
+  {
+    "name": "blank table header",
+    "body": "| | Bark | Meow |\n| --- | --- | --- |\n| 历史 | 本地 | 服务端 |",
+    "expected": "Bark · Meow\n历史 · 本地 · 服务端"
+  },
+  {
+    "name": "reference link",
+    "body": "查看 [文档][docs]\n\n[docs]: https://example.com",
+    "expected": "查看 文档"
+  },
+  {
+    "name": "strikethrough",
+    "body": "~~旧内容~~ 与 **新内容**",
+    "expected": "旧内容 与 新内容"
+  },
+  {
+    "name": "entities",
+    "body": "Tom &amp; Jerry &#x732B;",
+    "expected": "Tom & Jerry 猫"
   }
 ]

@@ -69,7 +69,7 @@ Machine-readable schema: [notification-v1.schema.json](../contracts/notification
 
 Names are display labels; IDs retain identity across renames. Use stable IDs to distinguish identically named workspaces/sessions. No identity is inferred from a title or body. Agent workspace paths are hashed before transmission; optional session-name file lookup belongs to the CLI host. Generic service JSON is already explicit and does not trigger local agent metadata lookup.
 
-The original body is preserved by the server. `message.Preview` renders only a banner preview: at most 180 code points and three lines, with complete JSON objects/arrays and fenced code omitted from the banner. Swift preview compatibility remains checked by shared fixtures. Inbox/Markdown detail presentation is a separate layer.
+The original body is preserved by the server. `message.Preview` parses Markdown to plain text before limiting a banner preview to 180 code points and three lines. Complete JSON objects/arrays and code blocks are omitted; emphasis, link labels and table cells become readable plain text, while escaped punctuation and inline-code literals survive. Go uses Goldmark and Swift uses Foundation, checked against shared fixtures. Updated direct APNs payloads mark the preview as `meow.preview_format = "plain"` so the iOS extension does not parse literal punctuation twice. Legacy direct payloads are normalized by the extension; relay previews are rendered from the full origin body. Inbox/Markdown detail presentation is a separate layer.
 
 ## Service integration
 

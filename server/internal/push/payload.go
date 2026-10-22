@@ -83,7 +83,7 @@ func BuildMessage(t store.PushTarget) (Message, error) {
 	if n.Source != "" {
 		aps["thread-id"] = n.Source
 	}
-	meow := map[string]any{"id": n.ID, "type": n.Type, "device_id": t.Device.ID}
+	meow := map[string]any{"id": n.ID, "type": n.Type, "device_id": t.Device.ID, "preview_format": "plain"}
 	expiration := n.CreatedAt.Add(24 * time.Hour)
 	if q := n.Question; q != nil {
 		meow["question_id"] = n.QuestionID

@@ -26,9 +26,15 @@ func TestNotificationPreviewContract(t *testing.T) {
 				t.Fatal(err)
 			}
 			var p struct {
-				APS struct{ Alert struct{ Title, Body string } }
+				APS  struct{ Alert struct{ Title, Body string } }
+				Meow struct {
+					PreviewFormat string `json:"preview_format"`
+				}
 			}
 			json.Unmarshal(m.Payload, &p)
+			if p.Meow.PreviewFormat != "plain" {
+				t.Fatal("plain preview must not be parsed twice by iOS")
+			}
 			expected := "Result"
 			if tc.Expected != "" {
 				expected += "\n" + tc.Expected

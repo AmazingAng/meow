@@ -4,6 +4,7 @@ go 1.27.2
 
 require (
 	github.com/pelletier/go-toml/v2 v2.4.3
+	github.com/yuin/goldmark v1.7.17
 	golang.org/x/term v0.47.0
 	modernc.org/sqlite v1.60.1
 )
