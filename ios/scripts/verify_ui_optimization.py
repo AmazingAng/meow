@@ -76,6 +76,8 @@ class Fixture(BaseHTTPRequestHandler):
                 self.items[:] = [later] + [dict(info, id=f'ntf_info_{i}') for i in range(49)] + [soon]
             elif scenario == 'activity':
                 self.items[:] = [info]
+            elif scenario == 'empty-table-header':
+                self.items[:] = [dict(info, title='New result · meow', body='**Bark Server 不持久保存通知正文和消息历史。**\n\n与目前 Meow 的区别是：\n\n| | Bark | Meow |\n| --- | --- | --- |\n| 服务端保存正文 | 不保存 | 保存到 SQLite |\n| 手机查看历史 | 本地记录 | 本地缓存，可向服务器同步 |\n| 服务端补拉历史 | 不提供 | 支持 |\n| 删除消息 | 删除手机本地记录 | 当前设计同时删除服务器记录与本地缓存 |\n| 空单元格 | | 最后一列 |')]
             elif scenario == 'formatting':
                 bodies = {
                     'markdown': '## 推送已恢复\n\n收到，这条回复用于测试桌面版的自动推送。回复结束后，留意 Meow 是否收到 **「New result」** 通知。\n\n- **Markdown** 正常显示\n- 使用 `meow doctor` 检查连接\n\n> 完整正文仍可在详细信息中查看。\n\n```sh\nmeow doctor\n```\n\n| 项目 | 状态 |\n| --- | --- |\n| App | 正常 |\n| Hook | 正常 |',

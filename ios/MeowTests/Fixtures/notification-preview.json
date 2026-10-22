@@ -108,5 +108,75 @@
     "name": "entities",
     "body": "Tom &amp; Jerry &#x732B;",
     "expected": "Tom & Jerry 猫"
+  },
+  {
+    "name": "escaped named entity",
+    "body": "\\&amp;",
+    "expected": "&amp;"
+  },
+  {
+    "name": "escaped numeric entity",
+    "body": "\\&#65;",
+    "expected": "&#65;"
+  },
+  {
+    "name": "numeric ampersand before named entity",
+    "body": "&#38;amp;",
+    "expected": "&amp;"
+  },
+  {
+    "name": "hex ampersand before named entity",
+    "body": "&#x26;lt;",
+    "expected": "&lt;"
+  },
+  {
+    "name": "encoded ampersand before numeric entity",
+    "body": "&amp;#65;",
+    "expected": "&#65;"
+  },
+  {
+    "name": "escaped backslash before entity",
+    "body": "\\\\&amp;",
+    "expected": "\\&"
+  },
+  {
+    "name": "literal entity in inline code",
+    "body": "`&amp;` and `&#65;`",
+    "expected": "&amp; and &#65;"
+  },
+  {
+    "name": "html body",
+    "body": "<div>重要通知</div>",
+    "expected": "<div>重要通知</div>"
+  },
+  {
+    "name": "html details body",
+    "body": "<details>\n<summary>构建结果</summary>\n构建失败，需要处理。\n</details>",
+    "expected": "<details>\n<summary>构建结果</summary>\n构建失败，需要处理。…"
+  },
+  {
+    "name": "inline html",
+    "body": "结果 <status>成功</status>",
+    "expected": "结果 <status>成功</status>"
+  },
+  {
+    "name": "html keeps literal syntax",
+    "body": "<div>**完成** &amp;</div>",
+    "expected": "<div>**完成** &amp;</div>"
+  },
+  {
+    "name": "html closure line",
+    "body": "<!--\n重要说明\n-->",
+    "expected": "<!--\n重要说明\n-->"
+  },
+  {
+    "name": "html then markdown",
+    "body": "<div>完成</div>\n\n**下一段**",
+    "expected": "<div>完成</div>\n\n下一段"
+  },
+  {
+    "name": "markdown then html",
+    "body": "**完成**\n\n<div>下一段</div>",
+    "expected": "完成\n<div>下一段</div>"
   }
 ]
