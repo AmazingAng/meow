@@ -72,7 +72,6 @@ func TestCodexApprovalMetadataFailsOpen(t *testing.T) {
 		"newer unknown context":    header + auto + `{"type":"turn_context","payload":{"turn_id":"t"}}` + "\n",
 		"newer other turn":         header + auto + `{"type":"turn_context","payload":{"turn_id":"other","approvals_reviewer":"auto_review"}}` + "\n",
 		"newer incomplete context": header + auto + `{"type":"turn_context","payload":`,
-		"outside bounded tail":     header + auto + strings.Repeat("{\"type\":\"unrelated\"}\n", 110000),
 		"truncated metadata":       header + strings.TrimSuffix(auto, "}\n"),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -113,6 +112,40 @@ func TestCodexAutoReviewLargeTranscript(t *testing.T) {
 	}
 }
 
+// A long active turn can push its context far outside the metadata tail. Image
+// and tool records can also exceed that tail by themselves (the reported turn
+// contained a 5 MiB record). Neither should turn auto review into an alert.
+func TestCodexAutoReviewLongActiveTurn(t *testing.T) {
+	header := `{"type":"session_meta","payload":{"id":"s"}}` + "\n"
+	auto := `{"type":"turn_context","payload":{"turn_id":"t","approvals_reviewer":"auto_review"}}` + "\n"
+	human := `{"type":"turn_context","payload":{"turn_id":"t","approvals_reviewer":"user"}}` + "\n"
+	largeRecord := `{"type":"response_item","payload":{"text":"` + strings.Repeat("x", 6<<20) + `"}}` + "\n"
+	longTurn := strings.Repeat("{\"type\":\"unrelated\"}\n", 450000)
+	for _, tc := range []struct {
+		name, data string
+		wantSend   bool
+	}{
+		{"many records after context", header + auto + longTurn, false},
+		{"large record after context", header + auto + largeRecord, false},
+		{"large record without final newline", header + auto + strings.TrimSuffix(largeRecord, "\n"), false},
+		{"latest human before long output", header + auto + human + longTurn, true},
+		{"latest auto before long output", header + human + auto + longTurn, false},
+		{"newer other turn before long output", header + auto + strings.Replace(auto, `"t"`, `"other"`, 1) + largeRecord, true},
+		{"unknown reviewer before long output", header + auto + strings.Replace(auto, "auto_review", "future", 1) + largeRecord, true},
+		{"corrupt record before long output", header + auto + "{broken\n" + longTurn, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "rollout.jsonl")
+			if err := os.WriteFile(path, []byte(tc.data), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, send, err := buildHookNotification("codex-permission", codexApprovalInput(t, path, "Bash"), true); err != nil || send != tc.wantSend {
+				t.Fatalf("send=%v want=%v err=%v", send, tc.wantSend, err)
+			}
+		})
+	}
+}
+
 func TestCodexAutoReviewDoesNotReachServer(t *testing.T) {
 	var events []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +168,8 @@ func TestCodexAutoReviewDoesNotReachServer(t *testing.T) {
 	path := filepath.Join(dir, "rollout.jsonl")
 	header := `{"type":"session_meta","payload":{"id":"s"}}` + "\n"
 	for _, reviewer := range []string{"auto_review", "user"} {
-		data := header + `{"type":"turn_context","payload":{"turn_id":"t","approvals_reviewer":"` + reviewer + `"}}` + "\n"
+		data := header + `{"type":"turn_context","payload":{"turn_id":"t","approvals_reviewer":"` + reviewer + `"}}` + "\n" +
+			`{"type":"response_item","payload":{"text":"` + strings.Repeat("x", 6<<20) + `"}}` + "\n"
 		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -153,5 +187,42 @@ func TestCodexAutoReviewDoesNotReachServer(t *testing.T) {
 	}
 	if len(events) != 1 || events[0] != "attention" {
 		t.Fatalf("events=%v", events)
+	}
+}
+
+func TestRolloutReverseReaderBoundaries(t *testing.T) {
+	for _, n := range []int{1, approvalReadBlock - 1, approvalReadBlock, approvalReadBlock + 1, 2*approvalReadBlock + 7} {
+		for _, suffix := range []string{"", "\n"} {
+			lines := []string{"header", strings.Repeat("x", n), "", "context", strings.Repeat("y", n+3)}
+			data := strings.Join(lines, "\n") + suffix
+			reader := rolloutReverseReader{file: strings.NewReader(data), offset: int64(len(data))}
+			if suffix != "" {
+				line, err := reader.previousLine()
+				if err != nil || len(line) != 0 {
+					t.Fatalf("trailing newline: len=%d err=%v", len(line), err)
+				}
+			}
+			for i := len(lines) - 1; i >= 0; i-- {
+				line, err := reader.previousLine()
+				if err != nil || string(line) != lines[i] {
+					t.Fatalf("n=%d line=%d: len=%d err=%v", n, i, len(line), err)
+				}
+			}
+			if _, err := reader.previousLine(); err != io.EOF {
+				t.Fatalf("expected EOF, got %v", err)
+			}
+		}
+	}
+}
+
+func TestRolloutReverseReaderRejectsOversizedOrTruncatedRecords(t *testing.T) {
+	data := strings.Repeat("x", approvalRecordLimit+1)
+	reader := rolloutReverseReader{file: strings.NewReader(data), offset: int64(len(data))}
+	if _, err := reader.previousLine(); err != io.ErrShortBuffer {
+		t.Fatalf("expected record limit, got %v", err)
+	}
+	reader = rolloutReverseReader{file: strings.NewReader("short"), offset: 100}
+	if _, err := reader.previousLine(); err != io.EOF {
+		t.Fatalf("expected truncated file read error, got %v", err)
 	}
 }
