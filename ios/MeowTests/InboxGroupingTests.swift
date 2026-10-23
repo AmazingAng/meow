@@ -17,12 +17,12 @@ final class InboxGroupingTests: XCTestCase {
         InboxGrouping.build(items, mode: mode, scope: scope, rules: rules, query: query, unreadOnly: unread)
     }
 
-    func testSessionsUseSourceWorkspaceIdentityAndNameRatherThanSessionID() {
+    func testSessionsUseSourceWorkspaceIdentityAndIDBeforeName() {
         let items = [groupedItem("1", sessionID: "one"), groupedItem("2", sessionID: "two"),
                      groupedItem("3", workspaceID: "other"), groupedItem("4", source: "Claude Code")]
         let result = groups(items)
-        XCTAssertEqual(result.count, 3)
-        XCTAssertEqual(result.first { $0.messages.count == 2 }?.messages.map(\.id), ["2", "1"])
+        XCTAssertEqual(result.count, 4)
+        XCTAssertEqual(Set(result.flatMap(\.messages).map(\.id)), Set(["1", "2", "3", "4"]))
     }
 
     func testSameNameProjectsMergeAcrossPathsAndSourcesButSessionsStaySeparate() {

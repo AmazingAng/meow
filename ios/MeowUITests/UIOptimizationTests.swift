@@ -435,4 +435,30 @@ final class UIOptimizationTests: XCTestCase {
         browse("messages", in: app)
     }
 
+    func test24SessionIDKeepsRenamesTogetherAndSameNamesApart() {
+        scenario("session-identity")
+        let app = open()
+        browse("sessions", in: app)
+        let titles = app.staticTexts.matching(identifier: "Renamed identity session")
+        XCTAssertTrue(titles.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertEqual(titles.count, 2, "different IDs with the same title remain separate")
+        capture("session-identity-distinct", app)
+        app.buttons["inbox.search"].tap()
+        let search = app.textFields["inbox.searchField"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5)); search.typeText("First unnamed identity result")
+        let onlyOne = expectation(for: NSPredicate(format: "count == 1"), evaluatedWith: titles)
+        wait(for: [onlyOne], timeout: 5)
+        titles.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Renamed identity session"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].firstMatch.tap()
+        for id in ["first", "named", "renamed", "latest"] {
+            let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_identity_" + id).firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 5), "same ID's complete local history stays in one group")
+        }
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "notification.ntf_identity_other").firstMatch.exists)
+        capture("session-identity-renamed-history", app)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        browse("messages", in: app)
+    }
+
 }

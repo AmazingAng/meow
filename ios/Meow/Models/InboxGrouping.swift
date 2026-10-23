@@ -26,6 +26,8 @@ struct InboxGroupMember: Codable, Hashable, Sendable, Identifiable {
     var id: String
     var title: String
     var subtitle: String
+    // Missing in build-21 archives; new members use ID-first session identity.
+    var sessionIdentityVersion: Int? = 2
 }
 
 struct InboxMergeRule: Codable, Sendable, Equatable, Identifiable {
@@ -67,7 +69,8 @@ enum InboxGrouping {
         return SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func descriptor(_ n: MeowNotification, mode: InboxGroupingMode, scope: String) -> Descriptor {
+    private static func descriptor(_ n: MeowNotification, mode: InboxGroupingMode, scope: String,
+                                   preferSessionID: Bool = true) -> Descriptor {
         let source = NotificationOrigin.nonempty(n.source) ?? "Meow"
         let workspace = NotificationOrigin.nonempty(n.context?.workspace)
         let workspaceID = NotificationOrigin.nonempty(n.context?.workspaceId)
@@ -83,14 +86,15 @@ enum InboxGrouping {
                 if let workspaceID { key += ["workspace-id", workspaceID] }
                 else if let workspace { key += ["workspace-name", workspace] }
                 else { key += ["workspace-missing"] }
-                if let session { key += ["session-name", session]; title = session }
-                else if let sessionID {
+                if let sessionID, preferSessionID || session == nil {
                     key += ["session-id", sessionID]
-                    title = NotificationOrigin(sessionId: sessionID).sessionLabel ?? String(localized: "Session")
+                    title = session ?? NotificationOrigin(sessionId: sessionID).sessionLabel ?? String(localized: "Session")
+                } else if let session {
+                    key += ["session-name", session]; title = session
                 }
                 subtitle = [workspace, source].compactMap { $0 }.joined(separator: " · ")
                 colorContext = NotificationOrigin(workspace: workspace, workspaceId: workspaceID, session: session,
-                                                  sessionId: session == nil ? sessionID : nil)
+                                                  sessionId: sessionID)
             } else {
                 key += ["unclassified"]; title = String(localized: "Unclassified"); colorSource = "unclassified"
             }
@@ -119,10 +123,23 @@ enum InboxGrouping {
 
     static func build(_ messages: [MeowNotification], mode: InboxGroupingMode, scope: String,
                       rules: [InboxMergeRule], query: String = "", unreadOnly: Bool = false) -> [InboxGroup] {
+        project(messages, mode: mode, scope: scope, rules: rules, query: query, unreadOnly: unreadOnly).groups
+    }
+
+    static func project(_ messages: [MeowNotification], mode: InboxGroupingMode, scope: String,
+                        rules: [InboxMergeRule], query: String = "", unreadOnly: Bool = false)
+        -> (groups: [InboxGroup], rules: [InboxMergeRule]) {
+        let updated = mode == .sessions ? migrateSessionRules(rules, messages: messages, scope: scope) : rules
+        return (buildGroups(messages, mode: mode, scope: scope, rules: updated, query: query, unreadOnly: unreadOnly), updated)
+    }
+
+    private static func buildGroups(_ messages: [MeowNotification], mode: InboxGroupingMode, scope: String,
+                                    rules: [InboxMergeRule], query: String, unreadOnly: Bool) -> [InboxGroup] {
         guard mode != .messages else { return [] }
         var descriptions: [String: Descriptor] = [:]
         var buckets: [String: [MeowNotification]] = [:]
         var newest: [String: MeowNotification] = [:]
+        var latestNamed: [String: MeowNotification] = [:]
         for (index, n) in messages.enumerated() {
             if index % 256 == 0 && Task.isCancelled { return [] }
             let d = descriptor(n, mode: mode, scope: scope)
@@ -131,8 +148,15 @@ enum InboxGrouping {
                     descriptions[d.member.id] = d; newest[d.member.id] = n
                 }
             } else { descriptions[d.member.id] = d; newest[d.member.id] = n }
+            if mode == .sessions, NotificationOrigin.nonempty(n.context?.session) != nil {
+                let old = latestNamed[d.member.id]
+                if old == nil || n.createdAt > old!.createdAt || (n.createdAt == old!.createdAt && n.id > old!.id) {
+                    latestNamed[d.member.id] = n
+                }
+            }
             buckets[d.member.id, default: []].append(n)
         }
+        for (id, n) in latestNamed { descriptions[id]?.member.title = NotificationOrigin.nonempty(n.context?.session)! }
         var owner: [String: InboxMergeRule] = [:]
         for rule in rules.sorted(by: { $0.id < $1.id }) where rule.mode == mode && Set(rule.members.map(\.id)).count >= 2 {
             // Reject overlapping/corrupt rules rather than duplicate messages.
@@ -180,6 +204,61 @@ enum InboxGrouping {
             let a = $0.latest?.createdAt ?? .distantPast, b = $1.latest?.createdAt ?? .distantPast
             return a == b ? $0.id < $1.id : a > b
         }
+    }
+
+    /// Convert only legacy identities. Unresolved members stay legacy until
+    /// matching local history arrives; current name-fallback groups are never
+    /// reinterpreted as old name groups on a later refresh.
+    private static func migrateSessionRules(_ rules: [InboxMergeRule], messages: [MeowNotification], scope: String) -> [InboxMergeRule] {
+        let wanted = Set(rules.filter { $0.mode == .sessions }.flatMap(\.members)
+            .filter { $0.sessionIdentityVersion != 2 }.map(\.id))
+        guard !wanted.isEmpty else { return rules }
+        var aliases: [String: Set<String>] = [:]
+        var current: [String: InboxGroupMember] = [:]
+        for (index, n) in messages.sorted(by: {
+            $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
+        }).enumerated() {
+            if index % 256 == 0 && Task.isCancelled { return rules }
+            var member = descriptor(n, mode: .sessions, scope: scope).member
+            if NotificationOrigin.nonempty(n.context?.session) == nil, let known = current[member.id] {
+                member.title = known.title
+            }
+            current[member.id] = member
+            let old = descriptor(n, mode: .sessions, scope: scope, preferSessionID: false).member.id
+            if wanted.contains(old) { aliases[old, default: []].insert(member.id) }
+        }
+        guard !aliases.isEmpty else { return rules }
+        let converted = rules.map { rule -> InboxMergeRule in
+            guard rule.mode == .sessions else { return rule }
+            var rule = rule, members: [String: InboxGroupMember] = [:]
+            for member in rule.members {
+                if member.sessionIdentityVersion != 2, let ids = aliases[member.id] {
+                    for id in ids { members[id] = current[id] }
+                } else { members[member.id] = member }
+            }
+            rule.members = members.values.sorted { $0.id < $1.id }
+            return rule
+        }
+        guard converted != rules else { return rules }
+        return converted.filter { $0.mode != .sessions } + coalescedSessionRules(converted.filter { $0.mode == .sessions })
+    }
+
+    /// A renamed stable session may connect two previously disjoint saved
+    /// merges. Preserve their union under a deterministic existing ID.
+    private static func coalescedSessionRules(_ rules: [InboxMergeRule]) -> [InboxMergeRule] {
+        var components: [String: InboxMergeRule] = [:], owner: [String: String] = [:]
+        for rule in rules.sorted(by: { $0.id < $1.id }) {
+            let collisions = Set(rule.members.compactMap { owner[$0.id] })
+            let id = ([rule.id] + collisions).min()!
+            var members = Dictionary(rule.members.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            for collision in collisions.sorted() {
+                for member in components.removeValue(forKey: collision)?.members ?? [] { members[member.id] = member }
+            }
+            let combined = InboxMergeRule(id: id, mode: .sessions, members: members.values.sorted { $0.id < $1.id })
+            components[id] = combined
+            for member in combined.members { owner[member.id] = id }
+        }
+        return components.values.filter { $0.members.count >= 2 }.sorted { $0.id < $1.id }
     }
 }
 
