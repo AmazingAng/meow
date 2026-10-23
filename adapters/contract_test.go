@@ -140,6 +140,9 @@ func TestSuggestionEnvelopesAndAdapterValidation(t *testing.T) {
 		silent bool
 	}{
 		{`{"suggestion":null}`, true}, {`{"suggestions":[]}`, true}, {`{"suggestions":[{"title":"Next"}]}`, true},
+		{`{"exclude":[]}`, true}, {`{"exclude":[{"id":"candidate","reason":"Safety policy"}]}`, true},
+		{`{"exclude":null}`, false}, {`{"exclude":[{"id":"candidate"}]}`, false},
+		{`{"exclude":[1]}`, false}, {`{"exclude":[{"id":"candidate","reason":false}]}`, false},
 		{`{"suggestions":[1]}`, false}, {`{"suggestions":[{"title":""}]}`, false}, {`{"suggestions":[{"title":1}]}`, false},
 		{`{"other":1}`, false}, {`{"suggestion":1}`, false}, {`not JSON`, false},
 	} {

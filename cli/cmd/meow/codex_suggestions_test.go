@@ -31,6 +31,8 @@ func TestCodexTemporarySuggestionsAreSilent(t *testing.T) {
 		` { "suggestion": "" } `,
 		`{"suggestions":[]}`,
 		`{"suggestions":[{"title":"Next step","description":"Check the result","prompt":"Review the change"}]}`,
+		`{"exclude":[]}`,
+		`{"exclude":[{"id":"candidate-1","reason":"Excluded by the suggestion safety check"}]}`,
 	} {
 		for _, summary := range []bool{true, false} {
 			_, _, send, err := buildHookNotification("codex-stop", suggestionEvent(t, "Stop", body, nil, true), summary)
@@ -49,7 +51,11 @@ func TestCodexSuggestionFilterPreservesRealResults(t *testing.T) {
 	}{
 		{"persistent suggestion JSON", `{"suggestion":"Do this"}`, "/sessions/main.jsonl", true},
 		{"persistent suggestions JSON", `{"suggestions":[]}`, "/sessions/main.jsonl", true},
+		{"persistent exclusion JSON", `{"exclude":[]}`, "/sessions/main.jsonl", true},
+		{"persistent safety-shaped JSON", `{"exclude":[{"id":"cache","reason":"Not used"}]}`, "/sessions/main.jsonl", true},
 		{"older host with no field", `{"suggestion":"Do this"}`, nil, false},
+		{"exclusion JSON with no metadata", `{"exclude":[]}`, nil, false},
+		{"exclusion JSON with empty path", `{"exclude":[]}`, "", true},
 		{"empty path is not explicit null", `{"suggestion":"Do this"}`, "", true},
 		{"temporary normal JSON", `{"status":"done","count":2}`, nil, true},
 		{"temporary prose", "The suggestion is to deploy.", nil, true},
@@ -58,6 +64,16 @@ func TestCodexSuggestionFilterPreservesRealResults(t *testing.T) {
 		{"not suggestion records", `{"suggestions":[1,2]}`, nil, true},
 		{"truncated JSON", `{"suggestion":"unfinished`, nil, true},
 		{"Markdown example", "```json\n{\"suggestion\":\"example\"}\n```", nil, true},
+		{"exclusions with additional top-level fields", `{"exclude":[],"result":"passed"}`, nil, true},
+		{"null exclusions", `{"exclude":null}`, nil, true},
+		{"wrong exclusion type", `{"exclude":{}}`, nil, true},
+		{"primitive exclusion items", `{"exclude":[1]}`, nil, true},
+		{"incomplete exclusion item", `{"exclude":[{"id":"cache"}]}`, nil, true},
+		{"empty exclusion reason", `{"exclude":[{"id":"cache","reason":" "}]}`, nil, true},
+		{"empty exclusion id", `{"exclude":[{"id":"","reason":"Not used"}]}`, nil, true},
+		{"numeric exclusion id", `{"exclude":[{"id":1,"reason":"Not used"}]}`, nil, true},
+		{"invalid exclusion reason", `{"exclude":[{"id":"cache","reason":false}]}`, nil, true},
+		{"extra exclusion item field", `{"exclude":[{"id":"cache","reason":"Not used","result":"passed"}]}`, nil, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req, key, send, err := buildHookNotification("codex-stop", suggestionEvent(t, "Stop", tc.body, tc.transcript, tc.include), true)
@@ -71,9 +87,11 @@ func TestCodexSuggestionFilterPreservesRealResults(t *testing.T) {
 		if kind == "codex-permission" {
 			event = "PermissionRequest"
 		}
-		_, _, send, err := buildHookNotification(kind, suggestionEvent(t, event, `{"suggestion":"Allow?"}`, nil, true), true)
-		if err != nil || !send {
-			t.Fatalf("%s was filtered: %v", kind, err)
+		for _, body := range []string{`{"suggestion":"Allow?"}`, `{"exclude":[]}`} {
+			_, _, send, err := buildHookNotification(kind, suggestionEvent(t, event, body, nil, true), true)
+			if err != nil || !send {
+				t.Fatalf("%s body=%s was filtered: %v", kind, body, err)
+			}
 		}
 	}
 }
@@ -100,6 +118,8 @@ func TestCodexSuggestionDoesNotReachServer(t *testing.T) {
 	for _, event := range [][]byte{
 		suggestionEvent(t, "Stop", "Actual result", "/sessions/main.jsonl", true),
 		suggestionEvent(t, "Stop", `{"suggestion":"PRIVATE_SUGGESTION"}`, nil, true),
+		suggestionEvent(t, "Stop", `{"exclude":[]}`, nil, true),
+		suggestionEvent(t, "Stop", `{"exclude":[{"id":"PRIVATE_ID","reason":"PRIVATE_SAFETY_REASON"}]}`, nil, true),
 	} {
 		out := captureOutput(t, string(event), func() {
 			if cmdHook([]string{"codex-stop"}) != 0 {

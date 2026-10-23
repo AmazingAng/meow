@@ -70,11 +70,11 @@ type CodexHookInput struct {
 	ToolInput            json.RawMessage `json:"tool_input"`
 }
 
-// Codex Desktop generates composer predictions and suggestions in ephemeral
+// Codex Desktop generates suggestions and checks their safety in ephemeral
 // threads. Stop currently exposes no thread_source/turn_trigger, only a null
-// transcript_path for these threads. Require BOTH explicit null and the narrow
-// suggestion envelope; ordinary chat JSON, missing metadata, prose and other
-// ephemeral results must still notify. Do not infer persistence from file existence.
+// transcript_path for these threads. Require BOTH explicit null and a recognized
+// suggestion/safety envelope; ordinary chat JSON, missing metadata, prose and
+// other ephemeral results must still notify. Do not infer persistence from file existence.
 func (p CodexHookInput) isTemporarySuggestion() bool {
 	if strings.TrimSpace(string(p.TranscriptPath)) != "null" {
 		return false
@@ -95,6 +95,21 @@ func (p CodexHookInput) isTemporarySuggestion() bool {
 		for _, suggestion := range suggestions {
 			var title string
 			if json.Unmarshal(suggestion["title"], &title) != nil || strings.TrimSpace(title) == "" {
+				return false
+			}
+		}
+		return true
+	}
+	if value, ok := object["exclude"]; ok && strings.HasPrefix(strings.TrimSpace(string(value)), "[") {
+		var exclusions []map[string]json.RawMessage
+		if json.Unmarshal(value, &exclusions) != nil {
+			return false
+		}
+		for _, exclusion := range exclusions {
+			// Match the safety check's schema, not arbitrary exclusion lists.
+			var id, reason string
+			if len(exclusion) != 2 || json.Unmarshal(exclusion["id"], &id) != nil || strings.TrimSpace(id) == "" ||
+				json.Unmarshal(exclusion["reason"], &reason) != nil || strings.TrimSpace(reason) == "" {
 				return false
 			}
 		}
