@@ -15,9 +15,9 @@ struct SetupHelpView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if topic == .server {
-                        Text("Use the address from the person running your Meow server.")
+                        Text("The official Meow server is ready to use: https://api.meow.blue")
                             .font(.headline)
-                        Text("Enter the full http:// or https:// address. If you host Meow on your computer, use its LAN address while your iPhone is on the same Wi-Fi. 127.0.0.1 on your iPhone points to the iPhone itself.")
+                        Text("For a self-hosted server, enter the full http:// or https:// address from its operator. If you host Meow on your computer, use its LAN address on the same Wi-Fi. 127.0.0.1 on your iPhone points to the iPhone itself.")
                         Text("The server address is different from your Device Key. Meow creates that key after you connect.")
                             .foregroundStyle(.secondary)
                         Link("Server deployment guide", destination: URL(string: "https://github.com/AmazingAng/meow/blob/main/deploy/README.md")!)

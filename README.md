@@ -103,6 +103,8 @@ meow doctor
 
 `meow ask` and `meow wait` are unavailable in the V1 CLI and return an explanatory error without creating a question. The server protocol and underlying question implementation remain for compatibility. Existing questions, options and historical answers remain readable in the app. Previously queued replies are preserved as copyable records and are not sent automatically.
 
+The iPhone app suggests the official server, `https://api.meow.blue`, on first launch. You can edit the address for a self-hosted server; saved server choices are preserved. During setup, share the installation command with your computer and copy the Device Key separately when the terminal asks for it. The shared command does not include the key.
+
 Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `MEOW_SERVER` and `MEOW_SOURCE` override it. No server address is assumed: setup/login use the address supplied by the app or your existing configuration.
 
 ## Local inbox and search

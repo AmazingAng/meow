@@ -49,7 +49,14 @@ final class UIOptimizationTests: XCTestCase {
     }
 
     func test01GuidedSetupAndBackNavigation() throws {
+        scenario("onboarding-missing-key")
         let app = XCUIApplication()
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.textFields["server.address"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.textFields["server.address"].value as? String, "https://api.meow.blue")
+        capture("setup-official-default", app)
+        app.terminate()
         app.launchArguments = ["-meowServer", server, "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.textFields["server.address"].waitForExistence(timeout: 10))
@@ -62,6 +69,27 @@ final class UIOptimizationTests: XCTestCase {
         app.buttons["Get started"].tap()
         XCTAssertTrue(app.buttons["Not now"].waitForExistence(timeout: 10))
         app.buttons["Not now"].tap()
+        let create = app.buttons["onboarding.createKey"]
+        reveal(create, in: app)
+        XCTAssertFalse(app.buttons["Next"].isEnabled)
+        capture("setup-missing-key", app)
+        create.tap()
+        app.alerts.buttons["Create new key"].tap()
+        XCTAssertTrue(app.alerts["Something went wrong"].waitForExistence(timeout: 10))
+        app.alerts.buttons["OK"].tap()
+        XCTAssertFalse(app.buttons["Next"].isEnabled)
+        create.tap()
+        app.alerts.buttons["Create new key"].tap()
+        XCTAssertTrue(app.buttons["Copy Device Key"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["meow_recovered_ui_fixture"].exists)
+        reveal(app.buttons["Show Device Key"], in: app)
+        app.buttons["Show Device Key"].tap()
+        XCTAssertTrue(app.staticTexts["meow_recovered_ui_fixture"].exists)
+        app.buttons["Hide Device Key"].tap()
+        XCTAssertFalse(app.staticTexts["meow_recovered_ui_fixture"].exists)
+        XCTAssertTrue(app.buttons["Next"].isEnabled)
+        reveal(app.buttons["Share setup command"], in: app)
+        capture("setup-share-and-masked-key", app)
         let cli = app.buttons["onboarding.cliHelp"]
         XCTAssertTrue(cli.waitForExistence(timeout: 5)); reveal(cli, in: app); cli.tap()
         XCTAssertTrue(app.navigationBars["Install the CLI"].waitForExistence(timeout: 5))
@@ -73,6 +101,10 @@ final class UIOptimizationTests: XCTestCase {
         // The fixture already contains an agent notification, so onboarding
         // recognizes it and offers Done instead of waiting for another one.
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+        let enable = app.buttons["onboarding.enableNotifications"]
+        reveal(enable, in: app)
+        XCTAssertTrue(app.staticTexts["Notifications are off"].exists)
+        capture("setup-test-notifications-off", app)
         app.buttons["onboarding.back"].tap()
         XCTAssertTrue(app.buttons["onboarding.cliHelp"].waitForExistence(timeout: 5))
         app.buttons["Next"].tap()

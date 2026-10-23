@@ -633,21 +633,21 @@ final class OnboardingCommandTests: XCTestCase {
                        "HTTPS://meow.example.com:8443/meow")
     }
 
-    func testSelfHostedBuildDoesNotAssumeAServer() {
-        // A self-hosted build starts without an assumed server address.
-        XCTAssertNil(MeowShared.defaultServer)
+    func testFreshInstallSuggestsOfficialServer() {
+        // The official default is only a suggestion before a server is saved.
+        XCTAssertEqual(MeowShared.defaultServer?.absoluteString, "https://api.meow.blue")
     }
 }
 
 extension SessionRegressionTests {
-    func testSavedServerOutlivesEmptyDefault() {
+    func testSavedServerOverridesOfficialDefault() {
         let snapshot = Snapshot()
         defer { snapshot.restore() }
         MeowShared.server = serverA
         XCTAssertEqual(MeowShared.server, serverA, "an existing install keeps its server")
         XCTAssertEqual(AppModel().server, serverA)
         MeowShared.server = nil
-        XCTAssertEqual(MeowShared.server, MeowShared.defaultServer)
+        XCTAssertNil(MeowShared.server, "the default is only a UI suggestion, not a saved server")
     }
 
     func testHealthCheckExplainsWhatIsWrong() async {

@@ -835,6 +835,16 @@
         }
       }
     },
+    "Device Key unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到 Device Key"
+          }
+        }
+      }
+    },
     "Direct installation saves Meow in ~/.local/bin and checks its SHA-256 checksum. It starts setup for this server immediately; paste your Device Key when asked.": {
       "localizations": {
         "zh-Hans": {
@@ -926,6 +936,16 @@
         }
       }
     },
+    "Enable notifications": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启通知"
+          }
+        }
+      }
+    },
     "Enter a full address such as https://meow.example.com.": {
       "localizations": {
         "zh-Hans": {
@@ -996,6 +1016,16 @@
         }
       }
     },
+    "For a self-hosted server, enter the full http:// or https:// address from its operator. If you host Meow on your computer, use its LAN address on the same Wi-Fi. 127.0.0.1 on your iPhone points to the iPhone itself.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用自建服务器时，请填写运营者提供的完整 http:// 或 https:// 地址。若部署在电脑上，请连接同一 Wi-Fi 并使用电脑的局域网地址。iPhone 上的 127.0.0.1 指向手机自身。"
+          }
+        }
+      }
+    },
     "Gateway": {
       "localizations": {
         "zh-Hans": {
@@ -1042,6 +1072,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "组内成员"
+          }
+        }
+      }
+    },
+    "Hide Device Key": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏 Device Key"
           }
         }
       }
@@ -1333,6 +1373,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "消息"
+          }
+        }
+      }
+    },
+    "Messages can arrive in the inbox, but system alerts are off. Enable notifications to see them outside Meow.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "消息仍可进入收件箱，但系统通知尚未开启。开启后，离开 Meow 也能收到提醒。"
           }
         }
       }
@@ -2011,6 +2061,16 @@
         }
       }
     },
+    "Run this command on your computer, then paste your Device Key when asked. Follow the terminal instructions to connect your agents.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在电脑上运行这条命令，按提示粘贴 Device Key，再按照终端指引连接 Agent。"
+          }
+        }
+      }
+    },
     "Save": {
       "localizations": {
         "zh-Hans": {
@@ -2152,6 +2212,16 @@
         }
       }
     },
+    "Send the command to your computer using Share. Copy the Device Key separately when the terminal asks for it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过分享将命令发送到电脑。终端要求输入 Device Key 时，再单独复制密钥。"
+          }
+        }
+      }
+    },
     "Sending “%@”…": {
       "extractionState": "stale",
       "localizations": {
@@ -2265,6 +2335,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "接入完成后会向这台 iPhone 发送测试通知。Device Key 单独输入，不会包含在复制的接入命令中。"
+          }
+        }
+      }
+    },
+    "Share setup command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享安装配置命令"
+          }
+        }
+      }
+    },
+    "Show Device Key": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示 Device Key"
           }
         }
       }
@@ -2471,6 +2561,16 @@
         }
       }
     },
+    "The official Meow server is ready to use: https://api.meow.blue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可直接使用 Meow 官方服务器：https://api.meow.blue"
+          }
+        }
+      }
+    },
     "The server address is different from your Device Key. Meow creates that key after you connect.": {
       "localizations": {
         "zh-Hans": {
@@ -2509,6 +2609,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "此分组中没有符合当前筛选条件的消息。"
+          }
+        }
+      }
+    },
+    "This iPhone has no saved Device Key. Create a replacement before connecting your computer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 iPhone 没有保存 Device Key，请先创建新密钥，再连接电脑。"
           }
         }
       }
@@ -2745,6 +2855,16 @@
         }
       }
     },
+    "Use the official Meow server, or enter your own server address. You can change it later in Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Meow 官方服务器，也可以输入自建服务器地址。之后可在设置中更改。"
+          }
+        }
+      }
+    },
     "Uses your iPhone's default notification sound. Send a test notification to hear it.": {
       "localizations": {
         "zh-Hans": {
@@ -2931,6 +3051,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的回答没有被接受"
+          }
+        }
+      }
+    },
+    "Your computer connection is working. Finish a task in your agent to check automatic notifications.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电脑已连接。请在 Agent 中完成一次任务，检查自动通知是否正常。"
           }
         }
       }

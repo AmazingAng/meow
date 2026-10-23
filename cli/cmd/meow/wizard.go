@@ -47,7 +47,7 @@ func cmdSetupWizard(args []string) int {
 		if !stdinIsTerminal() {
 			return usageErr("no server configured; pass --server https://your-meow-server")
 		}
-		fmt.Fprint(os.Stderr, "Meow server (shown in the app under Settings → Server): ")
+		fmt.Fprint(os.Stderr, "Meow server (app setup → Server, or Settings → Server): ")
 		line, _ := in.ReadString('\n')
 		cfg.Server = strings.TrimRight(strings.TrimSpace(line), "/")
 	}
@@ -70,7 +70,7 @@ func cmdSetupWizard(args []string) int {
 			return usageErr(`no working Device Key; run "meow login" first`)
 		}
 		// Read from the prompt, never from flags, so the key stays out of shell history.
-		fmt.Fprint(os.Stderr, "Device Key (Meow app → Settings → Device Key): ")
+		fmt.Fprint(os.Stderr, "Device Key (app setup → Connect your computer, or Settings → Device Key): ")
 		line, _ := in.ReadString('\n')
 		key := strings.TrimSpace(line)
 		if !strings.HasPrefix(key, "meow_") {
@@ -88,7 +88,7 @@ func cmdSetupWizard(args []string) int {
 	}
 	fmt.Fprintf(os.Stderr, "✓ Logged in to device %q\n", who.Device.Name)
 	if !who.HasPushRegistration() {
-		fmt.Fprintln(os.Stderr, "! This iPhone hasn't registered for notifications yet. Open Meow and allow notifications, or nothing will appear on the phone.")
+		fmt.Fprintln(os.Stderr, "! This iPhone hasn't registered for notifications yet. Open Meow and allow notifications for system alerts. Messages can still appear in the app inbox.")
 	}
 
 	// 3. Agents
@@ -312,7 +312,7 @@ func checkKey(server, key string) (client.WhoAmI, error) {
 	who, err := client.New(server, key).WhoAmI(ctx)
 	var ae *client.Error
 	if errors.As(err, &ae) && (ae.Status == http.StatusUnauthorized || ae.Status == http.StatusForbidden) {
-		return client.WhoAmI{}, errors.New("the Device Key isn't valid on this server (wrong server, or the key was rotated). Copy it again from Meow → Settings → Device Key")
+		return client.WhoAmI{}, errors.New("the Device Key isn't valid on this server (wrong server, or the key was rotated). Copy it again from app setup → Connect your computer, or Settings → Device Key")
 	}
 	if err != nil {
 		return client.WhoAmI{}, err

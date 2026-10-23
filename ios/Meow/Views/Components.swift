@@ -189,19 +189,32 @@ struct CopyButton: View {
 
 /// A titled, copyable block of monospaced text such as a shell command.
 struct CommandBlock: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     var title: LocalizedStringKey
     var command: String
     /// Names what is copied, for VoiceOver and UI tests.
     var copyTitle: LocalizedStringKey = "Copy"
+    /// Share only non-secret setup commands; credentials stay separate.
+    var shareTitle: LocalizedStringKey? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            let header = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                : AnyLayout(HStackLayout())
+            header {
                 Text(title).font(.subheadline.weight(.semibold))
-                Spacer()
+                if !typeSize.isAccessibilitySize { Spacer() }
                 CopyButton(title: copyTitle, text: command)
                     .font(.subheadline)
                     .labelStyle(.titleAndIcon)
+            }
+            if let shareTitle {
+                ShareLink(item: command) {
+                    Label(shareTitle, systemImage: "square.and.arrow.up")
+                        .frame(minHeight: 44)
+                }
+                .font(.subheadline)
             }
             Text(verbatim: command)
                 .fixedSize(horizontal: false, vertical: true)
