@@ -43,8 +43,8 @@ func codexAutomaticallyReviewed(input []byte) bool {
 	if err != nil || !info.Mode().IsRegular() {
 		return false
 	}
-	// Verify the rollout identity independently of its filename. Both reads
-	// are bounded, including very large transcripts and malformed long lines.
+	// Verify the rollout identity independently of its filename. The header
+	// read is bounded; the context search below walks back through this turn.
 	header, err := io.ReadAll(io.NewSectionReader(f, 0, metadataTailLimit))
 	if err != nil {
 		return false
@@ -62,21 +62,16 @@ func codexAutomaticallyReviewed(input []byte) bool {
 	if json.Unmarshal(header[:end], &meta) != nil || meta.Type != "session_meta" || meta.Payload.ID != p.SessionID {
 		return false
 	}
-	start := max(int64(0), info.Size()-metadataTailLimit)
-	tail, err := io.ReadAll(io.NewSectionReader(f, start, metadataTailLimit))
-	if err != nil {
-		return false
-	}
-	if start > 0 {
-		end := bytes.IndexByte(tail, '\n')
-		if end < 0 {
+	// Search back to the latest context, regardless of how much output the
+	// active turn produced. Snapshot the size so appends cannot prolong this
+	// scan. Memory is bounded per record, rather than limiting the whole turn.
+	reader := rolloutReverseReader{file: f, offset: info.Size()}
+	for {
+		line, err := reader.previousLine()
+		if err != nil {
 			return false
 		}
-		tail = tail[end+1:]
-	}
-	lines := bytes.Split(tail, []byte{'\n'})
-	for i := len(lines) - 1; i >= 0; i-- {
-		if len(bytes.TrimSpace(lines[i])) == 0 {
+		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
 		var row struct {
@@ -86,7 +81,7 @@ func codexAutomaticallyReviewed(input []byte) bool {
 				Reviewer string `json:"approvals_reviewer"`
 			} `json:"payload"`
 		}
-		if json.Unmarshal(lines[i], &row) != nil {
+		if json.Unmarshal(line, &row) != nil {
 			return false
 		}
 		if row.Type != "turn_context" {
@@ -96,5 +91,56 @@ func codexAutomaticallyReviewed(input []byte) bool {
 		// not reuse old auto-review evidence.
 		return row.Payload.TurnID == p.TurnID && row.Payload.Reviewer == "auto_review"
 	}
-	return false
+}
+
+// Rollout lines can contain multi-megabyte screenshots. Bound a single record
+// to avoid unbounded allocation on corrupt files, but never cap the number of
+// records searched. Unsupported oversized records preserve the notification.
+const approvalRecordLimit = 64 << 20
+const approvalReadBlock = 64 << 10
+
+type rolloutReverseReader struct {
+	file   io.ReaderAt
+	offset int64
+	block  []byte
+}
+
+func (r *rolloutReverseReader) previousLine() ([]byte, error) {
+	var fragments [][]byte
+	size := 0
+	for {
+		if len(r.block) == 0 && r.offset > 0 {
+			n := min(r.offset, int64(approvalReadBlock))
+			r.offset -= n
+			r.block = make([]byte, int(n))
+			if _, err := r.file.ReadAt(r.block, r.offset); err != nil {
+				return nil, err
+			}
+		}
+		if len(r.block) == 0 && len(fragments) == 0 {
+			return nil, io.EOF
+		}
+		i := bytes.LastIndexByte(r.block, '\n')
+		part := r.block[i+1:]
+		size += len(part)
+		if size > approvalRecordLimit {
+			return nil, io.ErrShortBuffer
+		}
+		fragments = append(fragments, part)
+		if i >= 0 {
+			r.block = r.block[:i]
+		} else {
+			r.block = nil
+		}
+		if i >= 0 || r.offset == 0 {
+			if len(fragments) == 1 {
+				return part, nil
+			}
+			line := make([]byte, 0, size)
+			for j := len(fragments) - 1; j >= 0; j-- {
+				line = append(line, fragments[j]...)
+			}
+			return line, nil
+		}
+	}
 }
