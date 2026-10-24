@@ -106,8 +106,21 @@ class Fixture(BaseHTTPRequestHandler):
                     ('group_legacy', 'Monitor', None, None, None, 'legacy service result'),
                 ]
                 self.items[:] = [dict(info, id='ntf_' + key, source=source, body=body, event='result', read_at=None,
-                                     context=dict(workspace=workspace, workspace_id=wid, session=session, session_id=key) if session else None)
+                                     context=dict(workspace=workspace, workspace_id=wid, session=session, session_id=wid + ':' + session) if session else None)
                                  for key, source, workspace, wid, session, body in rows]
+            elif scenario == 'session-identity':
+                records = [
+                    ('identity_first', None, 'stable-id', 'First unnamed identity result'),
+                    ('identity_named', 'Initial session name', 'stable-id', 'Named identity result'),
+                    ('identity_renamed', 'Renamed identity session', 'stable-id', 'Renamed identity result'),
+                    ('identity_latest', None, 'stable-id', 'Latest unnamed identity result'),
+                    ('identity_other', 'Renamed identity session', 'other-id', 'Different conversation result'),
+                ]
+                now = datetime.now(timezone.utc)
+                self.items[:] = [dict(info, id='ntf_' + key, body=body, event='result', read_at=None,
+                                     created_at=timestamp(now + timedelta(seconds=index)),
+                                     context=dict(workspace='identity-project', workspace_id='identity-project-id', session=name, session_id=sid))
+                                 for index, (key, name, sid, body) in enumerate(records)]
             elif scenario == 'formatting':
                 bodies = {
                     'markdown': '## 推送已恢复\n\n收到，这条回复用于测试桌面版的自动推送。回复结束后，留意 Meow 是否收到 **「New result」** 通知。\n\n- **Markdown** 正常显示\n- 使用 `meow doctor` 检查连接\n\n> 完整正文仍可在详细信息中查看。\n\n```sh\nmeow doctor\n```\n\n| 项目 | 状态 |\n| --- | --- |\n| App | 正常 |\n| Hook | 正常 |',

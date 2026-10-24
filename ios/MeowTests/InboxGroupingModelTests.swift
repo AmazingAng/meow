@@ -49,10 +49,10 @@ final class InboxGroupingModelTests: XCTestCase {
         defaults.removePersistentDomain(forName: suite)
         try? FileManager.default.removeItem(at: folder)
     }
-    private func item(_ id: String, session: String = "Review", body: String = "Result") -> MeowNotification {
+    private func item(_ id: String, session: String = "Review", sessionID: String? = nil, body: String = "Result") -> MeowNotification {
         MeowNotification(id: id, type: .info, title: "New result", body: body, source: "Codex", priority: "normal",
             pushStatus: "accepted", createdAt: Date(timeIntervalSince1970: 1_790_000_000),
-            context: NotificationOrigin(workspace: "meow", workspaceId: "w", session: session), event: .result)
+            context: NotificationOrigin(workspace: "meow", workspaceId: "w", session: session, sessionId: sessionID), event: .result)
     }
     private func model() -> AppModel {
         AppModel(replies: ReplyQueue(fileURL: folder.appendingPathComponent("replies.json")) { _ in throw URLError(.unsupportedURL) },
@@ -182,6 +182,29 @@ final class InboxGroupingModelTests: XCTestCase {
         XCTAssertTrue(model.inboxPath.isEmpty)
         XCTAssertEqual(model.inboxMode, .sessions)
         XCTAssertTrue(preferences.load(scope: scope).isEmpty)
+    }
+
+    func testMigratedMergeSurvivesDeletionRenameAndRestart() async throws {
+        func oldMember(_ title: String) throws -> InboxGroupMember {
+            let id = "base:" + InboxGrouping.stableID([scope, "sessions", "source", "Codex", "workspace-id", "w", "session-name", title])
+            return try JSONDecoder().decode(InboxGroupMember.self, from: JSONSerialization.data(withJSONObject:
+                ["id": id, "title": title, "subtitle": "meow · Codex"]))
+        }
+        preferences.save([InboxMergeRule(id: "saved-merge", mode: .sessions, members: [try oldMember("Old"), try oldMember("Other")])], scope: scope)
+        try await store.save([item("old", session: "Old", sessionID: "one"),
+                              item("other", session: "Other", sessionID: "two")], scope: scope)
+        let model = model(); await model.refresh(); model.inboxMode = .sessions; await model.waitForInboxGrouping()
+        XCTAssertEqual(model.allInboxGroups.count, 1)
+        XCTAssertEqual(model.allInboxGroups.first?.mergeID, "saved-merge")
+        let migrated = preferences.load(scope: scope)
+        XCTAssertEqual(migrated.first?.members.filter { $0.sessionIdentityVersion == 2 }.count, 2)
+        try await store.save([item("new", session: "Renamed again", sessionID: "one"),
+                              item("other", session: "Other", sessionID: "two")], scope: scope)
+        let restarted = self.model(); await restarted.refresh(); await restarted.waitForInboxGrouping()
+        XCTAssertEqual(restarted.allInboxGroups.count, 1)
+        XCTAssertEqual(restarted.allInboxGroups.first?.mergeID, "saved-merge")
+        XCTAssertEqual(Set(restarted.allInboxGroups.flatMap(\.messages).map(\.id)), ["new", "other"])
+        XCTAssertEqual(preferences.load(scope: scope), migrated)
     }
 
     func testGlobalReadCannotBeSubmittedTwiceOrReportFailureInAnotherServer() async throws {

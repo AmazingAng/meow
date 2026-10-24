@@ -782,11 +782,12 @@ final class AppModel {
         isGroupingInbox = true
         groupingTask = Task {
             let work = Task.detached(priority: .userInitiated) {
-                InboxGrouping.build(items, mode: mode, scope: scope, rules: rules, query: query, unreadOnly: unreadOnly)
+                InboxGrouping.project(items, mode: mode, scope: scope, rules: rules, query: query, unreadOnly: unreadOnly)
             }
-            let groups = await withTaskCancellationHandler(operation: { await work.value }, onCancel: { work.cancel() })
+            let result = await withTaskCancellationHandler(operation: { await work.value }, onCancel: { work.cancel() })
             guard !Task.isCancelled, revision == groupingRevision, scope == inboxScope, !isChangingServer else { return }
-            allInboxGroups = groups
+            if result.rules != rules { groupingStore.save(result.rules, scope: scope) }
+            allInboxGroups = result.groups
             isGroupingInbox = false
         }
     }
