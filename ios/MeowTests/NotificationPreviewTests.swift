@@ -18,7 +18,8 @@ extension GatewayContentTests {
             var n = notification()
             n.body = body
             let content = try XCTUnwrap(NotificationContent.hydrate(n, original: wake(), identity: identity))
-            XCTAssertEqual(content.body, n.title)
+            XCTAssertEqual(content.title, n.title)
+            XCTAssertEqual(content.body, "")
             XCTAssertEqual(n.body, body)
         }
     }
@@ -30,7 +31,7 @@ extension GatewayContentTests {
         n.body = "**Bark Server 不持久保存通知正文和消息历史。** 看 [源码](https://example.com)。"
         let hydrated = try XCTUnwrap(NotificationContent.hydrate(n, original: wake(), identity: identity))
         let displayed = NotificationContent.forDisplay(hydrated, identity: identity)
-        XCTAssertEqual(displayed.body, "Deploy?\nBark Server 不持久保存通知正文和消息历史。 看 源码。")
+        XCTAssertEqual(displayed.body, "Bark Server 不持久保存通知正文和消息历史。 看 源码。")
         XCTAssertTrue(n.body.contains("**"))
     }
 
@@ -57,6 +58,6 @@ extension GatewayContentTests {
         var n = notification()
         n.body = "Use `**literal**` and snake_case"
         let hydrated = try XCTUnwrap(NotificationContent.hydrate(n, original: wake(), identity: identity))
-        XCTAssertEqual(NotificationContent.forDisplay(hydrated, identity: identity).body, "Deploy?\nUse **literal** and snake_case")
+        XCTAssertEqual(NotificationContent.forDisplay(hydrated, identity: identity).body, "Use **literal** and snake_case")
     }
 }

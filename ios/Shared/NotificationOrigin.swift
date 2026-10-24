@@ -28,6 +28,17 @@ struct NotificationOrigin: Codable, Hashable, Sendable {
 }
 
 extension MeowNotification {
+    var compactHeadline: String {
+        if let session = context?.sessionLabel { return session }
+        // Event names are classification, never a fallback session headline.
+        return event == nil ? inboxTitle : String(localized: "Session")
+    }
+
+    var compactMetadata: String {
+        let agent = NotificationOrigin.nonempty(source) ?? "Meow"
+        return [context?.workspaceLabel, agent].compactMap { $0 }.joined(separator: " · ")
+    }
+
     var originSummary: String {
         [source.isEmpty ? "Meow" : source, context?.workspaceLabel].compactMap { $0 }.joined(separator: " · ")
     }

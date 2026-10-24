@@ -51,8 +51,9 @@ final class GatewayContentTests: XCTestCase {
 
     func testHydrateUsesOnlyAuthoritativeContent() throws {
         let result = try XCTUnwrap(NotificationContent.hydrate(notification(), original: wake(), identity: identity))
-        XCTAssertEqual(result.title, "Codex")
-        XCTAssertEqual(result.body, "Deploy?\nProduction")
+        XCTAssertEqual(result.title, "Deploy?")
+        XCTAssertEqual(result.subtitle, "Codex")
+        XCTAssertEqual(result.body, "Production")
         XCTAssertEqual(result.categoryIdentifier, NotificationCategory.approval)
         XCTAssertEqual(result.threadIdentifier, "Codex")
         let m = try XCTUnwrap(result.userInfo["meow"] as? [String: Any])

@@ -26,7 +26,9 @@ func TestNotificationPreviewContract(t *testing.T) {
 				t.Fatal(err)
 			}
 			var p struct {
-				APS  struct{ Alert struct{ Title, Body string } }
+				APS struct {
+					Alert struct{ Title, Subtitle, Body string }
+				}
 				Meow struct {
 					PreviewFormat string `json:"preview_format"`
 				}
@@ -35,11 +37,10 @@ func TestNotificationPreviewContract(t *testing.T) {
 			if p.Meow.PreviewFormat != "plain" {
 				t.Fatal("plain preview must not be parsed twice by iOS")
 			}
-			expected := "Result"
-			if tc.Expected != "" {
-				expected += "\n" + tc.Expected
+			if p.APS.Alert.Title != "Result" || p.APS.Alert.Subtitle != "Codex" {
+				t.Fatalf("business title/agent must be in headings: %+v", p.APS.Alert)
 			}
-			expected = truncate(expected, 180)
+			expected := truncate(tc.Expected, 180)
 			if p.APS.Alert.Body != expected {
 				t.Fatalf("preview=%q want=%q", p.APS.Alert.Body, expected)
 			}
@@ -80,11 +81,7 @@ func TestBuildMessageParsesLongMarkdownBeforeTruncating(t *testing.T) {
 		if err := json.Unmarshal(m.Payload, &payload); err != nil {
 			t.Fatal(err)
 		}
-		prefix := ""
-		if source != "" {
-			prefix = "New result\n"
-		}
-		want := truncate(prefix+strings.Repeat("猫", 200), 180)
+		want := truncate(strings.Repeat("猫", 200), 180)
 		if payload.APS.Alert.Body != want {
 			t.Fatalf("source=%q got=%q want=%q", source, payload.APS.Alert.Body, want)
 		}

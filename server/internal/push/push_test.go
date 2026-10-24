@@ -144,7 +144,7 @@ func TestBuildMessage(t *testing.T) {
 	if err := json.Unmarshal(m.Payload, &p); err != nil {
 		t.Fatal(err)
 	}
-	if p.APS.Alert["title"] != "Claude Code" || p.APS.Alert["body"] != "Deploy to production?" ||
+	if p.APS.Alert["title"] != "Deploy to production?" || p.APS.Alert["subtitle"] != "Claude Code" || p.APS.Alert["body"] != "" ||
 		p.APS.Category != CategoryApproval || p.APS.Level != "time-sensitive" || p.APS.Thread != "Claude Code" ||
 		p.Meow["question_id"] != "qst_1" {
 		t.Fatalf("payload = %s", m.Payload)

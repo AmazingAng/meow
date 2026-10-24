@@ -157,10 +157,9 @@ enum NotificationContent {
         guard let m = original.userInfo["meow"] as? [String: Any], identity.accepts(m),
               m["relay"] as? Bool == true, m["id"] as? String == n.id else { return nil }
         let content = fallback(original, identity: identity)
-        content.title = n.source.isEmpty ? n.title : n.source
-        let summary = preview(n.body)
-        let body = n.source.isEmpty ? summary : [n.title, summary].filter { !$0.isEmpty }.joined(separator: "\n")
-        content.body = truncatePreview(body)
+        content.title = n.compactHeadline
+        content.subtitle = n.compactMetadata
+        content.body = preview(n.body)
         content.threadIdentifier = n.source
         // Use the origin's priority after hydration, rather than inheriting an
         // interruption level or sound from the generic gateway wake.

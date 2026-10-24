@@ -149,7 +149,7 @@ extension GatewayContentTests {
             XCTAssertEqual(fallback.categoryIdentifier, "")
             let recovered = try XCTUnwrap(NotificationContent.hydrate(notification(), original: fallback, identity: identity))
             XCTAssertEqual(recovered.categoryIdentifier, NotificationCategory.approval)
-            XCTAssertEqual(recovered.body, "Deploy?\nProduction")
+            XCTAssertEqual(recovered.body, "Production")
         }
     }
 
@@ -163,7 +163,7 @@ extension GatewayContentTests {
             })
         delivery.start()
         await fulfillment(of: [done], timeout: 3)
-        XCTAssertEqual(capture.values.first?.body, "Deploy?\nProduction")
+        XCTAssertEqual(capture.values.first?.body, "Production")
         XCTAssertEqual(capture.values.first?.categoryIdentifier, NotificationCategory.approval)
     }
 

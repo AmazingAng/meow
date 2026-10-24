@@ -61,16 +61,13 @@ func interruptionLevel(priority string) string {
 
 func truncate(s string, n int) string { return message.Truncate(s, n) }
 
-// BuildMessage renders a notification as an APNs alert. With a source the
-// banner reads "Claude Code / Deploy to production?", matching the design.
+// BuildMessage renders session, project/agent and body in the system's title,
+// subtitle and body fields, matching the iOS relay presentation.
 // The alert text is shortened until the serialized payload fits MaxPayload.
 func BuildMessage(t store.PushTarget) (Message, error) {
 	n := t.Notification
-	title, body := n.Title, notificationPreview(n.Body)
-	if n.Source != "" {
-		title = n.Source
-		body = strings.TrimSpace(n.Title + "\n" + body)
-	}
+	title, subtitle := notificationHeadings(n)
+	body := notificationPreview(n.Body)
 	aps := map[string]any{
 		"category":           Category(n),
 		"mutable-content":    1, // lets the service extension report delivery
@@ -93,24 +90,30 @@ func BuildMessage(t store.PushTarget) (Message, error) {
 		}
 		expiration = q.ExpiresAt
 	}
-	render := func(titleRunes, bodyRunes int) ([]byte, error) {
-		aps["alert"] = map[string]string{"title": truncate(title, titleRunes), "body": truncate(body, bodyRunes)}
+	render := func(titleRunes, subtitleRunes, bodyRunes int) ([]byte, error) {
+		aps["alert"] = map[string]string{"title": truncate(title, titleRunes), "subtitle": truncate(subtitle, subtitleRunes), "body": truncate(body, bodyRunes)}
 		return json.Marshal(map[string]any{"aps": aps, "meow": meow})
 	}
 
 	titleRunes := utf8.RuneCountInString(title)
+	subtitleRunes := utf8.RuneCountInString(subtitle)
 	bodyRunes := min(utf8.RuneCountInString(body), maxAlertBody)
-	payload, err := render(titleRunes, bodyRunes)
+	payload, err := render(titleRunes, subtitleRunes, bodyRunes)
 	if err == nil && len(payload) > MaxPayload {
 		// Binary search the longest body that fits; if even an empty body is
-		// too big (only possible with a very long title), shorten the title too.
-		if p, _ := render(titleRunes, 0); len(p) > MaxPayload {
+		// too big, shorten the subtitle before the session title.
+		if p, _ := render(titleRunes, subtitleRunes, 0); len(p) > MaxPayload {
 			bodyRunes = 0
-			titleRunes = longestFitting(titleRunes, func(n int) bool { p, _ := render(n, 0); return len(p) <= MaxPayload })
+			if p, _ := render(titleRunes, 0, 0); len(p) > MaxPayload {
+				subtitleRunes = 0
+				titleRunes = longestFitting(titleRunes, func(n int) bool { p, _ := render(n, 0, 0); return len(p) <= MaxPayload })
+			} else {
+				subtitleRunes = longestFitting(subtitleRunes, func(n int) bool { p, _ := render(titleRunes, n, 0); return len(p) <= MaxPayload })
+			}
 		} else {
-			bodyRunes = longestFitting(bodyRunes, func(n int) bool { p, _ := render(titleRunes, n); return len(p) <= MaxPayload })
+			bodyRunes = longestFitting(bodyRunes, func(n int) bool { p, _ := render(titleRunes, subtitleRunes, n); return len(p) <= MaxPayload })
 		}
-		payload, err = render(titleRunes, bodyRunes)
+		payload, err = render(titleRunes, subtitleRunes, bodyRunes)
 	}
 	if err == nil && len(payload) > MaxPayload {
 		err = fmt.Errorf("push payload is %d bytes, over the %d byte APNs limit", len(payload), MaxPayload)
@@ -122,6 +125,42 @@ func BuildMessage(t store.PushTarget) (Message, error) {
 		Expiration: expiration,
 		Payload:    payload,
 	}, err
+}
+
+// Keep the fallbacks aligned with NotificationOrigin.compactHeadline/Metadata.
+// A sender without a session keeps its business title; an event with missing
+// context gets a neutral Session label. Never infer event kinds from titles.
+func notificationHeadings(n store.Notification) (title, subtitle string) {
+	agent := strings.TrimSpace(n.Source)
+	if agent == "" {
+		agent = "Meow"
+	}
+	var workspace, session, id string
+	if n.Context != nil {
+		workspace = strings.TrimSpace(n.Context.Workspace)
+		session = strings.TrimSpace(n.Context.Session)
+		id = strings.TrimSpace(n.Context.SessionID)
+	}
+	title = n.Title
+	switch {
+	case session != "":
+		title = session
+	case id != "":
+		runes := []rune(id)
+		if len(runes) > 12 {
+			id = string(runes[:8]) + "…" + string(runes[len(runes)-4:])
+		}
+		title = "Session · " + id
+	case n.Event != "":
+		title = "Session"
+	case workspace != "" && strings.HasSuffix(title, " · "+workspace) && len(title) > len(" · "+workspace):
+		title = strings.TrimSuffix(title, " · "+workspace)
+	}
+	subtitle = agent
+	if workspace != "" {
+		subtitle = workspace + " · " + agent
+	}
+	return title, subtitle
 }
 
 // longestFitting returns the largest n in [0, hi] for which fits(n) holds,

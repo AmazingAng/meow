@@ -77,6 +77,10 @@ The iOS inbox selects event icons only from `event`. Its first line shows the ca
 
 Notification detail uses the same session headline and workspace/agent metadata: category emoji plus bold session name, then workspace and agent, then the timestamp. The full Markdown body follows directly without repeating the hook-generated event title or workspace suffix. Names can wrap at larger text sizes. Original titles remain selectable inside the collapsed Details section; notifications without session metadata retain the inbox's session-ID, neutral Session or business-title fallback as appropriate.
 
+System notifications use the native `title`, `subtitle` and `body` fields: session name, workspace plus agent, and a plain-text body preview. They do not prepend the original event title to the body. Relay hydration uses the shared iOS headline/metadata helpers; direct APNs builds the same fields on the server. Shared layout fixtures cover both implementations, with the iOS Session fallback localized on the device. APNs payload fitting shortens the body first, then the project/agent subtitle, then the session title if needed; identity/expiry fields are retained. Failed relay fetches and stale registrations still clear the subtitle and use the existing generic fallback.
+
+Deploying this presentation requires a new iOS build for relay notifications and a new server for direct APNs. The CLI protocol and gateway wake format are unchanged. `go test ./...` and the iOS `SystemNotificationLayoutTests.swift` fixtures check formatting; `python3 -B ios/scripts/verify_system_notification_banner.py --output dist/system-banner-check` exercises an actual SpringBoard banner on a disposable simulator, without an APNs key or production API. iOS controls truncation, wrapping, notification previews and grouping, so these three semantic fields do not guarantee exactly three physical text lines.
+
 ## Service integration
 
 A service that can send standard JSON needs no custom adapter.

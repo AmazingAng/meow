@@ -33,15 +33,4 @@ extension NotificationEvent {
 
 extension MeowNotification {
     var inboxCategory: InboxCategory? { event }
-
-    var compactHeadline: String {
-        if let session = context?.sessionLabel { return session }
-        // Event names belong to the icon; never use them as a fallback headline.
-        return event == nil ? inboxTitle : String(localized: "Session")
-    }
-
-    var compactMetadata: String {
-        let agent = NotificationOrigin.nonempty(source) ?? "Meow"
-        return [context?.workspaceLabel, agent].compactMap { $0 }.joined(separator: " · ")
-    }
 }

@@ -1,0 +1,132 @@
+[
+  {
+    "name": "named-result",
+    "title": "New result · meow",
+    "source": "Codex",
+    "event": "result",
+    "context": {
+      "workspace": "meow",
+      "session": "修复通知布局",
+      "session_id": "session-1"
+    },
+    "body": "**修改完成**，使用 `meow doctor`。",
+    "expectedTitle": "修复通知布局",
+    "expectedSubtitle": "meow · Codex",
+    "expectedBody": "修改完成，使用 meow doctor。"
+  },
+  {
+    "name": "named-attention",
+    "title": "Needs your attention · api",
+    "source": "Claude Code",
+    "event": "attention",
+    "context": {
+      "workspace": "api",
+      "session": "发布审查"
+    },
+    "body": "请在电脑上继续。",
+    "expectedTitle": "发布审查",
+    "expectedSubtitle": "api · Claude Code",
+    "expectedBody": "请在电脑上继续。"
+  },
+  {
+    "name": "id-only",
+    "title": "New result · meow",
+    "source": "Codex",
+    "event": "result",
+    "context": {
+      "workspace": "meow",
+      "session_id": "12345678-1234-1234-1234-123456789abc"
+    },
+    "body": "Ready",
+    "expectedTitle": "Session · 12345678…9abc",
+    "expectedSubtitle": "meow · Codex",
+    "expectedBody": "Ready",
+    "localizedSessionFallback": true
+  },
+  {
+    "name": "missing-session",
+    "title": "New result · meow",
+    "source": "Codex",
+    "event": "result",
+    "context": {
+      "workspace": "meow"
+    },
+    "body": "Result",
+    "expectedTitle": "Session",
+    "expectedSubtitle": "meow · Codex",
+    "expectedBody": "Result",
+    "localizedSessionFallback": true
+  },
+  {
+    "name": "service",
+    "title": "Backup completed",
+    "source": "Backup service",
+    "context": {
+      "workspace": "ops"
+    },
+    "body": "All files saved.",
+    "expectedTitle": "Backup completed",
+    "expectedSubtitle": "ops · Backup service",
+    "expectedBody": "All files saved."
+  },
+  {
+    "name": "no-context",
+    "title": "Build completed",
+    "source": "CI",
+    "body": "Success",
+    "expectedTitle": "Build completed",
+    "expectedSubtitle": "CI",
+    "expectedBody": "Success"
+  },
+  {
+    "name": "blank-metadata",
+    "title": "Notice",
+    "source": " ",
+    "context": {
+      "workspace": " ",
+      "session": " "
+    },
+    "body": "Message",
+    "expectedTitle": "Notice",
+    "expectedSubtitle": "Meow",
+    "expectedBody": "Message"
+  },
+  {
+    "name": "legacy-project-suffix",
+    "title": "Build completed · ops",
+    "source": "CI",
+    "context": {
+      "workspace": "ops"
+    },
+    "body": "Saved",
+    "expectedTitle": "Build completed",
+    "expectedSubtitle": "ops · CI",
+    "expectedBody": "Saved"
+  },
+  {
+    "name": "empty-body",
+    "title": "New result · meow",
+    "source": "Codex",
+    "event": "result",
+    "context": {
+      "workspace": "meow",
+      "session": "完成收尾"
+    },
+    "body": "",
+    "expectedTitle": "完成收尾",
+    "expectedSubtitle": "meow · Codex",
+    "expectedBody": ""
+  },
+  {
+    "name": "literal-markdown",
+    "title": "Custom title",
+    "source": "Codex",
+    "context": {
+      "session": "Review **literal** names"
+    },
+    "body": "Use `**literal**` and snake_case.",
+    "expectedTitle": "Review **literal** names",
+    "expectedSubtitle": "Codex",
+    "expectedBody": "Use **literal** and snake_case."
+  }
+]
