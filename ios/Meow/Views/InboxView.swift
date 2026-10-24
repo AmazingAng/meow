@@ -41,6 +41,7 @@ struct InboxView: View {
                     InboxMenu(selectingGroups: $selectingGroups)
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    InboxBrowseMenu()
                     if !selectingGroups { deletionMenu }
                     if isSearching || !model.search.isEmpty {
                         Button("Cancel") {
@@ -280,6 +281,26 @@ private struct MascotEmptyState: View {
     }
 }
 
+private struct InboxBrowseMenu: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Menu {
+            ForEach(InboxGroupingMode.allCases) { mode in
+                Button { model.inboxMode = mode } label: {
+                    if model.inboxMode == mode { Label(mode.title, systemImage: "checkmark") }
+                    else { Label(mode.title, systemImage: mode.symbol) }
+                }
+                .accessibilityIdentifier("browse.\(mode.rawValue)")
+            }
+        } label: {
+            Label("Browse inbox", systemImage: "square.grid.2x2")
+        }
+        .accessibilityIdentifier("inbox.browseMenu")
+        .accessibilityValue(Text(model.inboxMode.title))
+    }
+}
+
 private struct InboxMenu: View {
     @Environment(AppModel.self) private var model
     @Binding var selectingGroups: Bool
@@ -298,16 +319,6 @@ private struct InboxMenu: View {
                     .accessibilityIdentifier("filter.\(filter.rawValue)")
                 }
             }
-            Menu {
-                ForEach(InboxGroupingMode.allCases) { mode in
-                    Button { model.inboxMode = mode } label: {
-                        if model.inboxMode == mode { Label(mode.title, systemImage: "checkmark") }
-                        else { Label(mode.title, systemImage: mode.symbol) }
-                    }
-                    .accessibilityIdentifier("browse.\(mode.rawValue)")
-                }
-            } label: { Label("Browse inbox", systemImage: "square.grid.2x2") }
-            .accessibilityIdentifier("inbox.browseMenu")
             Section {
                 if model.inboxMode != .messages {
                     Button("Select groups") { selectingGroups.toggle() }

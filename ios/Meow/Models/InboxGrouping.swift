@@ -9,7 +9,7 @@ enum InboxGroupingMode: String, Codable, CaseIterable, Identifiable, Sendable {
         case .messages: String(localized: "Messages")
         case .sessions: String(localized: "Sessions")
         case .workspaces: String(localized: "Projects")
-        case .sources: String(localized: "Sources")
+        case .sources: String(localized: "Agent")
         }
     }
     var symbol: String {
@@ -191,7 +191,7 @@ enum InboxGrouping {
                     NotificationOrigin.nonempty($0.source) ?? "Meow"
                 })).sorted()
                 let first = ListFormatter.localizedString(byJoining: Array(sources.prefix(2)))
-                subtitle = sources.count > 2 ? String(localized: "\(first) · \(sources.count) sources") : first
+                subtitle = sources.count > 2 ? String(localized: "\(first) · \(sources.count) agents") : first
             } else if mode == .sources {
                 subtitle = all.lazy.compactMap { $0.context?.workspaceLabel }.first ?? ""
             }

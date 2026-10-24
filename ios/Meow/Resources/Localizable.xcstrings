@@ -11,22 +11,22 @@
         }
       }
     },
+    "%@ · %lld agents": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 等 %lld 个 Agent"
+          }
+        }
+      }
+    },
     "%@ · %lld groups": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ 等 %lld 组"
-          }
-        }
-      }
-    },
-    "%@ · %lld sources": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 等 %lld 个来源"
           }
         }
       }
@@ -137,6 +137,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Homebrew 安装后，或已安装 CLI"
+          }
+        }
+      }
+    },
+    "Agent": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
           }
         }
       }
@@ -2495,16 +2505,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "即将到期的优先"
-          }
-        }
-      }
-    },
-    "Sources": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "来源"
           }
         }
       }

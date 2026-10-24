@@ -383,9 +383,8 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
     }
     private func browse(_ mode: String, in app: XCUIApplication) {
-        let menu = app.buttons["inbox.filterMenu"]
+        let menu = app.buttons["inbox.browseMenu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
-        app.buttons["inbox.browseMenu"].tap()
         let option = app.buttons["browse." + mode]
         XCTAssertTrue(option.waitForExistence(timeout: 5)); option.tap()
     }
@@ -437,6 +436,42 @@ final class UIOptimizationTests: XCTestCase {
             XCTAssertTrue(app.staticTexts["notification.date"].exists)
             XCTAssertTrue(app.staticTexts["PR #5 方向是对的，大部分改动可以合并。"].exists)
             capture("detail-header-" + id, app)
+            app.terminate()
+        }
+    }
+
+    func test13HeaderOrderIsViewsDeleteSearch() {
+        scenario("grouping")
+        for chinese in [false, true] {
+            let app = open(large: chinese, chinese: chinese)
+            browse("messages", in: app)
+            let views = app.buttons["inbox.browseMenu"]
+            let search = app.buttons["inbox.search"]
+            let trash = app.buttons["inbox.delete"]
+            XCTAssertTrue(views.isHittable)
+            XCTAssertTrue(search.isHittable)
+            XCTAssertLessThan(views.frame.midX, trash.frame.midX)
+            XCTAssertLessThan(trash.frame.midX, search.frame.midX)
+            views.tap()
+            for mode in ["messages", "sessions", "workspaces", "sources"] {
+                XCTAssertTrue(app.buttons["browse." + mode].exists, "every view is available directly from the header")
+            }
+            XCTAssertTrue(app.buttons["browse.sources"].label.contains("Agent"))
+            XCTAssertFalse(app.buttons["Sources"].exists)
+            XCTAssertFalse(app.buttons["来源"].exists)
+            capture(chinese ? "header-views-menu-large-zh" : "header-views-menu", app)
+            app.buttons["browse.sources"].tap()
+            XCTAssertEqual(views.value as? String, "Agent")
+            capture(chinese ? "header-agent-large-zh" : "header-agent", app)
+            search.tap()
+            let field = app.textFields["inbox.searchField"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText("result")
+            browse("sessions", in: app)
+            XCTAssertEqual(views.value as? String, chinese ? "会话" : "Sessions")
+            XCTAssertEqual(field.value as? String, "result", "switching views preserves the active search")
+            capture(chinese ? "header-views-search-large-zh" : "header-views-search", app)
+            app.buttons["inbox.cancelSearch"].tap()
+            browse("messages", in: app)
             app.terminate()
         }
     }
