@@ -239,7 +239,19 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Build 19 is ready"].exists)
         capture("compact-categories", app)
         row.tap()
-        XCTAssertTrue(app.staticTexts["New result · meow"].waitForExistence(timeout: 5), "detail preserves the original title")
+        let heading = app.staticTexts["notification.heading"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 5))
+        XCTAssertEqual(heading.label, "💬 Refine notification layout")
+        XCTAssertFalse(app.staticTexts["New result · meow"].exists, "the event title must not be repeated above the body")
+        app.buttons["Details"].tap()
+        let originalTitle = app.descendants(matching: .any).matching(identifier: "notification.originalTitle").firstMatch
+        XCTAssertTrue(originalTitle.waitForExistence(timeout: 5))
+        // LabeledContent exposes one accessibility row, rather than a separate
+        // StaticText for its value. Verify the original title on that row.
+        XCTAssertTrue(originalTitle.label.contains("New result · meow") ||
+                      (originalTitle.value as? String)?.contains("New result · meow") == true,
+                      "the original title remains available in expanded details: \(originalTitle.debugDescription)")
+        capture("detail-original-title", app)
         app.terminate()
         app = open(large: true, chinese: true)
         let largeRow = app.descendants(matching: .any).matching(identifier: "notification.ntf_result").firstMatch
@@ -376,6 +388,57 @@ final class UIOptimizationTests: XCTestCase {
         app.buttons["inbox.browseMenu"].tap()
         let option = app.buttons["browse." + mode]
         XCTAssertTrue(option.waitForExistence(timeout: 5)); option.tap()
+    }
+
+    func test11NotificationDetailHeaderAndAccessibleChineseLayout() {
+        scenario("detail-header")
+        var app = open(id: "ntf_detail_result", chinese: true)
+        for large in [false, true] {
+            if large {
+                app.terminate()
+                app = open(id: "ntf_detail_result", large: true, chinese: true)
+            }
+            let heading = app.staticTexts["notification.heading"]
+            XCTAssertTrue(heading.waitForExistence(timeout: 10))
+            XCTAssertEqual(heading.label, "💬 meow 用户 onboarding 流程")
+            let metadata = app.staticTexts["notification.metadata"]
+            let date = app.staticTexts["notification.date"]
+            let body = app.staticTexts["PR #5 方向是对的，大部分改动可以合并。"]
+            XCTAssertEqual(metadata.label, "meow-repo · Claude Code")
+            XCTAssertTrue(date.exists)
+            XCTAssertFalse(date.label.isEmpty)
+            XCTAssertGreaterThanOrEqual(metadata.frame.minY, heading.frame.maxY)
+            XCTAssertGreaterThanOrEqual(date.frame.minY, metadata.frame.maxY)
+            XCTAssertGreaterThanOrEqual(body.frame.minY, date.frame.maxY)
+            XCTAssertEqual(heading.frame.minX, metadata.frame.minX)
+            XCTAssertEqual(metadata.frame.minX, body.frame.minX)
+            XCTAssertFalse(app.staticTexts["New result · meow-repo"].exists)
+            XCTAssertFalse(app.staticTexts["Claude Code · meow-repo"].exists)
+            capture(large ? "detail-session-header-large-zh" : "detail-session-header-zh", app)
+            reveal(app.staticTexts["合并前建议修"], in: app)
+            XCTAssertTrue(app.staticTexts["合并前建议修"].exists, "the Markdown body remains readable")
+        }
+    }
+
+    func test12NotificationDetailCategoriesAndMissingSessionFallbacks() {
+        scenario("detail-header")
+        for (id, title, metadata) in [
+            ("attention", "🔔 发布前检查", "meow-repo · Codex"),
+            ("failure", "⚠️ 检查服务连接", "meow-repo · Codex"),
+            ("id_only", "💬 Session · thread-d…l-42", "meow-repo · Codex"),
+            ("service", "💬 Backup completed", "ops · Backup service"),
+            ("legacy", "💬 Service is healthy", "Monitor"),
+        ] {
+            let app = open(id: "ntf_detail_" + id)
+            let heading = app.staticTexts["notification.heading"]
+            XCTAssertTrue(heading.waitForExistence(timeout: 10))
+            XCTAssertEqual(heading.label, title)
+            XCTAssertEqual(app.staticTexts["notification.metadata"].label, metadata)
+            XCTAssertTrue(app.staticTexts["notification.date"].exists)
+            XCTAssertTrue(app.staticTexts["PR #5 方向是对的，大部分改动可以合并。"].exists)
+            capture("detail-header-" + id, app)
+            app.terminate()
+        }
     }
 
     func test20LocalGroupingMergeAndUnmerge() {

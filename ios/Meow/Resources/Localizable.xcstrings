@@ -1487,6 +1487,16 @@
         }
       }
     },
+    "New result": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新结果"
+          }
+        }
+      }
+    },
     "Next": {
       "localizations": {
         "zh-Hans": {
@@ -2107,6 +2117,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "重试推送注册"
+          }
+        }
+      }
+    },
+    "Run failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行出错"
           }
         }
       }
@@ -2811,6 +2831,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "时效性通知"
+          }
+        }
+      }
+    },
+    "Title": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标题"
           }
         }
       }

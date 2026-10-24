@@ -10,21 +10,8 @@ struct DetailView: View {
             if let n = model.notification(id: id) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        HStack(spacing: 12) {
-                            SourceAvatar(source: n.source, size: 44, context: n.context)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(verbatim: n.originSummary).font(.headline)
-                                if let session = n.context?.sessionLabel {
-                                    Text(verbatim: session).font(.subheadline).textSelection(.enabled)
-                                }
-                                Text(n.createdAt.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.subheadline).foregroundStyle(.secondary)
-                            }
-                        }
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(n.title).font(.title2.bold()).textSelection(.enabled)
-                            if !n.body.isEmpty { NotificationBodyView(n.body) }
-                        }
+                        NotificationDetailHeader(notification: n)
+                        if !n.body.isEmpty { NotificationBodyView(n.body) }
                         if let question = n.question {
                             QuestionContext(question: question)
                         } else if n.type == .alert {
@@ -52,6 +39,49 @@ struct DetailView: View {
         .task(id: id) {
             loadFailed = !(await model.loadDetail(id))
             await model.markRead(id)
+        }
+    }
+}
+
+private struct NotificationDetailHeader: View {
+    let notification: MeowNotification
+
+    var body: some View {
+        let n = notification
+        VStack(alignment: .leading, spacing: 6) {
+            Text(verbatim: "\(emoji) \(n.compactHeadline)")
+                .font(.title2.bold())
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityValue(categoryDescription)
+                .accessibilityIdentifier("notification.heading")
+            Text(verbatim: n.compactMetadata)
+                .font(.subheadline).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+                .accessibilityIdentifier("notification.metadata")
+            Text(n.createdAt.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption).foregroundStyle(.secondary)
+                .accessibilityIdentifier("notification.date")
+        }
+    }
+
+    private var emoji: String {
+        switch notification.inboxCategory {
+        case .result: "💬"
+        case .attention: "🔔"
+        case .failure: "⚠️"
+        case nil: notification.type == .alert ? "🔔" : "💬"
+        }
+    }
+
+    private var categoryDescription: Text {
+        switch notification.inboxCategory {
+        case .result: Text("New result")
+        case .attention: Text("Needs attention")
+        case .failure: Text("Run failed")
+        case nil: Text("Notification")
         }
     }
 }
@@ -94,6 +124,10 @@ private struct DetailsSection: View {
         let n = notification
         DisclosureGroup("Details") {
             VStack(spacing: 10) {
+                LabeledContent("Title") {
+                    Text(verbatim: n.title).textSelection(.enabled)
+                }
+                .accessibilityIdentifier("notification.originalTitle")
                 LabeledContent("Priority") { Text(priority) }
                 LabeledContent("Push") { Text(pushStatus) }
                 if !(n.pushError ?? "").isEmpty {

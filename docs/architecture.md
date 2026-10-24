@@ -75,6 +75,8 @@ The original body is preserved by the server. `message.Preview` parses Markdown 
 
 The iOS inbox selects event icons only from `event`. Its first line shows the category icon and session name (or session ID), its second line shows workspace then agent, and its third line shows a body preview. Event notifications without session metadata use a neutral Session label; ordinary service notifications without a session keep their business title. Category meaning remains available to VoiceOver. Original titles remain in details. Persisted history keeps the field in local JSON blobs, independently of server cache expiry. `event` does not change sound, priority, permissions or notification actions.
 
+Notification detail uses the same session headline and workspace/agent metadata: category emoji plus bold session name, then workspace and agent, then the timestamp. The full Markdown body follows directly without repeating the hook-generated event title or workspace suffix. Names can wrap at larger text sizes. Original titles remain selectable inside the collapsed Details section; notifications without session metadata retain the inbox's session-ID, neutral Session or business-title fallback as appropriate.
+
 ## Service integration
 
 A service that can send standard JSON needs no custom adapter.

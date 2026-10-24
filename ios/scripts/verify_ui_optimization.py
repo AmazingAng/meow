@@ -97,6 +97,21 @@ class Fixture(BaseHTTPRequestHandler):
                                      type='alert' if key in ('attention', 'failure') else 'info',
                                      context=dict(workspace='meow', session=session, session_id=key) if session else None)
                                  for key, title, source, session, body in records]
+            elif scenario == 'detail-header':
+                records = [
+                    ('result', 'New result · meow-repo', 'Claude Code', 'meow-repo', 'meow 用户 onboarding 流程', 'result'),
+                    ('attention', 'Needs your attention · meow-repo', 'Codex', 'meow-repo', '发布前检查', 'attention'),
+                    ('failure', 'Run failed · meow-repo', 'Codex', 'meow-repo', '检查服务连接', 'failure'),
+                    ('id_only', 'New result · meow-repo', 'Codex', 'meow-repo', None, 'result'),
+                    ('service', 'Backup completed', 'Backup service', 'ops', None, None),
+                    ('legacy', 'Service is healthy', 'Monitor', None, None, None),
+                ]
+                self.items[:] = [dict(info, id='ntf_detail_' + key, title=title, source=source,
+                                     body='PR #5 方向是对的，大部分改动可以合并。\n\n## 合并前建议修\n\n请检查 **安装命令** 和 `meow login`，保留脚本接入说明。',
+                                     context=dict(workspace=workspace, session=session,
+                                                  session_id='thread-detail-42' if key == 'id_only' else (key if session else None)) if workspace else None,
+                                     **({'event': event} if event else {}))
+                                 for key, title, source, workspace, session, event in records]
             elif scenario == 'grouping':
                 rows = [
                     ('group_a1', 'Codex', 'meow', 'wa', 'Deploy', 'needle first result'),
