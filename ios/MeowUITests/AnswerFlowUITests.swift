@@ -198,7 +198,6 @@ final class ScreenFlowUITests: XCTestCase {
         capture("inbox", app: app)
         app.tabBars.buttons["Settings"].tap()
         capture("settings", app: app)
-        app.buttons["settings.computer"].tap()
         let copyKey = app.buttons["Copy Device Key"]
         for _ in 0..<8 {
             if copyKey.isHittable { break }
@@ -256,8 +255,7 @@ final class OfflineReplyUITests: XCTestCase {
         add(pending)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.tabBars.buttons["Settings"].tap()
-        app.buttons["settings.advanced"].tap()
-        let changeServer = app.buttons["Change server…"]
+        let changeServer = app.buttons["settings.server"]
         for _ in 0..<4 {
             if changeServer.exists { break }
             app.swipeUp()
@@ -311,8 +309,7 @@ final class DiscardReplyUITests: XCTestCase {
         add(pending)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.tabBars.buttons["Settings"].tap()
-        app.buttons["settings.advanced"].tap()
-        let changeServer = app.buttons["Change server…"]
+        let changeServer = app.buttons["settings.server"]
         for _ in 0..<4 {
             if changeServer.exists { break }
             app.swipeUp()
@@ -391,7 +388,6 @@ final class DesignRegressionUITests: XCTestCase {
 
     func testKeyRotationUsesCenteredCancellableAlert() throws {
         let app = try openSettings()
-        app.buttons["settings.advanced"].tap()
         let rotate = app.buttons["Create new Device Key…"]
         reveal(rotate, in: app)
         rotate.tap()
@@ -407,8 +403,7 @@ final class DesignRegressionUITests: XCTestCase {
 
     func testServerEditorUsesCenteredCancellableAlert() throws {
         let app = try openSettings()
-        app.buttons["settings.advanced"].tap()
-        let change = app.buttons["Change server…"]
+        let change = app.buttons["settings.server"]
         reveal(change, in: app)
         change.tap()
         let address = app.textFields.firstMatch
@@ -491,8 +486,7 @@ extension DesignRegressionUITests {
         app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
         app.launch()
         app.tabBars.buttons["设置"].tap()
-        app.buttons["settings.advanced"].tap()
-        let change = app.buttons["更换服务器…"]
+        let change = app.buttons["settings.server"]
         reveal(change, in: app)
         change.tap()
         let address = app.textFields.firstMatch
@@ -512,8 +506,7 @@ extension DesignRegressionUITests {
 
     func testInvalidAddressShowsInlineValidation() throws {
         let app = try openSettings()
-        app.buttons["settings.advanced"].tap()
-        let change = app.buttons["Change server…"]
+        let change = app.buttons["settings.server"]
         reveal(change, in: app)
         change.tap()
         let address = app.textFields.firstMatch

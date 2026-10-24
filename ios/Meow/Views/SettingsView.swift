@@ -2,36 +2,72 @@ import SwiftUI
 import UIKit
 import AVFAudio
 
-/// Everyday actions stay here; setup and diagnostics have their own pages.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var isSendingTest = false
+    @State private var isRetrying = false
+    @State private var isCreatingKey = false
+    @State private var confirmRotate = false
+    @State private var showServer = false
+    @State private var showReregister = false
+    @State private var showSavedReplies = false
+    @State private var soundPlayer: AVAudioPlayer?
+    @AppStorage(MeowShared.notificationSoundKey, store: MeowShared.defaults)
+    private var notificationSound = NotificationSoundChoice.meow
 
     var body: some View {
         NavigationStack {
             Form {
                 if model.loadError != nil || model.pushRegistrationError != nil {
                     Section {
-                        NavigationLink {
-                            AdvancedSettingsView()
-                        } label: {
-                            Label("Connection needs attention", systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(.orange)
+                        Label("Connection needs attention", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                            .accessibilityIdentifier("settings.connectionWarning")
+                        Text(model.loadError ?? model.pushRegistrationError ?? "")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Button("Retry") {
+                            isRetrying = true
+                            Task {
+                                await model.refresh()
+                                await model.refreshPermission()
+                                if model.isNotificationPermissionGranted { await model.configurePush() }
+                                isRetrying = false
+                            }
                         }
-                        .accessibilityIdentifier("settings.connectionWarning")
+                        .disabled(isRetrying)
+                        .accessibilityIdentifier("connection.check")
+                        if model.loadError != nil {
+                            Button("Re-register this server…") { showReregister = true }
+                                .accessibilityIdentifier("server.reregister")
+                        }
                     }
                 }
-                Section {
-                    NavigationLink {
-                        NotificationSettingsView()
-                    } label: {
+                Section("Notifications") {
+                    Button(action: openNotificationSettings) {
                         LabeledContent {
                             Text(permission).foregroundStyle(.secondary)
                         } label: {
                             Label("Notifications", systemImage: "bell")
+                                .foregroundStyle(.primary)
                         }
                     }
+                    .accessibilityLabel(model.permission == .notDetermined
+                                        ? Text("Allow notifications") : Text("Open notification settings"))
                     .accessibilityIdentifier("settings.notifications")
+                    .accessibilityValue(Text(permission))
+                    Picker(selection: $notificationSound) {
+                        ForEach(NotificationSoundChoice.allCases) { choice in
+                            Text(choice.title).tag(choice)
+                        }
+                    } label: {
+                        Label("Notification sound", systemImage: "speaker.wave.2")
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("notifications.sound")
+                    .onChange(of: notificationSound) {
+                        soundPlayer?.stop()
+                        if notificationSound == .meow { previewSound() }
+                    }
                     Button {
                         isSendingTest = true
                         Task {
@@ -47,29 +83,84 @@ struct SettingsView: View {
                     .disabled(isSendingTest || model.deviceKey == nil)
                 }
                 Section {
-                    NavigationLink {
-                        ComputerSetupView()
-                    } label: {
-                        Label("Connect a computer", systemImage: "laptopcomputer")
+                    Button { showServer = true } label: {
+                        LabeledContent {
+                            Text(verbatim: model.serverDisplay).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } label: {
+                            Label("Server", systemImage: "network").foregroundStyle(.primary)
+                        }
                     }
-                    .accessibilityIdentifier("settings.computer")
-                    NavigationLink {
-                        AdvancedSettingsView()
-                    } label: {
-                        Label("Advanced settings", systemImage: "slider.horizontal.3")
+                    .accessibilityIdentifier("settings.server")
+                    if let key = model.deviceKey {
+                        HStack {
+                            CopyButton(title: "Copy Device Key", text: key)
+                            Spacer()
+                            Button(role: .destructive) { confirmRotate = true } label: {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .frame(minWidth: 44, minHeight: 44)
+                            }
+                            .accessibilityLabel("Create new Device Key…")
+                            .accessibilityIdentifier("settings.rotateKey")
+                            .disabled(isCreatingKey)
+                        }
+                        .buttonStyle(.borderless)
+                    } else {
+                        Button("Create new Device Key…") { confirmRotate = true }
+                            .disabled(isCreatingKey)
                     }
-                    .accessibilityIdentifier("settings.advanced")
+                    ShareLink(item: model.installAndSetupCommand) {
+                        Label("Share setup command", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityIdentifier("settings.shareSetup")
+                } header: {
+                    Text("Connection")
+                } footer: {
+                    Text("Run the shared command on your computer, then paste your Device Key when asked.")
+                }
+                if !model.failedReplies.isEmpty || !model.queuedReplies.isEmpty {
+                    Section {
+                        Button { showSavedReplies = true } label: {
+                            Label("Saved reply records", systemImage: "archivebox")
+                        }
+                    }
                 }
                 Section {
-                    NavigationLink {
-                        AboutMeowView()
-                    } label: {
-                        Label("About", systemImage: "info.circle")
+                } footer: {
+                    HStack {
+                        Link("Help", destination: URL(string: "https://github.com/AmazingAng/meow#readme")!)
+                        Spacer()
+                        Text(verbatim: "Meow " + version)
                     }
-                    .accessibilityIdentifier("settings.about")
+                    .font(.footnote)
                 }
             }
             .navigationTitle("Settings")
+            .onDisappear { soundPlayer?.stop() }
+            .alert("Create a new Device Key?", isPresented: $confirmRotate) {
+                Button("Cancel", role: .cancel) {}
+                Button("Create new key", role: .destructive) {
+                    isCreatingKey = true
+                    Task {
+                        await model.rotateKey()
+                        isCreatingKey = false
+                    }
+                }
+            } message: {
+                Text("The current key will stop working. Update your agents with the new key.")
+            }
+            .sheet(isPresented: $showServer) { ServerSheet() }
+            .sheet(isPresented: $showReregister) { ServerSheet(reregister: true) }
+            .sheet(isPresented: $showSavedReplies) {
+                NavigationStack {
+                    FailedRepliesView()
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { showSavedReplies = false }
+                            }
+                        }
+                }
+            }
         }
     }
 
@@ -81,307 +172,22 @@ struct SettingsView: View {
         }
     }
 
-}
-
-private struct NotificationSettingsView: View {
-    @Environment(AppModel.self) private var model
-    @State private var isSendingTimeSensitiveTest = false
-    @State private var soundPlayer: AVAudioPlayer?
-    @AppStorage(MeowShared.notificationSoundKey, store: MeowShared.defaults)
-    private var notificationSound = NotificationSoundChoice.meow
-
-    var body: some View {
-        Form {
-            notificationSection
-            focusSection
-        }
-        .navigationTitle("Notifications")
-        .navigationBarTitleDisplayMode(.inline)
-        .onDisappear { soundPlayer?.stop() }
-    }
-
-    private var notificationSection: some View {
-        Section("Notifications") {
-            if model.permission == .notDetermined {
-                Button { Task { await model.requestNotificationPermission() } } label: {
-                    Label("Allow notifications", systemImage: "bell.badge")
-                }
-            } else {
-                Button {
-                    if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                } label: {
-                    Label("Open notification settings", systemImage: "arrow.up.forward.app")
-                }
-            }
-            Picker(selection: $notificationSound) {
-                ForEach(NotificationSoundChoice.allCases) { choice in
-                    Text(choice.title).tag(choice)
-                }
-            } label: {
-                Label("Notification sound", systemImage: "speaker.wave.2")
-            }
-            .pickerStyle(.menu)
-            .accessibilityIdentifier("notifications.sound")
-            .onChange(of: notificationSound) { soundPlayer?.stop() }
-            if notificationSound == .meow {
-                Button { previewSound() } label: {
-                    Label("Preview sound", systemImage: "play.circle")
-                }
-                .accessibilityIdentifier("notifications.previewSound")
-            } else {
-                Text("Uses your iPhone's default notification sound. Send a test notification to hear it.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+    private func openNotificationSettings() {
+        if model.permission == .notDetermined {
+            Task { await model.requestNotificationPermission() }
+        } else if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+            UIApplication.shared.open(url)
         }
     }
 
     private func previewSound() {
-        guard let url = Bundle.main.url(forResource: NotificationSound.filename, withExtension: nil) else {
-            model.alert = String(localized: "The notification sound is unavailable.")
-            return
-        }
+        guard let url = Bundle.main.url(forResource: NotificationSound.filename, withExtension: nil) else { return }
         do {
             soundPlayer = try AVAudioPlayer(contentsOf: url)
             soundPlayer?.play()
         } catch {
             model.alert = AppModel.describe(error)
         }
-    }
-
-    private var focusSection: some View {
-        Section {
-            LabeledContent("Time Sensitive Notifications") {
-                switch model.timeSensitiveSetting {
-                case .enabled: Text("On")
-                case .disabled: Text("Off")
-                default: Text("Unavailable")
-                }
-            }
-            Button {
-                Task {
-                    isSendingTimeSensitiveTest = true
-                    await model.sendTestNotification(priority: "high")
-                    isSendingTimeSensitiveTest = false
-                }
-            } label: {
-                HStack {
-                    Label("Send a time-sensitive test", systemImage: "bell.badge")
-                    if isSendingTimeSensitiveTest { Spacer(); ProgressView() }
-                }
-            }
-            .disabled(isSendingTimeSensitiveTest || !model.isNotificationPermissionGranted || model.deviceKey == nil)
-        } header: {
-            Text("During Focus")
-        } footer: {
-            Text("High-priority notifications use Time Sensitive Notifications. Enable them in Meow's notification settings and in Settings → Focus → your Focus → Apps. Silent mode still silences their sound.")
-        }
-    }
-
-}
-
-private struct ComputerSetupView: View {
-    @Environment(AppModel.self) private var model
-    @State private var help: SetupHelpTopic?
-
-    var body: some View {
-        Form {
-            Section {
-                if let key = model.deviceKey {
-                    LabeledContent("Device Key") {
-                        Text(verbatim: AppModel.maskedDeviceKey(key))
-                            .font(.body.monospaced())
-                            .lineLimit(1)
-                            .textSelection(.disabled)
-                    }
-                    .privacySensitive()
-                    CopyButton(title: "Copy Device Key", text: key)
-                } else {
-                    Text("No Device Key available. Create one in Advanced settings to connect your computer.")
-                        .foregroundStyle(.secondary)
-                    NavigationLink("Advanced settings") { AdvancedSettingsView() }
-                }
-            } header: {
-                Text("Device Key")
-            } footer: {
-                Text("Agents use the Device Key to send to this iPhone. It can only send, never read or answer.")
-            }
-            Section {
-                CommandBlock(title: "Install and connect", command: model.installAndSetupCommand,
-                             copyTitle: "Copy install and setup command", shareTitle: "Share setup command")
-                    .buttonStyle(.borderless)
-                DisclosureGroup("CLI already installed") {
-                    CommandBlock(title: "Run on your computer", command: model.setupCommand,
-                                 copyTitle: "Copy setup command")
-                        .buttonStyle(.borderless)
-                }
-            } footer: {
-                Text("Run the command on your computer, then paste your Device Key when asked.")
-            }
-            Section {
-                Button("CLI installation help") { help = .cli }
-                Button("Script integration") { help = .scripts }
-                    .accessibilityIdentifier("settings.scriptHelp")
-            }
-        }
-        .navigationTitle("Connect a computer")
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $help) { SetupHelpView(topic: $0) }
-    }
-}
-
-private struct AdvancedSettingsView: View {
-    @Environment(AppModel.self) private var model
-    @State private var confirmRotate = false
-    @State private var showServer = false
-    @State private var showReregister = false
-
-    var body: some View {
-        Form {
-            connectionStatus
-            Section("Server") {
-                Button { showServer = true } label: {
-                    Label("Change server…", systemImage: "network")
-                }
-                Button { showReregister = true } label: {
-                    Label("Re-register this server…", systemImage: "arrow.clockwise")
-                }
-                .accessibilityIdentifier("server.reregister")
-                if let gateway = model.gatewayURL {
-                    DisclosureGroup("Gateway") {
-                        Text(verbatim: gateway.absoluteString).textSelection(.enabled)
-                    }
-                }
-            }
-            Section {
-                Button("Create new Device Key…", role: .destructive) { confirmRotate = true }
-            } header: {
-                Text("Security")
-            } footer: {
-                Text("Creating a new key immediately disables the current key.")
-            }
-            if !model.failedReplies.isEmpty || !model.queuedReplies.isEmpty {
-                Section {
-                    NavigationLink {
-                        FailedRepliesView()
-                    } label: {
-                        Label("Saved reply records", systemImage: "archivebox")
-                            .badge(model.failedReplies.count + model.queuedReplies.count)
-                    }
-                }
-            }
-        }
-        .navigationTitle("Advanced settings")
-        .navigationBarTitleDisplayMode(.inline)
-        .alert("Create a new Device Key?", isPresented: $confirmRotate) {
-            Button("Cancel", role: .cancel) {}
-            Button("Create new key", role: .destructive) {
-                Task { await model.rotateKey() }
-            }
-        } message: {
-            Text("The current key will stop working. Update your agents with the new key.")
-        }
-        .sheet(isPresented: $showServer) { ServerSheet() }
-        .sheet(isPresented: $showReregister) { ServerSheet(reregister: true) }
-    }
-
-    private var connectionStatus: some View {
-        Section {
-            LabeledContent("Server") {
-                Text(verbatim: model.server?.absoluteString ?? model.serverDisplay)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            LabeledContent("Inbox sync") {
-                if model.isLoading {
-                    ProgressView().accessibilityLabel("Checking connection")
-                } else if model.loadError != nil {
-                    Text("Needs attention")
-                        .foregroundStyle(.orange)
-                } else if model.hasLoaded {
-                    Text("Last sync succeeded")
-                } else {
-                    Text("Not checked")
-                }
-            }
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityIdentifier("connection.sync")
-            if let error = model.loadError {
-                Text(error).font(.footnote).foregroundStyle(.secondary)
-            }
-            LabeledContent("Notification permission") { Text(permission) }
-            LabeledContent("Push registration") {
-                if !model.isNotificationPermissionGranted {
-                    Text("Allow notifications first")
-                } else if model.hasPushToken {
-                    Text("Ready")
-                } else if model.pushRegistrationError != nil {
-                    Text("Needs attention")
-                        .foregroundStyle(.orange)
-                } else {
-                    Text("Connecting…")
-                }
-            }
-            .fixedSize(horizontal: false, vertical: true)
-            if let error = model.pushRegistrationError {
-                Text(error).font(.footnote).foregroundStyle(.secondary)
-            }
-            if model.isNotificationPermissionGranted, !model.hasPushToken {
-                Button("Retry push registration") {
-                    Task {
-                        await model.refreshPermission()
-                        await model.configurePush()
-                    }
-                }
-                .disabled(model.isConfiguringPush)
-            }
-            Button("Check connection") {
-                Task {
-                    await model.refresh()
-                    await model.refreshPermission()
-                    if model.isNotificationPermissionGranted { await model.configurePush() }
-                }
-            }
-            .disabled(model.isLoading || model.isConfiguringPush)
-            .accessibilityIdentifier("connection.check")
-        } header: {
-            Text("Connection & notifications")
-        } footer: {
-            Text("Push registration alone doesn't confirm delivery. Send a test to check that a notification reaches this iPhone.")
-        }
-    }
-
-    private var permission: LocalizedStringKey {
-        switch model.permission {
-        case .authorized, .provisional, .ephemeral: "On"
-        case .denied: "Off"
-        default: "Not set"
-        }
-    }
-
-}
-
-private struct AboutMeowView: View {
-    var body: some View {
-        Form {
-            Section {
-                Label {
-                    Text("Push notifications for AI agents.")
-                } icon: {
-                    Image("LogoBlue").resizable().scaledToFit().frame(width: 28, height: 28)
-                }
-                LabeledContent("Version") { Text(verbatim: version) }
-            }
-            Section {
-                Link("Documentation", destination: URL(string: "https://github.com/AmazingAng/meow#readme")!)
-            } footer: {
-                Text("Notification content passes through and is stored on your chosen server. You can use a self-hosted server to manage that data yourself.")
-            }
-        }
-        .navigationTitle("About")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var version: String {

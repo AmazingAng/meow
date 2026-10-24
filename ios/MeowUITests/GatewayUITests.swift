@@ -13,19 +13,16 @@ final class GatewayUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.secureTextFields["gateway.invitation"].exists)
         app.tabBars.buttons["Settings"].tap()
-        app.buttons["settings.advanced"].tap()
-        let retry = app.buttons["Retry push registration"]
-        XCTAssertTrue(retry.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["settings.server"].waitForExistence(timeout: 10))
         // Leave time for the simulator's own setup notification to disappear.
         Thread.sleep(forTimeInterval: 8)
         let connected = XCTAttachment(screenshot: app.screenshot())
         connected.name = "gateway-auto-connected"
         connected.lifetime = .keepAlways
         add(connected)
-        retry.tap()
-        XCTAssertTrue(app.navigationBars["Advanced settings"].exists, "retry must not open a setup step")
+        XCTAssertTrue(app.navigationBars["Settings"].exists, "automatic enrollment must not open a setup step")
         XCTAssertFalse(app.secureTextFields["gateway.invitation"].exists)
-        app.buttons["Change server…"].tap()
+        app.buttons["settings.server"].tap()
         let address = app.textFields["server.address"]
         XCTAssertTrue(address.waitForExistence(timeout: 5))
         address.tap()

@@ -13,7 +13,6 @@ final class SystemNotificationUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Settings"].tap()
-        app.buttons["settings.notifications"].tap()
         let permission = app.buttons["Allow notifications"]
         for _ in 0..<6 where !permission.isHittable { app.swipeUp() }
         XCTAssertTrue(permission.isHittable); permission.tap()

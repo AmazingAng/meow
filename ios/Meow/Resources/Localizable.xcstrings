@@ -131,16 +131,6 @@
         }
       }
     },
-    "Advanced settings": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "高级设置"
-          }
-        }
-      }
-    },
     "After Homebrew, or if already installed": {
       "localizations": {
         "zh-Hans": {
@@ -513,16 +503,6 @@
         }
       }
     },
-    "Connect a computer": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "连接电脑"
-          }
-        }
-      }
-    },
     "Connect your computer": {
       "localizations": {
         "zh-Hans": {
@@ -554,7 +534,6 @@
       }
     },
     "Connection": {
-      "extractionState": "stale",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -976,16 +955,6 @@
         }
       }
     },
-    "Documentation": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用文档"
-          }
-        }
-      }
-    },
     "Done": {
       "localizations": {
         "zh-Hans": {
@@ -1176,6 +1145,16 @@
         }
       }
     },
+    "Help": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帮助"
+          }
+        }
+      }
+    },
     "Hide Device Key": {
       "localizations": {
         "zh-Hans": {
@@ -1202,16 +1181,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "高优先级消息和问题使用时效性通知。请在 Meow 的通知设置，以及「设置 → 专注模式 → 对应模式 → App」中允许时效性通知。静音模式下仍不会响铃。"
-          }
-        }
-      }
-    },
-    "High-priority notifications use Time Sensitive Notifications. Enable them in Meow's notification settings and in Settings → Focus → your Focus → Apps. Silent mode still silences their sound.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "高优先级通知使用时效性通知。请在 Meow 的通知设置和「设置 → 专注模式 → 当前专注模式 → App」中启用。静音模式仍会关闭提示音。"
           }
         }
       }
@@ -1272,16 +1241,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "在电脑上安装 Meow"
-          }
-        }
-      }
-    },
-    "Install and connect": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安装并连接"
           }
         }
       }
@@ -1593,16 +1552,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "下一步"
-          }
-        }
-      }
-    },
-    "No Device Key available. Create one in Advanced settings to connect your computer.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "没有可用的设备密钥。请在高级设置中创建，再连接电脑。"
           }
         }
       }
@@ -2241,22 +2190,12 @@
         }
       }
     },
-    "Run on your computer": {
+    "Run the shared command on your computer, then paste your Device Key when asked.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在电脑上运行"
-          }
-        }
-      }
-    },
-    "Run the command on your computer, then paste your Device Key when asked.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在电脑上运行命令，然后按提示粘贴设备密钥。"
+            "value": "在电脑上运行分享的命令，再按提示粘贴设备密钥。"
           }
         }
       }
