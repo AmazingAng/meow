@@ -77,7 +77,7 @@ struct SettingsView: View {
         Section {
             if let key = model.deviceKey {
                 LabeledContent("Device Key") {
-                    Text(verbatim: "\(key.prefix(9))…\(key.suffix(4))")
+                    Text(verbatim: AppModel.maskedDeviceKey(key))
                         .font(.body.monospaced())
                         .lineLimit(1)
                 }

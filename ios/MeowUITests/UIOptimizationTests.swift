@@ -125,7 +125,7 @@ final class UIOptimizationTests: XCTestCase {
         let scripts = app.buttons["settings.scriptHelp"]
         reveal(scripts, in: app); scripts.tap()
         XCTAssertTrue(app.navigationBars["Script integration"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["read -r MEOW_KEY"].exists)
+        XCTAssertTrue(app.staticTexts["printf 'Device Key: ' >&2; read -rs MEOW_KEY; echo >&2"].exists)
         let command = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "curl -fsS")).firstMatch
         reveal(command, in: app)
         XCTAssertTrue(command.label.contains("$MEOW_KEY"))

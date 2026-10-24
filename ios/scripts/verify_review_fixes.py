@@ -64,7 +64,8 @@ def api(base, path, key=None, body=None):
 def verify_script_example(base, key):
     # Plain-text notifications use their first line as the title. Input is a
     # disposable key; never print it or put it into the copied shell command.
-    script = 'read -r MEOW_KEY\ncurl -fsS -H "Authorization: Bearer $MEOW_KEY" -d "Hello from curl" "$MEOW_SERVER/v1/notifications"'
+    script = ("printf 'Device Key: ' >&2; read -rs MEOW_KEY; echo >&2\n"
+              'curl -fsS -H "Authorization: Bearer $MEOW_KEY" -d "Hello from curl" "$MEOW_SERVER/v1/notifications"')
     for shell in ['bash', 'zsh']:
         sent = subprocess.run([shell, '-c', script], input=key + '\n', text=True,
             capture_output=True, env=dict(os.environ, MEOW_SERVER=base), timeout=15, check=True)
