@@ -436,7 +436,10 @@ final class AppModel {
                     return
                 }
             }
-            toast = Toast(message: String(localized: "New Device Key created. Update it in your CLI."))
+            // During onboarding the computer isn't connected yet, so there is nothing to update.
+            toast = Toast(message: hasFinishedOnboarding
+                ? String(localized: "New Device Key created. Update it in your CLI.")
+                : String(localized: "New Device Key created."))
         } catch {
             alert = Self.describe(error)
         }
@@ -462,6 +465,16 @@ final class AppModel {
         guard let server else { return "meow setup" }
         return "meow setup --server \(shellQuoted(commandString(server)))"
     }
+
+    /// Shows only the fixed prefix and the last 4 characters, so the preview
+    /// reveals as little of the secret as possible.
+    nonisolated static func maskedDeviceKey(_ key: String) -> String {
+        key.hasPrefix("meow_") ? "meow_…\(key.suffix(4))" : "…\(key.suffix(4))"
+    }
+
+    /// Prompts on stderr and hides typing, so the key stays off the screen and
+    /// out of shell history. stdout is left for curl's response.
+    nonisolated static let scriptKeyInputCommand = "printf 'Device Key: ' >&2; read -rs MEOW_KEY; echo >&2"
 
     /// The copied example references a shell variable, never the saved key.
     var scriptNotificationCommand: String { Self.scriptNotificationCommand(server: server) }

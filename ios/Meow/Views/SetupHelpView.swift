@@ -33,8 +33,8 @@ struct SetupHelpView: View {
                             .frame(minHeight: 44)
                     } else if topic == .scripts {
                         Text("Send notifications without the CLI").font(.headline)
-                        Text("On your computer, run the first command, paste your Device Key from the Copy Device Key button, and press Return. Then run the curl command. These examples work in bash and zsh.")
-                        CommandBlock(title: "1. Read your Device Key", command: "read -r MEOW_KEY", copyTitle: "Copy key input command")
+                        Text("On your computer, run the first command, paste the key copied with Copy Device Key, and press Return. The key is hidden while you type. Then run the curl command. These examples work in bash and zsh.")
+                        CommandBlock(title: "1. Read your Device Key", command: AppModel.scriptKeyInputCommand, copyTitle: "Copy key input command")
                         Text("The key is entered separately so it is not included in the copied command or shell history. For automated scripts, load MEOW_KEY from your secret manager.")
                             .font(.footnote).foregroundStyle(.secondary)
                         CommandBlock(title: "2. Send a test notification", command: model.scriptNotificationCommand, copyTitle: "Copy curl command")

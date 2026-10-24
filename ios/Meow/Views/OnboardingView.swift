@@ -64,7 +64,7 @@ struct OnboardingView: View {
                 }
             }
         } message: {
-            Text("The current key will stop working. Update your agents with the new key.")
+            Text("Meow creates a new key for this iPhone. Any key saved earlier stops working.")
         }
         .sheet(item: $help) { SetupHelpView(topic: $0) }
         .sheet(isPresented: $showServer) { ServerSheet() }
@@ -280,7 +280,7 @@ struct OnboardingView: View {
                             if showDeviceKey {
                                 Text(verbatim: key).textSelection(.enabled)
                             } else {
-                                Text(verbatim: "\(key.prefix(9))…\(key.suffix(4))")
+                                Text(verbatim: AppModel.maskedDeviceKey(key))
                                     .textSelection(.disabled)
                             }
                         }

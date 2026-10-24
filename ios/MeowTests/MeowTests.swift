@@ -593,6 +593,20 @@ extension ReplyQueueTests {
 }
 
 final class OnboardingCommandTests: XCTestCase {
+    func testMaskedDeviceKeyShowsOnlyPrefixAndLastFour() {
+        XCTAssertEqual(AppModel.maskedDeviceKey("meow_abcdefghijklmnopWXYZ"), "meow_…WXYZ")
+        XCTAssertEqual(AppModel.maskedDeviceKey("abcdefghWXYZ"), "…WXYZ")
+        XCTAssertFalse(AppModel.maskedDeviceKey("meow_abcdefghijklmnopWXYZ").contains("abcd"))
+    }
+
+    func testScriptKeyPromptHidesInputAndKeepsStdoutForCurl() {
+        let command = AppModel.scriptKeyInputCommand
+        XCTAssertTrue(command.contains("read -rs MEOW_KEY"))
+        XCTAssertFalse(command.contains("meow_"))
+        // curl's JSON response is the only thing on stdout.
+        XCTAssertEqual(command.components(separatedBy: ">&2").count - 1, 2)
+    }
+
     func testScriptExampleUsesVariableAndQuotesServer() throws {
         let server = try XCTUnwrap(URL(string: "https://meow.example.com/o'neil/"))
         let command = AppModel.scriptNotificationCommand(server: server)

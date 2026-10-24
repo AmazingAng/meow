@@ -409,7 +409,7 @@ func cmdLogin(args []string) int {
 		if !stdinIsTerminal() {
 			return usageErr("no server configured; pass --server or set MEOW_SERVER")
 		}
-		fmt.Fprint(os.Stderr, "Meow server (shown in the app under Settings → Server): ")
+		fmt.Fprint(os.Stderr, "Meow server (Server URL in the Meow app): ")
 		line, _ := in.ReadString('\n')
 		cfg.Server = strings.TrimRight(strings.TrimSpace(line), "/")
 		if cfg.Server == "" {

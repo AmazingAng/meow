@@ -76,7 +76,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "1. 输入设备密钥"
+            "value": "1. 输入 Device Key"
           }
         }
       }
@@ -1377,6 +1377,16 @@
         }
       }
     },
+    "Meow creates a new key for this iPhone. Any key saved earlier stops working.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meow 会为这台 iPhone 创建新密钥，之前保存的密钥将失效。"
+          }
+        }
+      }
+    },
     "Meow notifies you when an agent finishes, fails or needs your attention. Continue on your computer when needed.": {
       "localizations": {
         "zh-Hans": {
@@ -1473,6 +1483,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "待回答：%lld"
+          }
+        }
+      }
+    },
+    "New Device Key created.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已创建新的 Device Key。"
           }
         }
       }
@@ -1747,12 +1767,12 @@
         }
       }
     },
-    "On your computer, run the first command, paste your Device Key from the Copy Device Key button, and press Return. Then run the curl command. These examples work in bash and zsh.": {
+    "On your computer, run the first command, paste the key copied with Copy Device Key, and press Return. The key is hidden while you type. Then run the curl command. These examples work in bash and zsh.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在电脑上运行第一条命令，粘贴通过“复制设备密钥”按钮获取的密钥并回车，再运行 curl 命令。以下示例适用于 bash 和 zsh。"
+            "value": "在电脑上运行第一条命令，粘贴通过“拷贝 Device Key”复制的密钥，然后按回车。输入时密钥不会显示。再运行 curl 命令。以下示例适用于 bash 和 zsh。"
           }
         }
       }
@@ -2696,7 +2716,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "服务器地址不是 Device Key。连接后，Meow 会为你创建设备密钥。"
+            "value": "服务器地址不是 Device Key。连接后，Meow 会为你创建 Device Key。"
           }
         }
       }
