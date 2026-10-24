@@ -122,6 +122,7 @@ final class UIOptimizationTests: XCTestCase {
         let app = open()
         XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Settings"].tap()
+        app.buttons["settings.computer"].tap()
         let scripts = app.buttons["settings.scriptHelp"]
         reveal(scripts, in: app); scripts.tap()
         XCTAssertTrue(app.navigationBars["Script integration"].waitForExistence(timeout: 5))
@@ -195,13 +196,20 @@ final class UIOptimizationTests: XCTestCase {
         let app = open()
         XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Settings"].tap()
-        XCTAssertTrue(app.buttons["connection.check"].waitForExistence(timeout: 5))
-        let sync = app.staticTexts["Inbox sync, Last sync succeeded"]
-        XCTAssertLessThan(sync.frame.height, 90, "The sync status must not create an oversized empty row")
-        capture("settings-status", app)
+        XCTAssertTrue(app.buttons["settings.advanced"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["connection.check"].exists)
+        XCTAssertFalse(app.buttons["Create new Device Key…"].exists)
+        XCTAssertFalse(app.buttons["Copy Device Key"].exists)
+        capture("settings-home", app)
         let test = app.buttons["Send a test notification"]
         reveal(test, in: app); test.tap()
         XCTAssertTrue(app.staticTexts["Sent. Notifications are off, so it's only in your inbox."].waitForExistence(timeout: 10))
+        app.buttons["settings.advanced"].tap()
+        XCTAssertTrue(app.buttons["connection.check"].waitForExistence(timeout: 5))
+        let sync = app.staticTexts["Inbox sync, Last sync succeeded"]
+        XCTAssertTrue(sync.exists)
+        XCTAssertLessThan(sync.frame.height, 90, "The sync status must not create an oversized empty row")
+        capture("settings-diagnostics", app)
         let reregister = app.buttons["server.reregister"]
         reveal(reregister, in: app); reregister.tap()
         XCTAssertTrue(app.navigationBars["Re-register"].waitForExistence(timeout: 5))
@@ -210,6 +218,88 @@ final class UIOptimizationTests: XCTestCase {
         capture("reregister-confirmation", app)
         app.alerts.buttons["Cancel"].tap(); app.buttons["Cancel"].tap()
         XCTAssertTrue(app.tabBars.buttons["Inbox"].exists)
+    }
+
+    func testSettingsNavigationAndSoundPersistence() {
+        let app = open()
+        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Settings"].tap()
+        app.buttons["settings.notifications"].tap()
+        XCTAssertTrue(app.buttons["Allow notifications"].waitForExistence(timeout: 5))
+        let sound = app.buttons["notifications.sound"]
+        XCTAssertTrue(sound.exists)
+        // Ensure a known starting value even when the suite shares app preferences.
+        sound.tap(); app.buttons["Cat sound"].tap()
+        let preview = app.buttons["notifications.previewSound"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 5)); preview.tap()
+        XCTAssertEqual(app.alerts.count, 0)
+        capture("settings-notifications", app)
+        sound.tap(); app.buttons["System default"].tap()
+        XCTAssertFalse(preview.exists)
+        app.terminate(); app.launch()
+        app.tabBars.buttons["Settings"].tap()
+        app.buttons["settings.notifications"].tap()
+        XCTAssertTrue(sound.waitForExistence(timeout: 5))
+        XCTAssertFalse(preview.exists, "sound preference must persist after relaunch")
+        sound.tap(); app.buttons["Cat sound"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["settings.computer"].tap()
+        XCTAssertTrue(app.buttons["Copy Device Key"].waitForExistence(timeout: 5))
+        let share = app.buttons["Share setup command"]
+        reveal(share, in: app)
+        capture("settings-connect-computer", app)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["settings.advanced"].tap()
+        let rotate = app.buttons["Create new Device Key…"]
+        reveal(rotate, in: app); rotate.tap()
+        XCTAssertTrue(app.alerts["Create a new Device Key?"].waitForExistence(timeout: 5))
+        app.alerts.buttons["Cancel"].tap()
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+    }
+
+    func testSettingsLargeChineseNavigation() {
+        var app = open(chinese: true)
+        XCTAssertTrue(app.tabBars.buttons["设置"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["设置"].tap()
+        for id in ["settings.notifications", "settings.computer", "settings.advanced", "settings.about"] {
+            XCTAssertTrue(app.buttons[id].isHittable, "Every entry should fit on the first screen at standard text size")
+        }
+        capture("settings-home-zh", app)
+        app.terminate()
+        app = open(large: true, chinese: true)
+        XCTAssertTrue(app.tabBars.buttons["设置"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["设置"].tap()
+        capture("settings-home-large-zh", app)
+        for id in ["settings.notifications", "settings.computer", "settings.advanced", "settings.about"] {
+            let entry = app.buttons[id]
+            reveal(entry, in: app); entry.tap()
+            let back = app.navigationBars.buttons.element(boundBy: 0)
+            XCTAssertTrue(back.waitForExistence(timeout: 5))
+            capture(id + "-large-zh", app)
+            back.tap()
+        }
+    }
+
+    func testSettingsConnectionFailureAndRecovery() {
+        let app = open()
+        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Settings"].tap()
+        XCTAssertFalse(app.buttons["settings.connectionWarning"].exists)
+        scenario("connection-error")
+        app.buttons["settings.advanced"].tap()
+        app.buttons["connection.check"].tap()
+        XCTAssertTrue(app.staticTexts["Inbox sync, Needs attention"].waitForExistence(timeout: 10))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let warning = app.buttons["settings.connectionWarning"]
+        XCTAssertTrue(warning.waitForExistence(timeout: 5))
+        capture("settings-connection-warning", app)
+        warning.tap()
+        XCTAssertTrue(app.buttons["connection.check"].waitForExistence(timeout: 5))
+        scenario("activity")
+        app.buttons["connection.check"].tap()
+        XCTAssertTrue(app.staticTexts["Inbox sync, Last sync succeeded"].waitForExistence(timeout: 10))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertFalse(warning.exists)
     }
 
     private func scenario(_ name: String) {

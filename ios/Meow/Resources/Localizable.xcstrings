@@ -131,6 +131,16 @@
         }
       }
     },
+    "Advanced settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高级设置"
+          }
+        }
+      }
+    },
     "After Homebrew, or if already installed": {
       "localizations": {
         "zh-Hans": {
@@ -503,6 +513,16 @@
         }
       }
     },
+    "Connect a computer": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接电脑"
+          }
+        }
+      }
+    },
     "Connect your computer": {
       "localizations": {
         "zh-Hans": {
@@ -550,6 +570,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "连接与通知状态"
+          }
+        }
+      }
+    },
+    "Connection needs attention": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接需要处理"
           }
         }
       }
@@ -946,6 +976,16 @@
         }
       }
     },
+    "Documentation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用文档"
+          }
+        }
+      }
+    },
     "Done": {
       "localizations": {
         "zh-Hans": {
@@ -1166,6 +1206,16 @@
         }
       }
     },
+    "High-priority notifications use Time Sensitive Notifications. Enable them in Meow's notification settings and in Settings → Focus → your Focus → Apps. Silent mode still silences their sound.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高优先级通知使用时效性通知。请在 Meow 的通知设置和「设置 → 专注模式 → 当前专注模式 → App」中启用。静音模式仍会关闭提示音。"
+          }
+        }
+      }
+    },
     "Homebrew and other installation options": {
       "localizations": {
         "zh-Hans": {
@@ -1222,6 +1272,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "在电脑上安装 Meow"
+          }
+        }
+      }
+    },
+    "Install and connect": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装并连接"
           }
         }
       }
@@ -1533,6 +1593,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "下一步"
+          }
+        }
+      }
+    },
+    "No Device Key available. Create one in Advanced settings to connect your computer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有可用的设备密钥。请在高级设置中创建，再连接电脑。"
           }
         }
       }
@@ -2167,6 +2237,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "在终端运行 meow \"Hello\"，或在设置中发送一条测试通知。"
+          }
+        }
+      }
+    },
+    "Run on your computer": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在电脑上运行"
+          }
+        }
+      }
+    },
+    "Run the command on your computer, then paste your Device Key when asked.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在电脑上运行命令，然后按提示粘贴设备密钥。"
           }
         }
       }

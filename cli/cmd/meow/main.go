@@ -409,7 +409,7 @@ func cmdLogin(args []string) int {
 		if !stdinIsTerminal() {
 			return usageErr("no server configured; pass --server or set MEOW_SERVER")
 		}
-		fmt.Fprint(os.Stderr, "Meow server (Server URL in the Meow app): ")
+		fmt.Fprint(os.Stderr, "Meow server (connection page, or Settings → Advanced settings → Server): ")
 		line, _ := in.ReadString('\n')
 		cfg.Server = strings.TrimRight(strings.TrimSpace(line), "/")
 		if cfg.Server == "" {
@@ -419,7 +419,7 @@ func cmdLogin(args []string) int {
 	k := strings.TrimSpace(*key)
 	if k == "" {
 		// Prompting keeps the key out of shell history.
-		fmt.Fprint(os.Stderr, "Device Key (Meow app → Settings → Device Key): ")
+		fmt.Fprint(os.Stderr, "Device Key (Meow app → Settings → Connect a computer → Copy Device Key): ")
 		line, err := in.ReadString('\n')
 		if err != nil && line == "" {
 			return fail(err)

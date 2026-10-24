@@ -103,7 +103,7 @@ meow doctor
 
 `meow ask` and `meow wait` are unavailable in the V1 CLI and return an explanatory error without creating a question. The server protocol and underlying question implementation remain for compatibility. Existing questions, options and historical answers remain readable in the app. Previously queued replies are preserved as copyable records and are not sent automatically.
 
-The iPhone app suggests the official server, `https://api.meow.blue`, on first launch. You can edit the address for a self-hosted server; saved server choices are preserved. During setup, share the installation command with your computer and copy the Device Key separately when the terminal asks for it. The shared command does not include the key. The masked key preview shows only `meow_…` and the last 4 characters and cannot be selected; use **Copy Device Key** to copy the complete key, or reveal it for manual transfer. **Settings → Script integration** explains how to send with curl without installing the CLI. Its examples reference `$MEOW_KEY` instead of embedding a real key. The old key-bearing login/curl examples are no longer shown in onboarding; `meow login` and the HTTP API remain supported.
+The iPhone app suggests the official server, `https://api.meow.blue`, on first launch. You can edit the address for a self-hosted server; saved server choices are preserved. During setup, share the installation command with your computer and copy the Device Key separately when the terminal asks for it. The shared command does not include the key. The masked key preview shows only `meow_…` and the last 4 characters and cannot be selected; use **Copy Device Key** to copy the complete key, or reveal it for manual transfer. **Settings → Connect a computer → Script integration** explains how to send with curl without installing the CLI. Its examples reference `$MEOW_KEY` instead of embedding a real key. The old key-bearing login/curl examples are no longer shown in onboarding; `meow login` and the HTTP API remain supported.
 
 Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `MEOW_SERVER` and `MEOW_SOURCE` override it. No server address is assumed: setup/login use the address supplied by the app or your existing configuration.
 
@@ -135,13 +135,13 @@ Legacy question states remain visible as history. Reading a notification does no
 
 In iPhone Settings → Notifications → Meow, enable **Time Sensitive Notifications**.
 Also enable Time Sensitive Notifications in Settings → Focus → your Focus → Apps.
-Meow's Settings shows the app's permission and has a time-sensitive test button;
+Meow's Settings → Notifications shows notification preferences and has a time-sensitive test button;
 it cannot inspect or change each Focus's allowlist. From the CLI, use
 `meow send --priority high "Your decision is needed"`.
 Both direct APNs and the wake gateway use the same priority mapping.
 
 Audible notifications use the bundled `meow.wav` cat sound. Tap
-**Notification sound → Meow** in the app's Settings to preview it. Low-priority
+**Notification sound → Cat sound** in the app's Settings → Notifications to preview it. Low-priority
 notifications remain silent. The sound is bundled with both the app and its
 notification extension; the extension also applies it to older servers' default
 sounds. Existing iOS sound, silent-mode and Focus settings still apply.
@@ -287,7 +287,7 @@ open Meow.xcodeproj
 - Debug builds accept launch arguments `-meowServer http://127.0.0.1:8080 -meowAutoRegister YES` to skip onboarding against a local server.
 - Simulator pushes: fill in the IDs in `ios/scripts/approval.apns` and run `xcrun simctl push booted blue.meow.app ios/scripts/approval.apns`.
 
-Meow V1 delivers notifications without reply or approval actions, including on the lock screen. Existing questions, options and historical answers remain readable; continue in the agent on your computer to respond. Previously saved unsent replies are retained as copyable records in Settings and are not automatically submitted.
+Meow V1 delivers notifications without reply or approval actions, including on the lock screen. Existing questions, options and historical answers remain readable; continue in the agent on your computer to respond. Previously saved unsent replies are retained as copyable records in Settings → Advanced settings and are not automatically submitted.
 
 ## Development
 

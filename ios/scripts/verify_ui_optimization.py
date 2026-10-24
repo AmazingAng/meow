@@ -26,6 +26,7 @@ class Fixture(BaseHTTPRequestHandler):
     response_count = 0
     missing_key = False
     key_attempts = 0
+    connection_error = False
     lock = threading.RLock()
 
     @classmethod
@@ -35,6 +36,7 @@ class Fixture(BaseHTTPRequestHandler):
         cls.response_count = 0
         cls.missing_key = False
         cls.key_attempts = 0
+        cls.connection_error = False
         for ident, title, choices, expiry, read in [
             ('info', 'Build completed', False, 0, False),
             ('later', 'What should I work on next?', None, 3600, False),
@@ -80,6 +82,8 @@ class Fixture(BaseHTTPRequestHandler):
                 self.items[:] = [later] + [dict(info, id=f'ntf_info_{i}') for i in range(49)] + [soon]
             elif scenario == 'onboarding-missing-key':
                 type(self).missing_key = True
+            elif scenario == 'connection-error':
+                type(self).connection_error = True
             elif scenario == 'activity':
                 self.items[:] = [info]
             elif scenario == 'empty-table-header':
@@ -161,6 +165,8 @@ class Fixture(BaseHTTPRequestHandler):
             return self.send_json({'unread': sum(n['read_at'] is None for n in self.items),
                                    'pending': sum(n.get('question', {}).get('status') == 'pending' for n in self.items)})
         if url.path == '/v1/inbox':
+            if self.connection_error:
+                return self.send_json({'error': {'code': 'unavailable', 'message': 'Connection test failed.'}}, 503)
             query = parse_qs(url.query)
             filtered = self.items
             mode = query.get('filter', ['all'])[0]
@@ -232,7 +238,7 @@ def main():
     parser.add_argument('--device-type', default='com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro')
     parser.add_argument('--runtime', default='com.apple.CoreSimulator.SimRuntime.iOS-26-5')
     parser.add_argument('--ui-only', action='store_true', help='Skip already verified unit tests when checking another screen size.')
-    parser.add_argument('--test-case', help='Run one UIOptimizationTests method for a focused recheck.')
+    parser.add_argument('--test-case', action='append', help='Run a UIOptimizationTests method; repeat for a focused group.')
     parser.add_argument('--appearance', choices=['light', 'dark'], help='Set the disposable simulator appearance before testing.')
     args = parser.parse_args()
     output = args.output.resolve()
@@ -255,8 +261,9 @@ def main():
                    '-destination', 'platform=iOS Simulator,id=' + device,
                    '-derivedDataPath', str(output.parent / 'DerivedData'), '-resultBundlePath', str(bundle),
                    '-parallel-testing-enabled', 'NO',
-                   '-only-testing:MeowUITests/UIOptimizationTests' + ('/' + args.test_case if args.test_case else ''),
                    'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_ALLOWED=YES']
+        command += ['-only-testing:MeowUITests/UIOptimizationTests' + ('/' + name if name else '')
+                    for name in (args.test_case or [''])]
         if not args.ui_only:
             command.append('-only-testing:MeowTests')
         with (output / 'test.log').open('w') as log:
