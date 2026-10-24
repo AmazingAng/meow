@@ -34,14 +34,12 @@ struct InboxView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 if isSearching || !model.search.isEmpty { searchField }
             }
-            .navigationTitle("Inbox")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    InboxMenu(selectingGroups: $selectingGroups)
-                }
+                inboxTitleToolbar
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    InboxBrowseMenu()
+                    InboxBrowseMenu(selectingGroups: $selectingGroups)
                     if !selectingGroups { deletionMenu }
                     if isSearching || !model.search.isEmpty {
                         Button("Cancel") {
@@ -113,6 +111,25 @@ struct InboxView: View {
                 }
             }
         }
+    }
+
+    @ToolbarContentBuilder
+    private var inboxTitleToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) { inboxTitle }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) { inboxTitle }
+        }
+    }
+
+    private var inboxTitle: some View {
+        Text(verbatim: model.inboxMode.title)
+            .font(.headline)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("inbox.title")
     }
 
     private struct DeletionConfirmation {
@@ -283,30 +300,19 @@ private struct MascotEmptyState: View {
 
 private struct InboxBrowseMenu: View {
     @Environment(AppModel.self) private var model
-
-    var body: some View {
-        Menu {
-            ForEach(InboxGroupingMode.allCases) { mode in
-                Button { model.inboxMode = mode } label: {
-                    if model.inboxMode == mode { Label(mode.title, systemImage: "checkmark") }
-                    else { Label(mode.title, systemImage: mode.symbol) }
-                }
-                .accessibilityIdentifier("browse.\(mode.rawValue)")
-            }
-        } label: {
-            Label("Browse inbox", systemImage: "square.grid.2x2")
-        }
-        .accessibilityIdentifier("inbox.browseMenu")
-        .accessibilityValue(Text(model.inboxMode.title))
-    }
-}
-
-private struct InboxMenu: View {
-    @Environment(AppModel.self) private var model
     @Binding var selectingGroups: Bool
 
     var body: some View {
         Menu {
+            Section {
+                ForEach(InboxGroupingMode.allCases) { mode in
+                    Button { model.inboxMode = mode } label: {
+                        if model.inboxMode == mode { Label(mode.title, systemImage: "checkmark") }
+                        else { Label(mode.title, systemImage: mode.symbol) }
+                    }
+                    .accessibilityIdentifier("browse.\(mode.rawValue)")
+                }
+            }
             Section("Filter notifications") {
                 ForEach(AppModel.Filter.visibleCases) { filter in
                     Button { model.filter = filter } label: {
@@ -329,24 +335,10 @@ private struct InboxMenu: View {
                     .disabled(model.counts.unread == 0 || model.isMarkingGroupRead || model.isMarkingAllRead)
             }
         } label: {
-            HStack(spacing: 6) {
-                Text(model.inboxMode == .messages ? String(localized: "Inbox") : model.inboxMode.title).font(.headline)
-                if model.filter != .all {
-                    Text(model.filter.title)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .lineLimit(1)
-            .frame(minWidth: 44, minHeight: 44)
-            .foregroundStyle(Color.primary)
+            Label("Browse inbox", systemImage: "square.grid.2x2")
         }
-        .accessibilityIdentifier("inbox.filterMenu")
-        .accessibilityLabel(Text("Inbox") + Text(verbatim: ", ") + Text("Filter notifications"))
-        .accessibilityValue(Text(model.filter.title) + Text(verbatim: " \(count(model.filter).formatted())"))
+        .accessibilityIdentifier("inbox.browseMenu")
+        .accessibilityValue(Text(model.inboxMode.title))
     }
 
     private func count(_ filter: AppModel.Filter) -> Int {

@@ -115,12 +115,12 @@ final class UIOptimizationTests: XCTestCase {
         app.buttons["Next"].tap()
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["inbox.browseMenu"].waitForExistence(timeout: 10))
     }
 
     func testScriptHelpInSettingsUsesNoEmbeddedKey() {
         let app = open()
-        XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["inbox.browseMenu"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Settings"].tap()
         let scripts = app.buttons["settings.scriptHelp"]
         reveal(scripts, in: app); scripts.tap()
@@ -139,7 +139,7 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["inbox.pendingSummary"].exists)
         capture("notification-only-inbox", app)
-        app.buttons["inbox.filterMenu"].tap()
+        app.buttons["inbox.browseMenu"].tap()
         XCTAssertTrue(app.buttons["filter.all"].exists)
         XCTAssertTrue(app.buttons["filter.unread"].exists)
         XCTAssertFalse(app.buttons["filter.pending"].exists)
@@ -149,7 +149,7 @@ final class UIOptimizationTests: XCTestCase {
 
     func test03AccessibleChineseFilterAndMetadata() {
         let app = open(large: true, chinese: true)
-        let menu = app.buttons["inbox.filterMenu"]
+        let menu = app.buttons["inbox.browseMenu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 10))
         XCTAssertTrue(menu.isHittable)
         capture("inbox-large-zh", app)
@@ -219,7 +219,7 @@ final class UIOptimizationTests: XCTestCase {
     }
 
     private func selectFilter(_ name: String, in app: XCUIApplication) {
-        let menu = app.buttons["inbox.filterMenu"]
+        let menu = app.buttons["inbox.browseMenu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 10))
         menu.tap()
         app.buttons["filter.\(name)"].tap()
@@ -374,11 +374,11 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertFalse(field.exists)
 
-        app.buttons["inbox.filterMenu"].tap()
+        app.buttons["inbox.browseMenu"].tap()
         app.buttons["Mark all messages as read"].tap()
         selectFilter("unread", in: app)
         XCTAssertTrue(app.staticTexts["All caught up"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["inbox.filterMenu"].isHittable)
+        XCTAssertTrue(app.buttons["inbox.browseMenu"].isHittable)
         selectFilter("all", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
     }
@@ -482,7 +482,7 @@ final class UIOptimizationTests: XCTestCase {
         browse("sessions", in: app)
         XCTAssertTrue(app.staticTexts["Deploy"].firstMatch.waitForExistence(timeout: 10))
         capture("grouping-sessions", app)
-        app.buttons["inbox.filterMenu"].tap()
+        app.buttons["inbox.browseMenu"].tap()
         app.buttons["inbox.selectGroups"].tap()
         app.staticTexts["Deploy"].firstMatch.tap()
         app.staticTexts["Review"].firstMatch.tap()
@@ -501,7 +501,7 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(app.buttons["group.unmerge"].waitForExistence(timeout: 5))
         capture("grouping-members", app)
         app.buttons["group.unmerge"].tap()
-        XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["inbox.browseMenu"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Deploy"].firstMatch.waitForExistence(timeout: 5))
         browse("workspaces", in: app)
         XCTAssertTrue(app.staticTexts["meow"].firstMatch.waitForExistence(timeout: 5))
@@ -555,7 +555,7 @@ final class UIOptimizationTests: XCTestCase {
         let app = open(large: true, chinese: true)
         browse("workspaces", in: app)
         XCTAssertTrue(app.staticTexts["meow"].firstMatch.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["inbox.filterMenu"].isHittable)
+        XCTAssertTrue(app.buttons["inbox.browseMenu"].isHittable)
         capture("grouping-large-zh", app)
         browse("messages", in: app)
     }
@@ -564,7 +564,7 @@ final class UIOptimizationTests: XCTestCase {
         scenario("grouping")
         let app = open()
         browse("sources", in: app)
-        app.buttons["inbox.filterMenu"].tap()
+        app.buttons["inbox.browseMenu"].tap()
         app.buttons["filter.unread"].tap()
         let source = app.staticTexts["Monitor"].firstMatch
         XCTAssertTrue(source.waitForExistence(timeout: 10))
@@ -580,7 +580,7 @@ final class UIOptimizationTests: XCTestCase {
         app.buttons["Clear search and filters"].tap()
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["inbox.browseMenu"].waitForExistence(timeout: 5))
         XCTAssertTrue(source.exists)
         browse("messages", in: app)
     }
@@ -609,6 +609,49 @@ final class UIOptimizationTests: XCTestCase {
         capture("session-identity-renamed-history", app)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         browse("messages", in: app)
+    }
+
+    func test25PlainHeaderKeepsViewNamesAndLeadingAlignment() {
+        scenario("grouping")
+        for chinese in [false, true] {
+            let app = open(large: chinese, chinese: chinese)
+            var leadingX: CGFloat?
+            for (mode, title) in [
+                ("messages", chinese ? "消息" : "Messages"),
+                ("sessions", chinese ? "会话" : "Sessions"),
+                ("workspaces", chinese ? "项目" : "Projects"),
+                ("sources", "Agent"),
+            ] {
+                browse(mode, in: app)
+                let heading = app.staticTexts["inbox.title"]
+                XCTAssertTrue(heading.waitForExistence(timeout: 5))
+                XCTAssertEqual(heading.label, title)
+                XCTAssertFalse(app.buttons["inbox.title"].exists)
+                XCTAssertFalse(app.buttons["inbox.filterMenu"].exists)
+                let views = app.buttons["inbox.browseMenu"]
+                let trash = app.buttons["inbox.delete"]
+                let search = app.buttons["inbox.search"]
+                XCTAssertLessThan(heading.frame.minX, 40, "all modes use a leading title")
+                XCTAssertLessThan(heading.frame.maxX, views.frame.minX, "title must not overlap actions")
+                if let leadingX {
+                    XCTAssertEqual(heading.frame.minX, leadingX, accuracy: 1)
+                } else {
+                    leadingX = heading.frame.minX
+                }
+                XCTAssertLessThan(views.frame.midX, trash.frame.midX)
+                XCTAssertLessThan(trash.frame.midX, search.frame.midX)
+                heading.tap()
+                XCTAssertFalse(app.buttons["filter.unread"].exists, "the title does not open a menu")
+                capture("plain-header-" + mode + (chinese ? "-large-zh" : "-en"), app)
+            }
+            app.buttons["inbox.browseMenu"].tap()
+            XCTAssertTrue(app.buttons["filter.all"].exists)
+            XCTAssertTrue(app.buttons["filter.unread"].exists)
+            app.buttons["filter.unread"].tap()
+            XCTAssertEqual(app.staticTexts["inbox.title"].label, "Agent", "the title stays identical to the view name")
+            browse("messages", in: app)
+            app.terminate()
+        }
     }
 
 }
