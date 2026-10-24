@@ -91,9 +91,9 @@ and Caddy certificate volumes. Export backups before intentionally deleting them
 
 ## Delivery cache and rollout
 
-Both direct-APNs and relay Compose files pass `MEOW_RETENTION` from `.env`, defaulting to `12h`. Content is pruned on startup and every five minutes. Downloaded iPhone history has its own lifetime and is not removed by server expiry. A phone offline longer than the server window cannot backfill expired messages.
+Both direct-APNs and relay Compose files pass `MEOW_RETENTION` from `.env`, defaulting to `720h` (30 days) during the client rollout. Content is pruned on startup and every five minutes. On build 17 and later, downloaded iPhone history has its own lifetime and is not removed by server expiry. A phone offline longer than the server window cannot backfill expired messages.
 
-Update iOS clients to the version that preserves independent local history **before** shortening the server window. Keep `MEOW_RETENTION=720h` during a staged rollout if older clients remain in use. This server version automatically upgrades the SQLite schema to add a content-free 24-hour send-receipt ledger; make an online backup before upgrading. Older server binaries do not understand the new schema: rollback requires the pre-upgrade backup, not just swapping the binary. TTL does not remove old backup files or guarantee byte erasure from SQLite/WAL.
+Update iOS clients to the version that preserves independent local history **before** shortening the server window. Keep the rollout default `MEOW_RETENTION=720h` until every iPhone is on build 17 or later; only then explicitly shorten the window, for example to `12h`. Existing `.env` or service settings with an explicit `12h` continue to override the new default: set them to `720h` **before restarting**. Longer retention cannot recover already-pruned messages and remains a finite window for older clients. This server version automatically upgrades the SQLite schema to add a content-free 24-hour send-receipt ledger; make an online backup before upgrading. Older server binaries do not understand the new schema: rollback requires the pre-upgrade backup, not just swapping the binary. TTL does not remove old backup files or guarantee byte erasure from SQLite/WAL.
 
 ### Semantic event rollout (schema v5)
 

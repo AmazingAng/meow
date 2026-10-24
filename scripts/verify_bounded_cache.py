@@ -84,7 +84,7 @@ def stop(process):
         raise RuntimeError('test process did not stop cleanly')
 
 
-def native_live(out, name):
+def native_live(out, name, *, test_filter=None):
     folder = out / name
     folder.mkdir()
     with socket.socket() as sock:
@@ -132,15 +132,22 @@ def native_live(out, name):
         native_env = dict(env, MEOW_CACHE_INTEGRATION_FIXTURE=str(fixture))
         log = (out / (name + '.log')).open('w')
         logs.append(log)
-        native = subprocess.Popen(['swift', 'test', '--package-path', str(out / 'package'), '--enable-code-coverage'],
-                                  cwd=ROOT, env=native_env, stdout=log, stderr=subprocess.STDOUT)
+        command = ['swift', 'test', '--package-path', str(out / 'package'), '--enable-code-coverage']
+        if test_filter is not None:
+            command.extend(['--filter', test_filter])
+        native = subprocess.Popen(command, cwd=ROOT, env=native_env, stdout=log, stderr=subprocess.STDOUT)
         deadline = time.monotonic() + 120
         while not (folder / 'history-saved').exists():
             require(native.poll() is None, 'native tests exited before saving real-server history; see ' + str(out / (name + '.log')))
             require(time.monotonic() < deadline, 'native history save timeout')
             time.sleep(.05)
         stop(server)
-        server = start(None)  # No env override: exercise the real 12h default.
+        server = start(None)  # The 720h rollout default must preserve the 13h-old content.
+        request(url, '/v1/notifications/' + old['id'], token=token)
+        rows = request(url, '/v1/inbox', token=token)['notifications']
+        require({n['id'] for n in rows} == {old['id'], recent['id']}, 'rollout default pruned recent history')
+        stop(server)
+        server = start('12h')  # Short retention remains an explicit operator choice.
         deadline = time.monotonic() + 5
         while True:
             try:
@@ -158,7 +165,8 @@ def native_live(out, name):
         require(native.wait(timeout=120) == 0, 'native/live tests failed; see ' + str(out / (name + '.log')))
         text = (out / (name + '.log')).read_text()
         passed = re.findall(r"Test Case '.+' passed", text)
-        require(passed and "Test Suite 'All tests' passed" in text and 'CacheLiveIntegrationTests' in text, 'missing native execution')
+        suite = 'Selected tests' if test_filter is not None else 'All tests'
+        require(passed and f"Test Suite '{suite}' passed" in text and 'CacheLiveIntegrationTests' in text, 'missing native execution')
         require(' skipped ' not in text, 'native suite skipped a test')
         require(request(url, '/v1/inbox', token=token)['notifications'] == [], 'explicit local/server deletion not synchronized')
         with sqlite3.connect(folder / 'server.db') as db:
@@ -187,8 +195,8 @@ def mutated_tests(out):
          '{`DELETE FROM idempotency WHERE created_at <= ?`, ms(now.Add(-24 * time.Hour))}',
          '{`DELETE FROM idempotency WHERE created_at <= ?`, ms(now.Add(-retention))}',
          './server/internal/store', 'TestCacheExpiryKeepsIdempotencyAndQuota'),
-        ('default-window', 'server/cmd/meow-server/main.go', 'env("MEOW_RETENTION", "12h")',
-         'env("MEOW_RETENTION", "720h")', './server/cmd/meow-server', 'TestCacheConfiguration'),
+        ('default-window', 'server/cmd/meow-server/main.go', 'env("MEOW_RETENTION", "720h")',
+         'env("MEOW_RETENTION", "12h")', './server/cmd/meow-server', 'TestCacheConfiguration'),
     ]
     with tempfile.TemporaryDirectory(prefix='meow-cache-mutants-') as tmp:
         root = Path(tmp)
@@ -291,12 +299,12 @@ def compose_check(out):
                MEOW_APNS_KEY_PATH=str(out / 'unused.p8'), MEOW_PUSH_GATEWAY_URL='https://gateway.example.com')
     for name in ['compose.yaml', 'compose.relay.yaml']:
         command = ['docker', 'compose', '--env-file', '/dev/null', '-f', 'deploy/' + name, 'config', '--format', 'json']
-        for value in [None, '24h']:
+        for value in [None, '', '12h', '24h']:
             current = dict(env)
-            if value:
+            if value is not None:
                 current['MEOW_RETENTION'] = value
             config = json.loads(subprocess.check_output(command, cwd=ROOT, env=current, text=True))
-            require(config['services']['meow']['environment']['MEOW_RETENTION'] == (value or '12h'), 'Compose dropped retention setting')
+            require(config['services']['meow']['environment']['MEOW_RETENTION'] == (value or '720h'), 'Compose dropped retention setting')
     return {'direct_and_relay': True, 'default_and_override': True}
 
 

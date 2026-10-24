@@ -4,7 +4,7 @@
 //
 //	MEOW_ADDR           listen address (default :8080)
 //	MEOW_DB             SQLite database path (default meow.db); keep it on a persistent volume
-//	MEOW_RETENTION      how long resolved questions and notifications are cached (default 12h)
+//	MEOW_RETENTION      how long resolved questions and notifications are cached (rollout default 720h)
 //	MEOW_TRUST_PROXY    "true" to take the client IP from X-Forwarded-For (behind a reverse proxy)
 //	MEOW_MAX_KEYS_PER_DEVICE      active Device Keys per device (default 10, 0 = unlimited)
 //	MEOW_MAX_PENDING_QUESTIONS    unanswered questions per device (default 20, 0 = unlimited)
@@ -201,7 +201,7 @@ func run(gatewayMode bool) error {
 }
 
 func retentionFromEnv() (time.Duration, error) {
-	retention, err := time.ParseDuration(env("MEOW_RETENTION", "12h"))
+	retention, err := time.ParseDuration(env("MEOW_RETENTION", "720h"))
 	if err != nil || retention < time.Hour {
 		return 0, fmt.Errorf("MEOW_RETENTION must be a duration of at least 1h, e.g. 12h; disabling the cache is not supported")
 	}

@@ -17,7 +17,7 @@ func TestCacheConfiguration(t *testing.T) {
 		input   string
 		want    time.Duration
 		invalid bool
-	}{{"", 12 * time.Hour, false}, {"24h", 24 * time.Hour, false}, {"1h", time.Hour, false}, {"0", 0, true}, {"-1h", 0, true}, {"30m", 0, true}, {"bad", 0, true}} {
+	}{{"", 720 * time.Hour, false}, {"12h", 12 * time.Hour, false}, {"720h", 720 * time.Hour, false}, {"24h", 24 * time.Hour, false}, {"1h", time.Hour, false}, {"0", 0, true}, {"-1h", 0, true}, {"30m", 0, true}, {"bad", 0, true}} {
 		t.Run(tt.input, func(t *testing.T) {
 			t.Setenv("MEOW_RETENTION", tt.input)
 			got, err := retentionFromEnv()
