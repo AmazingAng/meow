@@ -2,7 +2,7 @@
 
 Scope: [server selection contract](onboarding-server-spec.md), onboarding usability and the PR #5 review follow-up. The stronger mutation/coverage checks remain limited to the saved-server boundary; UI refinements use ordinary integration tests. The follow-up was explicitly requested by the user. No independent verifier or new runtime dependency.
 
-Source: base 980c4629159205860162026aac2dde86a5dc9f39; SHA-256 over sorted changed/new paths relative to that base (each path, NUL, contents, NUL): `ce932d846655eafd923a6ad4838e2be2eab9241dbbe43a165e1d5304cefa40ee`. This evidence file and the server-selection spec are excluded.
+Source: base 980c4629159205860162026aac2dde86a5dc9f39; SHA-256 over sorted changed/new paths relative to that base (each path, NUL, contents, NUL): `57fc3b2e2c7684bebf10786a40d07ee4a39b3f918cce4d3ad90b0caadf109168`. This evidence file and the server-selection spec are excluded.
 
 ## Reproduction
 

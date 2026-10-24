@@ -121,4 +121,3 @@ if __name__ == '__main__':
             raise RuntimeError('wizard.go is not formatted')
         run(['git', 'diff', '--check'], cwd=ROOT)
         print(run(['python3', 'ios/scripts/verify_ui_optimization.py', '--output', str(args.output.resolve())], cwd=ROOT).stdout)
-
