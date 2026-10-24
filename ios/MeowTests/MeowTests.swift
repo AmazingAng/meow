@@ -593,6 +593,13 @@ extension ReplyQueueTests {
 }
 
 final class OnboardingCommandTests: XCTestCase {
+    func testScriptExampleUsesVariableAndQuotesServer() throws {
+        let server = try XCTUnwrap(URL(string: "https://meow.example.com/o'neil/"))
+        let command = AppModel.scriptNotificationCommand(server: server)
+        XCTAssertEqual(command, #"curl -fsS -H "Authorization: Bearer $MEOW_KEY" -d "Hello from curl" 'https://meow.example.com/o'\''neil/v1/notifications'"#)
+        XCTAssertFalse(command.contains("meow_"))
+    }
+
     func testInstallAndSetupCommandKeepsServerQuotedAndKeyOutOfHistory() throws {
         let server = try XCTUnwrap(URL(string: "https://meow.example.com/o'neil/"))
         XCTAssertEqual(AppModel.installAndSetupCommand(server: server),

@@ -276,10 +276,17 @@ struct OnboardingView: View {
                 if let key = model.deviceKey {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("2. Paste your Device Key when asked").font(.subheadline.weight(.semibold))
-                        Text(verbatim: showDeviceKey ? key : "\(key.prefix(9))…\(key.suffix(4))")
-                            .font(.body.monospaced())
-                            .textSelection(.enabled)
-                            .privacySensitive()
+                        Group {
+                            if showDeviceKey {
+                                Text(verbatim: key).textSelection(.enabled)
+                            } else {
+                                Text(verbatim: "\(key.prefix(9))…\(key.suffix(4))")
+                                    .textSelection(.disabled)
+                            }
+                        }
+                        .font(.body.monospaced())
+                        .privacySensitive()
+                        .accessibilityIdentifier("onboarding.deviceKey")
                         CopyButton(title: "Copy Device Key", text: key)
                         Button {
                             showDeviceKey.toggle()

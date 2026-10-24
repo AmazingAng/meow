@@ -81,12 +81,17 @@ final class UIOptimizationTests: XCTestCase {
         create.tap()
         app.alerts.buttons["Create new key"].tap()
         XCTAssertTrue(app.buttons["Copy Device Key"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["meow_recovered_ui_fixture"].exists)
+        XCTAssertNotEqual(app.staticTexts["onboarding.deviceKey"].label, "meow_recovered_ui_fixture")
+        let maskedKey = app.staticTexts["onboarding.deviceKey"]
+        reveal(maskedKey, in: app)
+        maskedKey.press(forDuration: 1.2)
+        XCTAssertFalse(app.menuItems["Copy"].exists)
+        XCTAssertFalse(app.buttons["Copy"].exists, "masked text must not open the selection menu")
         reveal(app.buttons["Show Device Key"], in: app)
         app.buttons["Show Device Key"].tap()
-        XCTAssertTrue(app.staticTexts["meow_recovered_ui_fixture"].exists)
+        XCTAssertEqual(app.staticTexts["onboarding.deviceKey"].label, "meow_recovered_ui_fixture")
         app.buttons["Hide Device Key"].tap()
-        XCTAssertFalse(app.staticTexts["meow_recovered_ui_fixture"].exists)
+        XCTAssertNotEqual(app.staticTexts["onboarding.deviceKey"].label, "meow_recovered_ui_fixture")
         XCTAssertTrue(app.buttons["Next"].isEnabled)
         reveal(app.buttons["Share setup command"], in: app)
         capture("setup-share-and-masked-key", app)
@@ -111,6 +116,21 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
         app.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 10))
+    }
+
+    func testScriptHelpInSettingsUsesNoEmbeddedKey() {
+        let app = open()
+        XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Settings"].tap()
+        let scripts = app.buttons["settings.scriptHelp"]
+        reveal(scripts, in: app); scripts.tap()
+        XCTAssertTrue(app.navigationBars["Script integration"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["read -r MEOW_KEY"].exists)
+        let command = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "curl -fsS")).firstMatch
+        reveal(command, in: app)
+        XCTAssertTrue(command.label.contains("$MEOW_KEY"))
+        XCTAssertFalse(command.label.contains("meow_"))
+        capture("settings-script-integration", app)
     }
 
     func test02InboxHasOnlyAllAndUnreadFilters() {

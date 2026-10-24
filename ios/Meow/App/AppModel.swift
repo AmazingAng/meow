@@ -463,12 +463,12 @@ final class AppModel {
         return "meow setup --server \(shellQuoted(commandString(server)))"
     }
 
-    func loginCommand(for key: String) -> String {
-        "meow login --key \(Self.shellQuoted(key)) --server \(Self.shellQuoted(Self.commandString(server)))"
-    }
+    /// The copied example references a shell variable, never the saved key.
+    var scriptNotificationCommand: String { Self.scriptNotificationCommand(server: server) }
 
-    func curlCommand(for key: String) -> String {
-        "curl -H \"Authorization: Bearer \(key)\" -d \"Hello from curl\" \(Self.shellQuoted(Self.commandString(server) + "/v1/notifications"))"
+    nonisolated static func scriptNotificationCommand(server: URL?) -> String {
+        let endpoint = shellQuoted(commandString(server) + "/v1/notifications")
+        return "curl -fsS -H \"Authorization: Bearer $MEOW_KEY\" -d \"Hello from curl\" \(endpoint)"
     }
 
     nonisolated private static func commandString(_ server: URL?) -> String {

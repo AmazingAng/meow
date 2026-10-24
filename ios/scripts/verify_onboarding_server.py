@@ -120,6 +120,5 @@ if __name__ == '__main__':
         if run(['gofmt', '-l', 'cli/cmd/meow/wizard.go'], cwd=ROOT).stdout.strip():
             raise RuntimeError('wizard.go is not formatted')
         run(['git', 'diff', '--check'], cwd=ROOT)
-        print(run(['python3', 'ios/scripts/verify_ui_optimization.py', '--output', str(args.output.resolve()),
-                   '--test-case', 'test01GuidedSetupAndBackNavigation'], cwd=ROOT).stdout)
+        print(run(['python3', 'ios/scripts/verify_ui_optimization.py', '--output', str(args.output.resolve())], cwd=ROOT).stdout)
 

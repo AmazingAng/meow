@@ -307,6 +307,9 @@ func diagnoseConnError(host string, err error) error {
 
 // checkKey verifies a Device Key and says what to do when it fails.
 func checkKey(server, key string) (client.WhoAmI, error) {
+	if err := rejectMaskedDeviceKey(key); err != nil {
+		return client.WhoAmI{}, err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	who, err := client.New(server, key).WhoAmI(ctx)
@@ -324,4 +327,13 @@ func checkKey(server, key string) (client.WhoAmI, error) {
 // isn't enough: /dev/null is also a character device.
 func stdinIsTerminal() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+// A display abbreviation is never a credential. Explain the copy mistake before
+// making an HTTP request or persisting it as a saved key.
+func rejectMaskedDeviceKey(key string) error {
+	if strings.Contains(key, "…") || strings.Contains(key, "...") {
+		return errors.New(`this Device Key is masked or incomplete. Use "Copy Device Key" in Meow instead of copying the shortened text`)
+	}
+	return nil
 }

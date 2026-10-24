@@ -1,7 +1,14 @@
 import SwiftUI
 
 enum SetupHelpTopic: String, Identifiable {
-    case server, cli
+    case server, cli, scripts
+    var title: LocalizedStringKey {
+        switch self {
+        case .server: "Server address help"
+        case .cli: "Install the CLI"
+        case .scripts: "Script integration"
+        }
+    }
     var id: Self { self }
 }
 
@@ -20,7 +27,18 @@ struct SetupHelpView: View {
                         Text("For a self-hosted server, enter the full http:// or https:// address from its operator. If you host Meow on your computer, use its LAN address on the same Wi-Fi. 127.0.0.1 on your iPhone points to the iPhone itself.")
                         Text("The server address is different from your Device Key. Meow creates that key after you connect.")
                             .foregroundStyle(.secondary)
+                        Text("Notification content passes through and is stored on your chosen server. You can use a self-hosted server to manage that data yourself.")
+                            .foregroundStyle(.secondary)
                         Link("Server deployment guide", destination: URL(string: "https://github.com/AmazingAng/meow/blob/main/deploy/README.md")!)
+                            .frame(minHeight: 44)
+                    } else if topic == .scripts {
+                        Text("Send notifications without the CLI").font(.headline)
+                        Text("On your computer, run the first command, paste your Device Key from the Copy Device Key button, and press Return. Then run the curl command. These examples work in bash and zsh.")
+                        CommandBlock(title: "1. Read your Device Key", command: "read -r MEOW_KEY", copyTitle: "Copy key input command")
+                        Text("The key is entered separately so it is not included in the copied command or shell history. For automated scripts, load MEOW_KEY from your secret manager.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        CommandBlock(title: "2. Send a test notification", command: model.scriptNotificationCommand, copyTitle: "Copy curl command")
+                        Link("HTTP API and script examples", destination: URL(string: "https://github.com/AmazingAng/meow#http-api")!)
                             .frame(minHeight: 44)
                     } else {
                         Text("Install Meow on your computer").font(.headline)
@@ -40,7 +58,7 @@ struct SetupHelpView: View {
                 .padding(24)
                 .frame(maxWidth: .infinity)
             }
-            .navigationTitle(topic == .server ? LocalizedStringKey("Server address help") : LocalizedStringKey("Install the CLI"))
+            .navigationTitle(topic.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }

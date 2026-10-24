@@ -61,6 +61,19 @@ def api(base, path, key=None, body=None):
         return json.load(response)
 
 
+def verify_script_example(base, key):
+    # Plain-text notifications use their first line as the title. Input is a
+    # disposable key; never print it or put it into the copied shell command.
+    script = 'read -r MEOW_KEY\ncurl -fsS -H "Authorization: Bearer $MEOW_KEY" -d "Hello from curl" "$MEOW_SERVER/v1/notifications"'
+    for shell in ['bash', 'zsh']:
+        sent = subprocess.run([shell, '-c', script], input=key + '\n', text=True,
+            capture_output=True, env=dict(os.environ, MEOW_SERVER=base), timeout=15, check=True)
+        notification = json.loads(sent.stdout)
+        if notification['title'] != 'Hello from curl' or notification['body'] != '':
+            raise RuntimeError('script example did not deliver the expected notification: ' + shell)
+    return 'bash and zsh delivered the expected plain-text notification through the real HTTP API'
+
+
 def test(root, device, output, name, selectors, extra_env=None, expect_failure=False):
     bundle = output / (name + '.xcresult')
     env = os.environ.copy()
@@ -69,7 +82,7 @@ def test(root, device, output, name, selectors, extra_env=None, expect_failure=F
     args = ['xcodebuild', 'test', '-project', str(root / 'ios/Meow.xcodeproj'), '-scheme', 'Meow',
             '-destination', 'platform=iOS Simulator,id=' + device,
             '-derivedDataPath', str(output / 'DerivedData'), '-resultBundlePath', str(bundle),
-            '-enableCodeCoverage', 'YES', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_ALLOWED=YES', '-quiet']
+            '-enableCodeCoverage', 'YES', '-parallel-testing-enabled', 'NO', 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_ALLOWED=YES', '-quiet']
     args += ['-only-testing:' + selector for selector in selectors]
     result = command(args, cwd=root, env=env, log=output / (name + '.log'), check=False)
     summary = output_json(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', str(bundle)])
@@ -166,6 +179,7 @@ def main():
     parser.add_argument('--simulator-id', required=True)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--mutations', action='store_true')
+    parser.add_argument('--onboarding-only', action='store_true', help='Run current onboarding against the real local server; exclude retired reply UI flows.')
     args = parser.parse_args()
     devices = output_json(['xcrun', 'simctl', 'list', 'devices', '--json'])['devices']
     device = next(d for group in devices.values() for d in group if d['udid'] == args.simulator_id)
@@ -177,13 +191,14 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     report = {'sourceHash': source_hash(ROOT), 'xcode': command(['xcodebuild', '-version']).stdout,
               'go': command(['go', 'version']).stdout, 'simulator': device}
-    command(['go', 'test', '-race', './...'], log=out / 'go-test.log')
-    report['goRace'] = 'passed'
-    report['unit'], unit_bundle = test(ROOT, args.simulator_id, out, 'unit', ['MeowTests'])
-    if report['unit']['passedTests'] < 23:
-        raise RuntimeError('expected all regression tests, at least 23 unit tests')
-    if args.mutations:
-        report['mutations'] = mutants(args.simulator_id, out)
+    if not args.onboarding_only:
+        command(['go', 'test', '-race', './...'], log=out / 'go-test.log')
+        report['goRace'] = 'passed'
+        report['unit'], unit_bundle = test(ROOT, args.simulator_id, out, 'unit', ['MeowTests'])
+        if report['unit']['passedTests'] < 23:
+            raise RuntimeError('expected all regression tests, at least 23 unit tests')
+        if args.mutations:
+            report['mutations'] = mutants(args.simulator_id, out)
     # Clear only this disposable simulator before testing real onboarding.
     apps_text = command(['xcrun', 'simctl', 'listapps', args.simulator_id]).stdout
     apps = json.loads(subprocess.run(['plutil', '-convert', 'json', '-o', '-', '-'],
@@ -251,6 +266,12 @@ def main():
             ['MeowUITests/OnboardingRegressionUITests'], {'MEOW_UITEST_SERVER': base})
         if not captured:
             raise RuntimeError('app never registered through the real API')
+        if args.onboarding_only:
+            report['scriptHelp'] = verify_script_example(base, captured[-1]['key']['secret'])
+            report['limits'] = ['No APNs or physical device verification.', 'Retired reply UI tests excluded.']
+            (out / 'summary.json').write_text(json.dumps(report, indent=2))
+            print('Verified real-server onboarding: ' + str(out), flush=True)
+            return
         key = captured[-1]['key']['secret']
         questions = {}
         for name, choices in [('text', None), ('approval', ['approve', 'reject']), ('choice', ['postgres', 'sqlite'])]:

@@ -36,6 +36,25 @@ final class AnswerFlowUITests: XCTestCase {
 }
 
 final class OnboardingRegressionUITests: XCTestCase {
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        // SwiftUI may report clipped content as hittable behind the fixed footer.
+        let visibleArea = CGRect(x: app.frame.minX, y: app.frame.minY + 100,
+                                 width: app.frame.width, height: app.frame.height - 240)
+        for _ in 0..<10 {
+            if element.exists && element.isHittable && visibleArea.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) { return }
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+            start.press(forDuration: 0.1, thenDragTo: end)
+        }
+        XCTFail("control did not become visible above the footer")
+    }
+
+    private func replaceAddress(_ field: XCUIElement, with value: String) {
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: (field.value as? String)?.count ?? 0))
+        field.typeText(value)
+    }
+
     private func send(title: String, server: String, key: String) throws {
         var request = URLRequest(url: try XCTUnwrap(URL(string: server + "/v1/notifications")))
         request.httpMethod = "POST"
@@ -52,7 +71,7 @@ final class OnboardingRegressionUITests: XCTestCase {
         XCTAssertTrue((200..<300).contains(status), "server answered \(status)")
     }
 
-    func testEmptyServerShowsSpecificError() throws {
+    func testInvalidAndUnreachableServerShowSpecificErrors() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
@@ -60,15 +79,14 @@ final class OnboardingRegressionUITests: XCTestCase {
         guard address.waitForExistence(timeout: 10) else {
             throw XCTSkip("this simulator is already registered; erase it to test first launch")
         }
-        address.tap()
-        address.typeText("localhost\n")
+        XCTAssertEqual(address.value as? String, "https://api.meow.blue")
+        replaceAddress(address, with: "localhost\n")
         XCTAssertTrue(app.staticTexts["Enter a full address such as https://meow.example.com."].waitForExistence(timeout: 5))
-        // Submitting dismisses the keyboard; relaunch for a clean, empty field.
+        // Relaunch restores the official suggestion; replace it before the next check.
         app.terminate()
         app.launch()
         XCTAssertTrue(address.waitForExistence(timeout: 10))
-        address.tap()
-        address.typeText("http://127.0.0.1:1\n")
+        replaceAddress(address, with: "http://127.0.0.1:1\n")
         XCTAssertTrue(app.staticTexts["Can't reach 127.0.0.1. Check the address and that the server is running."].waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["Not now"].exists, "an unreachable server must not register")
         let shot = XCTAttachment(screenshot: app.screenshot())
@@ -101,14 +119,19 @@ final class OnboardingRegressionUITests: XCTestCase {
         let next = app.buttons["Next"]
         XCTAssertTrue(next.waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Copy Device Key"].exists)
-        XCTAssertTrue(app.staticTexts["meow setup --server \(server)"].exists,
-                      "the recommended command always names the server")
+        XCTAssertTrue(app.buttons["Share setup command"].exists)
         let connect = XCTAttachment(screenshot: app.screenshot())
         connect.name = "onboarding-connect"
         connect.lifetime = .keepAlways
         add(connect)
-        let key = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'meow_'")).firstMatch.label
-        XCTAssertTrue(key.hasPrefix("meow_"), "the Device Key is shown to copy")
+        let showKey = app.buttons["Show Device Key"]
+        reveal(showKey, in: app)
+        showKey.tap()
+        XCTAssertTrue(app.buttons["Hide Device Key"].waitForExistence(timeout: 5))
+        let key = app.staticTexts["onboarding.deviceKey"].label
+        XCTAssertTrue(key.hasPrefix("meow_"))
+        XCTAssertFalse(key.contains("…"), "the real API must receive the full key")
+        app.buttons["Hide Device Key"].tap()
         next.tap()
         let waitingText = app.staticTexts["Waiting for a test notification from your computer…"]
         XCTAssertTrue(waitingText.waitForExistence(timeout: 10))

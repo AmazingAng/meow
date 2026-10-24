@@ -1,34 +1,47 @@
 # Onboarding verification evidence
 
-Scope: [server selection contract](onboarding-server-spec.md). Tier 3 treatment is limited to the server/credential isolation boundary; UI refinements use normal integration checks.
+Scope: [server selection contract](onboarding-server-spec.md), onboarding usability and the PR #5 review follow-up. The stronger mutation/coverage checks remain limited to the saved-server boundary; UI refinements use ordinary integration tests. The follow-up was explicitly requested by the user. No independent verifier or new runtime dependency.
 
-Spec approval: not obtained (autonomous run). Independent verification: not performed. No new dependencies.
+Source: base 980c4629159205860162026aac2dde86a5dc9f39; SHA-256 over sorted changed/new paths relative to that base (each path, NUL, contents, NUL): `ce932d846655eafd923a6ad4838e2be2eab9241dbbe43a165e1d5304cefa40ee`. This evidence file and the server-selection spec are excluded.
 
-Source: base 635a5f8; SHA-256 over sorted modified tracked paths plus ios/scripts/verify_onboarding_server.py (each path, NUL, contents, NUL): `46bb120d1b2f636e93103316f908bf597127ca8e3f8de17f0674a28368576c15`. Documentation evidence/spec files are excluded from this source fingerprint.
+## Reproduction
 
-Reproduce from the repository root with a fresh output directory:
+Use fresh output directories:
 
 ```sh
 python3 ios/scripts/verify_onboarding_server.py --full --output /tmp/meow-onboarding-verification
 ```
 
-Tools: Apple Swift 6.3.3, Go 1.27.2, Python 3.14.3, iOS 26.5 simulator.
+This now runs all `UIOptimizationTests` and all iOS unit tests, rather than selecting only the guided setup case. The real-server onboarding tests use a separate disposable simulator named `Meow Fix …`:
 
-Final run (2026-10-23):
-- 212 iOS unit tests plus 1 guided onboarding UI test: 213 passed, 0 failed, 0 skipped.
-- CLI suite: `go test -count=1 ./cli/cmd/meow` passed; `go vet ./cli/cmd/meow`, gofmt and git diff whitespace checks passed.
-- Native Shared.swift checks: 128 generated self-hosted URL save/read/remove cases passed. They exercise the actual getter/setter; only bundle configuration, isolated preferences and unused external type declarations are adapted.
-- Changed server getter: executed, coverage gate passed; zero-execution negative control rejected. This is a one-line getter coverage claim, not whole-app/UI coverage.
-- Four disposable native mutants were compiled, run and killed by behavioral failures: default fallback, discarding saved URL, ignoring save, ignoring clear. Restored source passed and repository source stayed unchanged.
+```sh
+python3 ios/scripts/verify_review_fixes.py --simulator-id <disposable-simulator-id> --output /tmp/meow-onboarding-real --onboarding-only
+```
 
-Acceptance mapping:
-- Official URL prefill before registration: UI test first launches without a fixture-server override and asserts the prefilled field without registering against production.
-- Existing self-hosted URL wins: SessionRegressionTests.testSavedServerOverridesOfficialDefault plus generated native cases.
-- Orphaned credential cannot use the official default: unchanged GatewaySessionTests.testMissingServerReturnsToOnboarding.
-- Key absent → creation fails → retry succeeds: guided UI fixture, with Next disabled until a key exists; key reveal/hide and copy/share entry points checked. Rotation keeps its existing explicit replacement confirmation.
-- Notification permission deferred: guided UI test verifies warning and enable action on the test page, including when a computer notification has arrived.
-- Commands exclude Device Key and quote server addresses: existing OnboardingCommandTests retained. Key text is masked by default and revealable for manual transfer.
+That command verifies invalid/unreachable server errors, registration, deferred notification permission, computer-vs-phone test detection, relaunch recovery and bash/zsh script sending. It excludes retired reply UI scenarios.
 
-Failures found: initially adding the default to the old shared getter broke the missing-server/credential test. The native check independently reproduced `CONTRACT FAILED: a suggestion must not become a saved server`. The fix confines defaults to onboarding field prefill. Initial sandbox attempts could not bind local HTTP ports; final local test runs used approved execution access.
+## Results (2026-10-24)
 
-Limits and skipped layers: no physical-device/APNs end-to-end run, no email/AirDrop delivery test, no pairing API, no short installer URL deployment, no independent verifier. Full UI suite and legacy native verification harnesses were not run; the focused flow and complete iOS unit target were run. No dedicated Swift formatter configured; compilation and whitespace checks used. No supply-chain audit needed because dependencies did not change. Deterministic generated cases cover 128 valid host/path combinations, not a general URL fuzzer. Mutation/coverage claims concern the saved-server boundary only. Existing OS notification permission APIs and key rotation protocol are reused, not redesigned.
+Tools: Apple Swift 6.3.3, Go 1.27.2, Python 3.14.3, iOS 26.5 simulator; script example also verified with the host's curl 7.71.1.
+
+- 225 iOS unit tests and all 17 current notification `UIOptimizationTests`: 242 passed, zero failures/skips. Includes key masking, missing-key retry, notification-permission guidance, formatting, read-only historical questions, settings, grouping and session identity.
+- After replacing the curl example with the older-compatible `-fsS` option, all 225 unit tests and the affected script-help UI test passed again (226). Other app behavior was unchanged.
+- Updated `OnboardingRegressionUITests` against a real disposable Meow server: 2 passed, zero failures/skips. These are additional tests, for 244 distinct iOS tests in total; reruns are not counted twice.
+- The final bash and zsh examples both delivered `Hello from curl` as the title with an empty body, matching the plain-text API contract. This final script-only check used the same `verify_script_example` helper and a fresh local server; already-passing UI tests were not repeated after correcting the helper's assertion.
+- `go test -race ./...`, `go vet ./...`, the focused CLI suite and all 9 installer tests passed. Masked keys fail locally with actionable copy instructions before any HTTP request or credential save.
+- Native Shared.swift checks: 128 saved-server round trips passed. The changed getter executed; a zero-execution negative control was rejected. Four behavioral mutants were killed: default fallback, discarding saved URL, ignoring save and ignoring clear. Source restored.
+- Screenshots inspected for masked-key setup and settings script help. Formatting and whitespace checks passed.
+
+Local evidence: `/tmp/meow-onboarding-review/full`, `/tmp/meow-onboarding-review/script-help-final`, `/tmp/meow-onboarding-review/real-server-compatible-curl/onboarding.xcresult`, `/tmp/meow-onboarding-review/script-example.json`.
+
+## Behavior and coverage
+
+- The official URL is a UI suggestion only. Saved self-hosted addresses win, and orphaned credentials cannot silently bind to the official server.
+- Hidden Device Key text cannot be selected; the explicit copy button still copies the full key. Revealed text remains selectable.
+- Key-bearing onboarding login/curl examples were removed intentionally. Unused builders are deleted. `meow login` and the HTTP API remain available; Settings → Script integration provides examples using `$MEOW_KEY` rather than the saved secret.
+- The server help explains that notification content passes through and is stored on the chosen server.
+- A new PR/main workflow runs Go race tests, vet and installer tests. iOS results above were obtained locally; they are not GitHub-hosted iOS CI results.
+
+Validation issues corrected: the old UI test assumed an empty server field and an exposed key; it also treated a clipped Show Device Key button as tappable. The updated test replaces the prefilled address, scrolls above the fixed footer and explicitly reveals the key. An initial curl option was unsupported by curl 7.71.1 and was replaced. The script assertion was corrected to the existing API rule that the first plain-text line is the title, not the body.
+
+Limits: no physical-device/APNs end-to-end run, no email/AirDrop delivery test, no pairing API or short-URL deployment, no App Store privacy submission, and no independent verification. The full historical reply/gateway/focus UI suites were not run. Their relevant model behavior remains covered by the complete unit target. Mutation and coverage claims concern only the saved-server boundary, not whole-app coverage.

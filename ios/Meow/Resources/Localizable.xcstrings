@@ -71,6 +71,16 @@
         }
       }
     },
+    "1. Read your Device Key": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. 输入设备密钥"
+          }
+        }
+      }
+    },
     "1. Run this command": {
       "localizations": {
         "zh-Hans": {
@@ -87,6 +97,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "2. 出现提示时粘贴 Device Key"
+          }
+        }
+      }
+    },
+    "2. Send a test notification": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2. 发送测试通知"
           }
         }
       }
@@ -584,6 +604,16 @@
         }
       }
     },
+    "Copy curl command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制 curl 命令"
+          }
+        }
+      }
+    },
     "Copy install and setup command": {
       "localizations": {
         "zh-Hans": {
@@ -600,6 +630,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "复制安装命令"
+          }
+        }
+      }
+    },
+    "Copy key input command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制密钥输入命令"
           }
         }
       }
@@ -1072,6 +1112,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "组内成员"
+          }
+        }
+      }
+    },
+    "HTTP API and script examples": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HTTP API 和脚本示例"
           }
         }
       }
@@ -1567,6 +1617,16 @@
         }
       }
     },
+    "Notification content passes through and is stored on your chosen server. You can use a self-hosted server to manage that data yourself.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知内容会经过并保存在你选择的服务器上。你也可以使用自建服务器，自行管理这些数据。"
+          }
+        }
+      }
+    },
     "Notification not found": {
       "localizations": {
         "zh-Hans": {
@@ -1663,6 +1723,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "开启"
+          }
+        }
+      }
+    },
+    "On your computer, run the first command, paste your Device Key from the Copy Device Key button, and press Return. Then run the curl command. These examples work in bash and zsh.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在电脑上运行第一条命令，粘贴通过“复制设备密钥”按钮获取的密钥并回车，再运行 curl 命令。以下示例适用于 bash 和 zsh。"
           }
         }
       }
@@ -2111,6 +2181,16 @@
         }
       }
     },
+    "Script integration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本接入"
+          }
+        }
+      }
+    },
     "Search notifications": {
       "localizations": {
         "zh-Hans": {
@@ -2208,6 +2288,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "发送时效性测试通知"
+          }
+        }
+      }
+    },
+    "Send notifications without the CLI": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无需 CLI，也能发送通知"
           }
         }
       }
@@ -2537,6 +2627,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "当前密钥将失效，请为 Agent 更新为新密钥。"
+          }
+        }
+      }
+    },
+    "The key is entered separately so it is not included in the copied command or shell history. For automated scripts, load MEOW_KEY from your secret manager.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密钥单独输入，不会包含在复制的命令或 shell 历史中。自动化脚本请从密钥管理工具加载 MEOW_KEY。"
           }
         }
       }
