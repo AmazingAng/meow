@@ -426,6 +426,9 @@ func cmdLogin(args []string) int {
 		}
 		k = strings.TrimSpace(line)
 	}
+	if err := rejectMaskedDeviceKey(k); err != nil {
+		return usageErr(err.Error())
+	}
 	if !strings.HasPrefix(k, "meow_") {
 		return usageErr(`a Device Key starts with "meow_"`)
 	}

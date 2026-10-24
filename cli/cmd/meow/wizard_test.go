@@ -207,3 +207,32 @@ func TestDevNullIsNotATerminal(t *testing.T) {
 		t.Fatal("/dev/null treated as a terminal; prompts would read empty input")
 	}
 }
+
+func TestMaskedDeviceKeyRejectedBeforeRequestOrSave(t *testing.T) {
+	for _, key := range []string{"meow_abcd…wxyz", "meow_abcd...wxyz"} {
+		t.Run(key, func(t *testing.T) {
+			requests := 0
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				w.WriteHeader(http.StatusUnauthorized)
+			}))
+			defer ts.Close()
+			wizardEnv(t, "")
+			if _, err := checkKey(ts.URL, key); err == nil || !strings.Contains(err.Error(), "Copy Device Key") || strings.Contains(err.Error(), "wrong server") {
+				t.Fatalf("masked key diagnosis: %v", err)
+			}
+			var code int
+			out := captureOutput(t, "", func() { code = run([]string{"login", "--server", ts.URL, "--key", key}) })
+			if code == exitOK || !strings.Contains(out, "masked or incomplete") {
+				t.Fatalf("exit %d: %s", code, out)
+			}
+			if requests != 0 {
+				t.Fatalf("sent %d requests with masked key", requests)
+			}
+			cfg, err := config.LoadFile()
+			if err != nil || cfg.Key != "" {
+				t.Fatalf("masked key persisted: %v", err)
+			}
+		})
+	}
+}

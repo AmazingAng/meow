@@ -49,7 +49,14 @@ final class UIOptimizationTests: XCTestCase {
     }
 
     func test01GuidedSetupAndBackNavigation() throws {
+        scenario("onboarding-missing-key")
         let app = XCUIApplication()
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.textFields["server.address"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.textFields["server.address"].value as? String, "https://api.meow.blue")
+        capture("setup-official-default", app)
+        app.terminate()
         app.launchArguments = ["-meowServer", server, "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.textFields["server.address"].waitForExistence(timeout: 10))
@@ -62,6 +69,32 @@ final class UIOptimizationTests: XCTestCase {
         app.buttons["Get started"].tap()
         XCTAssertTrue(app.buttons["Not now"].waitForExistence(timeout: 10))
         app.buttons["Not now"].tap()
+        let create = app.buttons["onboarding.createKey"]
+        reveal(create, in: app)
+        XCTAssertFalse(app.buttons["Next"].isEnabled)
+        capture("setup-missing-key", app)
+        create.tap()
+        app.alerts.buttons["Create new key"].tap()
+        XCTAssertTrue(app.alerts["Something went wrong"].waitForExistence(timeout: 10))
+        app.alerts.buttons["OK"].tap()
+        XCTAssertFalse(app.buttons["Next"].isEnabled)
+        create.tap()
+        app.alerts.buttons["Create new key"].tap()
+        XCTAssertTrue(app.buttons["Copy Device Key"].waitForExistence(timeout: 10))
+        XCTAssertNotEqual(app.staticTexts["onboarding.deviceKey"].label, "meow_recovered_ui_fixture")
+        let maskedKey = app.staticTexts["onboarding.deviceKey"]
+        reveal(maskedKey, in: app)
+        maskedKey.press(forDuration: 1.2)
+        XCTAssertFalse(app.menuItems["Copy"].exists)
+        XCTAssertFalse(app.buttons["Copy"].exists, "masked text must not open the selection menu")
+        reveal(app.buttons["Show Device Key"], in: app)
+        app.buttons["Show Device Key"].tap()
+        XCTAssertEqual(app.staticTexts["onboarding.deviceKey"].label, "meow_recovered_ui_fixture")
+        app.buttons["Hide Device Key"].tap()
+        XCTAssertNotEqual(app.staticTexts["onboarding.deviceKey"].label, "meow_recovered_ui_fixture")
+        XCTAssertTrue(app.buttons["Next"].isEnabled)
+        reveal(app.buttons["Share setup command"], in: app)
+        capture("setup-share-and-masked-key", app)
         let cli = app.buttons["onboarding.cliHelp"]
         XCTAssertTrue(cli.waitForExistence(timeout: 5)); reveal(cli, in: app); cli.tap()
         XCTAssertTrue(app.navigationBars["Install the CLI"].waitForExistence(timeout: 5))
@@ -73,12 +106,31 @@ final class UIOptimizationTests: XCTestCase {
         // The fixture already contains an agent notification, so onboarding
         // recognizes it and offers Done instead of waiting for another one.
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+        let enable = app.buttons["onboarding.enableNotifications"]
+        reveal(enable, in: app)
+        XCTAssertTrue(app.staticTexts["Notifications are off"].exists)
+        capture("setup-test-notifications-off", app)
         app.buttons["onboarding.back"].tap()
         XCTAssertTrue(app.buttons["onboarding.cliHelp"].waitForExistence(timeout: 5))
         app.buttons["Next"].tap()
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
         app.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 10))
+    }
+
+    func testScriptHelpInSettingsUsesNoEmbeddedKey() {
+        let app = open()
+        XCTAssertTrue(app.buttons["inbox.filterMenu"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Settings"].tap()
+        let scripts = app.buttons["settings.scriptHelp"]
+        reveal(scripts, in: app); scripts.tap()
+        XCTAssertTrue(app.navigationBars["Script integration"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["read -r MEOW_KEY"].exists)
+        let command = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "curl -fsS")).firstMatch
+        reveal(command, in: app)
+        XCTAssertTrue(command.label.contains("$MEOW_KEY"))
+        XCTAssertFalse(command.label.contains("meow_"))
+        capture("settings-script-integration", app)
     }
 
     func test02InboxHasOnlyAllAndUnreadFilters() {

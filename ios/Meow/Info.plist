@@ -28,7 +28,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>MeowDefaultServer</key>
-	<string></string>
+	<string>https://api.meow.blue</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

@@ -24,6 +24,8 @@ def timestamp(date):
 class Fixture(BaseHTTPRequestHandler):
     items = []
     response_count = 0
+    missing_key = False
+    key_attempts = 0
     lock = threading.RLock()
 
     @classmethod
@@ -31,6 +33,8 @@ class Fixture(BaseHTTPRequestHandler):
         now = datetime.now(timezone.utc)
         cls.items = []
         cls.response_count = 0
+        cls.missing_key = False
+        cls.key_attempts = 0
         for ident, title, choices, expiry, read in [
             ('info', 'Build completed', False, 0, False),
             ('later', 'What should I work on next?', None, 3600, False),
@@ -74,6 +78,8 @@ class Fixture(BaseHTTPRequestHandler):
             if scenario == 'pagination':
                 soon['question']['expires_at'] = timestamp(datetime.now(timezone.utc) + timedelta(seconds=120))
                 self.items[:] = [later] + [dict(info, id=f'ntf_info_{i}') for i in range(49)] + [soon]
+            elif scenario == 'onboarding-missing-key':
+                type(self).missing_key = True
             elif scenario == 'activity':
                 self.items[:] = [info]
             elif scenario == 'empty-table-header':
@@ -159,6 +165,11 @@ class Fixture(BaseHTTPRequestHandler):
                 return self.send_json(n)
         return self.send_json({}, 404)
 
+    def do_DELETE(self):
+        if self.path == '/v1/keys/key_ui':
+            return self.send_json({})
+        return self.send_json({}, 404)
+
     def do_POST(self):
         with self.lock:
             self.post()
@@ -172,7 +183,14 @@ class Fixture(BaseHTTPRequestHandler):
                                    'device_token': 'mdt_disposable_ui_fixture',
                                    'key': {'id': 'key_ui', 'name': 'Default', 'hint': 'fixture',
                                            'scopes': ['notify', 'ask'], 'created_at': now,
-                                           'secret': 'meow_disposable_ui_fixture'}}, 201)
+                                           'secret': None if self.missing_key else 'meow_disposable_ui_fixture'}}, 201)
+        if self.path == '/v1/keys':
+            type(self).key_attempts += 1
+            if self.key_attempts == 1:
+                return self.send_json({'error': {'code': 'unavailable', 'message': 'Try creating the key again.'}}, 503)
+            return self.send_json({'id': 'key_recovered', 'name': 'Default', 'hint': 'fixture',
+                                   'scopes': ['notify', 'ask'], 'created_at': now,
+                                   'secret': 'meow_recovered_ui_fixture'}, 201)
         if self.path == '/v1/notifications':
             return self.send_json(dict(self.items[0], id='ntf_phone_test', title=body.get('title', 'Test')), 201)
         for n in self.items:

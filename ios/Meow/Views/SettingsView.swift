@@ -12,7 +12,7 @@ struct SettingsView: View {
     @State private var soundPlayer: AVAudioPlayer?
     @AppStorage(MeowShared.notificationSoundKey, store: MeowShared.defaults)
     private var notificationSound = NotificationSoundChoice.meow
-    @State private var showCLIHelp = false
+    @State private var help: SetupHelpTopic?
 
     var body: some View {
         NavigationStack {
@@ -69,7 +69,7 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showServer) { ServerSheet() }
             .sheet(isPresented: $showReregister) { ServerSheet(reregister: true) }
-            .sheet(isPresented: $showCLIHelp) { SetupHelpView(topic: .cli) }
+            .sheet(item: $help) { SetupHelpView(topic: $0) }
         }
     }
 
@@ -84,7 +84,9 @@ struct SettingsView: View {
                 CopyButton(title: "Copy Device Key", text: key)
                 CopyButton(title: "Copy install and setup command", text: model.installAndSetupCommand)
                 CopyButton(title: "Copy setup command", text: model.setupCommand)
-                Button("CLI installation help") { showCLIHelp = true }
+                Button("CLI installation help") { help = .cli }
+                Button("Script integration") { help = .scripts }
+                    .accessibilityIdentifier("settings.scriptHelp")
             }
         } header: {
             Text("Device")

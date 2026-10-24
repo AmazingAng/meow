@@ -20,10 +20,10 @@ enum MeowShared {
         set { defaults.set(newValue.rawValue, forKey: notificationSoundKey) }
     }
 
-    /// The saved server, or the default before one is chosen. Registering
-    /// saves the server, so a registered device never depends on the default.
+    /// Only a deliberately saved server can be used with device credentials.
+    /// The bundle default is a UI suggestion, never a login recovery fallback.
     static var server: URL? {
-        get { defaults.string(forKey: "server").flatMap(URL.init(string:)) ?? defaultServer }
+        get { defaults.string(forKey: "server").flatMap(URL.init(string:)) }
         set {
             if let newValue { defaults.set(newValue.absoluteString, forKey: "server") }
             else { defaults.removeObject(forKey: "server") }

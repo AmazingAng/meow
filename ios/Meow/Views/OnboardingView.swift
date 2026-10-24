@@ -12,6 +12,9 @@ struct OnboardingView: View {
     @State private var serverProblem: AppModel.ServerProblem?
     @State private var isCheckingServer = false
     @State private var isSendingTest = false
+    @State private var isCreatingKey = false
+    @State private var confirmCreateKey = false
+    @State private var showDeviceKey = false
     @State private var help: SetupHelpTopic?
     @State private var showServer = false
     private var received: MeowNotification? { model.onboardingNotification }
@@ -51,16 +54,28 @@ struct OnboardingView: View {
             }
         }
         .animation(reduceMotion ? nil : .smooth, value: step)
+        .alert("Create a new Device Key?", isPresented: $confirmCreateKey) {
+            Button("Cancel", role: .cancel) {}
+            Button("Create new key", role: .destructive) {
+                Task {
+                    isCreatingKey = true
+                    await model.rotateKey()
+                    isCreatingKey = false
+                }
+            }
+        } message: {
+            Text("The current key will stop working. Update your agents with the new key.")
+        }
         .sheet(item: $help) { SetupHelpView(topic: $0) }
         .sheet(isPresented: $showServer) { ServerSheet() }
         .onChange(of: model.isRegistered) { _, registered in
             if !registered {
                 step = .server
-                serverText = model.server?.absoluteString ?? ""
+                serverText = (model.server ?? MeowShared.defaultServer)?.absoluteString ?? ""
             }
         }
         .onAppear {
-            serverText = model.server?.absoluteString ?? ""
+            serverText = (model.server ?? MeowShared.defaultServer)?.absoluteString ?? ""
             if model.isRegistered {
                 step = model.permission == .notDetermined ? .notifications : .connect
             }
@@ -86,7 +101,6 @@ struct OnboardingView: View {
                 .accessibilityIdentifier("onboarding.back")
             }
             Text("Step \(step.rawValue) of 4").font(.caption).foregroundStyle(.secondary)
-            Text(step.title).font(.subheadline.weight(.semibold))
             ProgressView(value: Double(step.rawValue), total: 4)
                 .accessibilityLabel(Text(step.title))
         }
@@ -135,7 +149,7 @@ struct OnboardingView: View {
                         .font(.footnote)
                         .foregroundStyle(.red)
                 } else {
-                    Text("The address of your Meow server. You can change it later in Settings.")
+                    Text("Use the official Meow server, or enter your own server address. You can change it later in Settings.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -159,7 +173,7 @@ struct OnboardingView: View {
         }
     }
 
-    private var isBusy: Bool { isCheckingServer || model.isRegistering }
+    private var isBusy: Bool { isCheckingServer || model.isRegistering || isCreatingKey }
 
     /// Checks the server before registering, so a typo gets a specific answer.
     private func start() {
@@ -247,7 +261,7 @@ struct OnboardingView: View {
                         .frame(width: 48)
                         .accessibilityHidden(true)
                     Text("Connect your computer").font(.largeTitle.bold())
-                    Text("Run this command in your computer's terminal. It installs Meow and configures the agents it finds. Paste your Device Key when asked. For Codex, authorize both Meow hooks in /hooks, then finish a task to verify automatic notifications.")
+                    Text("Run this command on your computer, then paste your Device Key when asked. Follow the terminal instructions to connect your agents.")
                         .foregroundStyle(.secondary)
                 }
                 Button { help = .cli } label: {
@@ -255,24 +269,58 @@ struct OnboardingView: View {
                         .frame(minHeight: 44)
                 }
                 .accessibilityIdentifier("onboarding.cliHelp")
-                CommandBlock(title: "1. Install and connect", command: model.installAndSetupCommand, copyTitle: "Copy install and setup command")
+                CommandBlock(title: "1. Install and connect", command: model.installAndSetupCommand,
+                             copyTitle: "Copy install and setup command", shareTitle: "Share setup command")
+                Text("Send the command to your computer using Share. Copy the Device Key separately when the terminal asks for it.")
+                    .font(.footnote).foregroundStyle(.secondary)
                 if let key = model.deviceKey {
                     VStack(alignment: .leading, spacing: 8) {
-                        CommandBlock(title: "2. Paste your Device Key when asked", command: key, copyTitle: "Copy Device Key")
+                        Text("2. Paste your Device Key when asked").font(.subheadline.weight(.semibold))
+                        Group {
+                            if showDeviceKey {
+                                Text(verbatim: key).textSelection(.enabled)
+                            } else {
+                                Text(verbatim: "\(key.prefix(9))…\(key.suffix(4))")
+                                    .textSelection(.disabled)
+                            }
+                        }
+                        .font(.body.monospaced())
+                        .privacySensitive()
+                        .accessibilityIdentifier("onboarding.deviceKey")
+                        CopyButton(title: "Copy Device Key", text: key)
+                        Button {
+                            showDeviceKey.toggle()
+                        } label: {
+                            Text(showDeviceKey ? "Hide Device Key" : "Show Device Key")
+                                .frame(minHeight: 44)
+                        }
                         Text("Agents and scripts use your Device Key to send to this iPhone. The key can only send, never read or answer.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
-                    DisclosureGroup {
-                        VStack(alignment: .leading, spacing: 20) {
-                            CommandBlock(title: "CLI already installed", command: model.setupCommand, copyTitle: "Copy setup command")
-                            CommandBlock(title: "Log in with the Meow CLI", command: model.loginCommand(for: key))
-                            CommandBlock(title: "Or send with curl", command: model.curlCommand(for: key))
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Device Key unavailable", systemImage: "key.slash")
+                            .font(.headline)
+                        Text("This iPhone has no saved Device Key. Create a replacement before connecting your computer.")
+                            .foregroundStyle(.secondary)
+                        Button { confirmCreateKey = true } label: {
+                            HStack {
+                                Text("Create new Device Key…")
+                                if isCreatingKey { ProgressView() }
+                            }
+                            .frame(minHeight: 44)
                         }
-                        .padding(.top, 12)
-                    } label: {
-                        Text("Advanced").font(.subheadline.weight(.semibold))
+                        .disabled(isCreatingKey)
+                        .accessibilityIdentifier("onboarding.createKey")
                     }
+                }
+                DisclosureGroup {
+                    CommandBlock(title: "CLI already installed", command: model.setupCommand,
+                                 copyTitle: "Copy setup command", shareTitle: "Share setup command")
+                        .padding(.top, 12)
+                } label: {
+                    Text("Advanced").font(.subheadline.weight(.semibold))
                 }
             }
             .frame(maxWidth: 640, alignment: .leading)
@@ -285,6 +333,7 @@ struct OnboardingView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            .disabled(model.deviceKey == nil || isCreatingKey)
             .frame(maxWidth: 640)
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
@@ -306,7 +355,7 @@ struct OnboardingView: View {
                 VStack(spacing: 12) {
                     Text("Connected — received “\(received.title.isEmpty ? received.body : received.title)”")
                         .font(.title2.bold())
-                    Text("Your computer connection is working. For automatic Codex notifications, authorize both Meow hooks in /hooks and confirm a real task result arrives here.")
+                    Text("Your computer connection is working. Finish a task in your agent to check automatic notifications.")
                         .foregroundStyle(.secondary)
                 }
             } else {
@@ -318,6 +367,25 @@ struct OnboardingView: View {
                     Text("meow setup sends a CLI connection test. You can also run meow \"Hello\" in your terminal. This test does not verify agent hooks.")
                         .foregroundStyle(.secondary)
                 }
+            }
+            if !model.isNotificationPermissionGranted {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Notifications are off", systemImage: "bell.slash")
+                        .font(.headline)
+                    Text("Messages can arrive in the inbox, but system alerts are off. Enable notifications to see them outside Meow.")
+                        .foregroundStyle(.secondary)
+                    Button {
+                        if model.permission == .notDetermined {
+                            Task { await model.requestNotificationPermission() }
+                        } else if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        Text("Enable notifications").frame(minHeight: 44)
+                    }
+                    .accessibilityIdentifier("onboarding.enableNotifications")
+                }
+                .multilineTextAlignment(.leading)
             }
         } footer: {
             if received != nil {
