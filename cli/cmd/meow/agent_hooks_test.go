@@ -36,7 +36,7 @@ func TestHookFullBodyAndNewEvents(t *testing.T) {
 		}
 	}
 	t.Setenv("MEOW_LANGUAGE", "zh-CN")
-	req, _, _, _ := buildHookNotification("claude-stop", []byte(`{"session_id":"s","prompt_id":"p"}`), true)
+	req, _, _, _ := buildHookNotification("claude-stop", []byte(`{"session_id":"s","prompt_id":"p","last_assistant_message":"Done"}`), true)
 	if req.Title != "有新结果" {
 		t.Fatal(req.Title)
 	}

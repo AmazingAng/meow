@@ -31,6 +31,11 @@ func decodeClaude(name string, data []byte) (Event, bool, error) {
 	e := Event{Notification: message.Notification{Source: "Claude Code"}, Origin: Origin{Cwd: in.Cwd, SessionID: in.SessionID, SessionName: in.SessionTitle, TranscriptPath: in.TranscriptPath}, EventID: in.PromptID}
 	switch name {
 	case "claude-stop":
+		// A stop without an assistant reply is not a new result. Check the
+		// original input so --no-summary can still hide a meaningful reply.
+		if strings.TrimSpace(in.LastAssistantMessage) == "" {
+			return Event{}, false, nil
+		}
 		e.Template = ResultTitle
 		e.Notification.Event = message.EventResult
 		e.DedupeNamespace = name

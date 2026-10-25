@@ -79,14 +79,16 @@ func TestInvalidAdapterInputsAndResolver(t *testing.T) {
 			}
 		}
 	}
-	_, err := Build("claude-stop", []byte(`{"message":"m","session_id":"s1","prompt_id":"p1"}`), Options{ResolveContext: func(o Origin) *message.Context {
+	resolved := false
+	_, err := Build("claude-stop", []byte(`{"last_assistant_message":"m","session_id":"s1","prompt_id":"p1"}`), Options{ResolveContext: func(o Origin) *message.Context {
+		resolved = true
 		if o.Source != "Claude Code" || o.SessionID != "s1" {
 			t.Fatalf("origin=%v", o)
 		}
 		return &message.Context{Session: "Resolved", SessionID: o.SessionID}
 	}})
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || !resolved {
+		t.Fatalf("context resolver was not called for a real reply: resolved=%v err=%v", resolved, err)
 	}
 	if _, err = Build("generic", []byte(`{"title":"x","type":"question"}`), Options{}); err == nil {
 		t.Fatal("invalid standard type")

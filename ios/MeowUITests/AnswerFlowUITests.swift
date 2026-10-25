@@ -422,7 +422,7 @@ extension DesignRegressionUITests {
     func testFilterTargetsAndEmptyStateStayUsable() throws {
         let app = try openSettings()
         app.tabBars.buttons["Inbox"].tap()
-        let menu = app.buttons["inbox.filterMenu"]
+        let menu = app.buttons["inbox.browseMenu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(menu.frame.height, 44)
         menu.tap()
