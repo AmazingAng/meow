@@ -6,10 +6,10 @@ import (
 	"meow.blue/meow/message"
 )
 
-// Cursor stop hooks report how the agent loop ended. They do not include the
-// assistant text; that text arrives only on afterAgentResponse, which also
-// fires for intermediate messages. Permission gates are not observation hooks:
-// an empty stdout blocks the action, so Meow does not subscribe to them.
+// Cursor stop hooks report how the agent loop ended. The assistant reply is
+// not in this payload; the CLI reads it from the event's transcript. Permission
+// gates are not observation hooks: an empty stdout blocks the action, so Meow
+// does not subscribe to them.
 type cursorStopInput struct {
 	ConversationID string   `json:"conversation_id"`
 	GenerationID   string   `json:"generation_id"`

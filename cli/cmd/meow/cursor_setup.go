@@ -46,7 +46,7 @@ func planCursor(o setupOptions) ([]fileChange, []string, error) {
 	if o.install {
 		notes = []string{
 			"Cursor reloads hooks.json on save. Finish a task and confirm the reminder on your iPhone. The setup test does not run the hook.",
-			"Cursor's stop event has no assistant reply, so the notification is a reminder. Aborted turns are ignored. status error is a failure.",
+			"The notification body is the last assistant reply in that turn's transcript. Aborted turns are ignored. status error is a failure.",
 			"Meow does not install a permission hook. Cursor blocks those actions when the hook prints nothing.",
 			"Grok can load this same file, but sends its own payload. meow setup grokbot connects Grok. The Cursor adapter ignores that payload.",
 		}

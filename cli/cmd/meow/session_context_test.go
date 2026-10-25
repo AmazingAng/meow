@@ -194,6 +194,77 @@ func TestGrokSessionName(t *testing.T) {
 	}
 }
 
+func TestCursorStopBodyFromTranscript(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "transcript.jsonl")
+	transcript := strings.Join([]string{
+		`{"role":"user","message":{"content":[{"type":"text","text":"old"}]}}`,
+		`{"role":"assistant","message":{"content":[{"type":"text","text":"上一轮的回复"}]}}`,
+		`{"type":"turn_ended","status":"success"}`,
+		`{"role":"user","message":{"content":[{"type":"text","text":"now"}]}}`,
+		`{"role":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}`,
+		`{"role":"assistant","message":{"content":[{"type":"text","text":"第一段"},{"type":"tool_use","name":"Shell"},{"type":"text","text":"第二段"}]}}`,
+		`{"type":"turn_ended","status":"success"}`,
+		``,
+	}, "\n")
+	if err := os.WriteFile(path, []byte(transcript), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(map[string]any{
+		"hook_event_name": "stop", "conversation_id": "conv", "generation_id": "g",
+		"status": "completed", "workspace_roots": []string{"/work/meow-repo"}, "transcript_path": path,
+	})
+	req, _, send, err := buildHookNotification("cursor-stop", raw, true)
+	if err != nil || !send || req.Body != "第一段\n第二段" {
+		t.Fatalf("body=%q send=%v err=%v", req.Body, send, err)
+	}
+	hidden, _, send, err := buildHookNotification("cursor-stop", raw, false)
+	if err != nil || !send || hidden.Body != "" {
+		t.Fatalf("hidden body=%q err=%v", hidden.Body, err)
+	}
+	toolsOnly := strings.Join([]string{
+		`{"role":"user","message":{"content":[{"type":"text","text":"now"}]}}`,
+		`{"role":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}`,
+		`{"role":"assistant","message":{"content":"  "}}`,
+	}, "\n")
+	if err := os.WriteFile(path, []byte(toolsOnly), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	empty, _, send, err := buildHookNotification("cursor-stop", raw, true)
+	if err != nil || !send || empty.Body != "" {
+		t.Fatalf("tool-only body=%q err=%v", empty.Body, err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "not-a-file"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dirRaw, _ := json.Marshal(map[string]any{
+		"hook_event_name": "stop", "conversation_id": "conv", "generation_id": "g2",
+		"status": "completed", "transcript_path": filepath.Join(dir, "not-a-file"),
+	})
+	miss, _, send, err := buildHookNotification("cursor-stop", dirRaw, true)
+	if err != nil || !send || miss.Body != "" {
+		t.Fatalf("directory transcript body=%q err=%v", miss.Body, err)
+	}
+}
+
+func TestCursorStopBodyFromTranscriptTail(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "transcript.jsonl")
+	var b strings.Builder
+	b.WriteString(`{"role":"assistant","message":{"content":[{"type":"text","text":"旧回复"}]}}` + "\n")
+	padding := strings.Repeat("x", 64)
+	for b.Len() < metadataTailLimit+128 {
+		fmt.Fprintf(&b, "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":%q}]}}\n", padding)
+	}
+	b.WriteString(`{"role":"assistant","message":{"content":[{"type":"text","text":"窗口内的回复"}]}}` + "\n")
+	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if readCursorReply(path) != "窗口内的回复" {
+		t.Fatalf("tail reply=%q", readCursorReply(path))
+	}
+}
+
 func TestCodexContextHomeFallback(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CODEX_HOME", "")

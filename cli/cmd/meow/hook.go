@@ -158,6 +158,12 @@ func buildHookNotification(kind string, input []byte, summary bool) (client.Noti
 		ResolveContext: func(o adapters.Origin) *message.Context {
 			return hookContext(o.Source, o.Cwd, o.SessionID, o.SessionName, o.TranscriptPath)
 		},
+		ResolveBody: func(o adapters.Origin) string {
+			if o.Source != "Cursor" {
+				return ""
+			}
+			return readCursorReply(o.TranscriptPath)
+		},
 	})
 	return r.Notification, r.IdempotencyKey, r.Send, err
 }

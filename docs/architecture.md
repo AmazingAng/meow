@@ -130,7 +130,7 @@ Built-ins:
 | `codex` | Legacy notify JSON for explicit adapter imports | Completed turn; the retired automatic `meow hook codex` command sends no pushes |
 | `codex-stop` | Lifecycle event JSON on stdin | New result; retains existing temporary-suggestion filtering |
 | `codex-permission` | Lifecycle event JSON on stdin | Attention needed |
-| `cursor-stop` | Cursor `stop` JSON on stdin | Completed turn is a result with no reply text; `error` is a failure; `aborted` and unknown statuses are ignored. A Grok envelope is ignored so `grokbot-*` can own it |
+| `cursor-stop` | Cursor `stop` JSON on stdin | Completed turn is a result. The body is the last assistant reply in that turn's transcript, read by the CLI. `error` is a failure; `aborted` and unknown statuses are ignored. A Grok envelope is ignored so `grokbot-*` can own it |
 | `grokbot-stop` | Grok Stop JSON on stdin | New result for `end_turn` with a nonblank assistant reply. Session-end, subagent and blank replies are ignored |
 | `grokbot-failure` | Grok StopFailure JSON | Runtime/API error |
 | `grokbot-notify` | Grok Notification JSON | Attention for `permission_prompt` and `elicitation_dialog`; other notification types are ignored |

@@ -221,3 +221,88 @@ func sqliteReadOnlyDSN(path string) string {
 	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path), RawQuery: "mode=ro"}
 	return u.String()
 }
+
+// readCursorReply returns the last assistant text after the latest user message.
+// Cursor's stop payload does not carry that reply. Only the event's own
+// transcript is read, and only its trailing 2 MiB. Tool calls are not included.
+func readCursorReply(path string) string {
+	if path == "" {
+		return ""
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	info, err = f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
+	start := max(int64(0), info.Size()-metadataTailLimit)
+	b, err := io.ReadAll(io.NewSectionReader(f, start, metadataTailLimit))
+	if err != nil {
+		return ""
+	}
+	if start > 0 {
+		if i := bytes.IndexByte(b, '\n'); i >= 0 {
+			b = b[i+1:]
+		} else {
+			return ""
+		}
+	}
+	reply := ""
+	for _, line := range bytes.Split(b, []byte{'\n'}) {
+		var row struct {
+			Role    string `json:"role"`
+			Message struct {
+				Content json.RawMessage `json:"content"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(line, &row) != nil || row.Role == "" {
+			continue
+		}
+		if row.Role == "user" {
+			reply = ""
+			continue
+		}
+		if row.Role != "assistant" {
+			continue
+		}
+		if text := cursorAssistantText(row.Message.Content); text != "" {
+			reply = text
+		}
+	}
+	return reply
+}
+
+func cursorAssistantText(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &parts) == nil {
+		var b strings.Builder
+		for _, part := range parts {
+			if part.Type != "text" || strings.TrimSpace(part.Text) == "" {
+				continue
+			}
+			if b.Len() > 0 {
+				b.WriteByte('\n')
+			}
+			b.WriteString(part.Text)
+		}
+		return strings.TrimSpace(b.String())
+	}
+	var text string
+	if json.Unmarshal(raw, &text) == nil {
+		return strings.TrimSpace(text)
+	}
+	return ""
+}
