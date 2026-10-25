@@ -158,31 +158,43 @@ final class UIOptimizationTests: XCTestCase {
         app.buttons[chinese ? "取消" : "Cancel"].tap()
     }
 
-    func test02InboxHasOnlyAllAndUnreadFilters() {
+    func test02InboxViewMenuOnlyOffersFourModes() {
         let app = open()
-        let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_info").firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["inbox.pendingSummary"].exists)
-        capture("notification-only-inbox", app)
+        XCTAssertTrue(app.buttons["inbox.browseMenu"].waitForExistence(timeout: 10))
         app.buttons["inbox.browseMenu"].tap()
-        XCTAssertTrue(app.buttons["filter.all"].exists)
-        XCTAssertTrue(app.buttons["filter.unread"].exists)
-        XCTAssertFalse(app.buttons["filter.pending"].exists)
-        app.buttons["filter.unread"].tap()
-        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "notification.ntf_soon").firstMatch.exists)
+        assertViewOptionsOnly(in: app)
+        capture("view-menu-four-options", app)
+        app.buttons["browse.sessions"].tap()
+        XCTAssertEqual(app.staticTexts["inbox.title"].label, "Sessions")
+        XCTAssertTrue(app.buttons["inbox.delete"].exists)
+        XCTAssertTrue(app.buttons["inbox.search"].exists)
     }
 
-    func test03AccessibleChineseFilterAndMetadata() {
+    func test03AccessibleChineseViewMenuAndMetadata() {
         let app = open(large: true, chinese: true)
         let menu = app.buttons["inbox.browseMenu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 10))
-        XCTAssertTrue(menu.isHittable)
-        capture("inbox-large-zh", app)
         menu.tap()
-        XCTAssertFalse(app.buttons["filter.pending"].exists)
-        app.buttons["filter.unread"].tap()
+        assertViewOptionsOnly(in: app)
+        for title in ["消息", "会话", "项目", "Agent"] {
+            XCTAssertTrue(app.buttons[title].isHittable)
+        }
+        capture("view-menu-four-options-large-zh", app)
+        app.buttons["browse.workspaces"].tap()
+        XCTAssertEqual(app.staticTexts["inbox.title"].label, "项目")
         XCTAssertTrue(menu.isHittable)
-        capture("unread-large-zh", app)
+    }
+
+    private func assertViewOptionsOnly(in app: XCUIApplication) {
+        for mode in ["messages", "sessions", "workspaces", "sources"] {
+            XCTAssertTrue(app.buttons["browse." + mode].waitForExistence(timeout: 5))
+        }
+        for id in ["filter.all", "filter.unread", "filter.pending", "inbox.selectGroups", "inbox.merge"] {
+            XCTAssertFalse(app.buttons[id].exists)
+        }
+        XCTAssertFalse(app.buttons["Mark all messages as read"].exists)
+        XCTAssertFalse(app.buttons["全部标为已读"].exists)
+        XCTAssertFalse(app.staticTexts["Filter notifications"].exists)
     }
 
     func test04LegacyQuestionsAreReadOnly() {
@@ -362,13 +374,6 @@ final class UIOptimizationTests: XCTestCase {
         wait(for: [done], timeout: 5)
     }
 
-    private func selectFilter(_ name: String, in app: XCUIApplication) {
-        let menu = app.buttons["inbox.browseMenu"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 10))
-        menu.tap()
-        app.buttons["filter.\(name)"].tap()
-    }
-
     func testCompactNotificationCategories() {
         scenario("compact-categories")
         var app = open()
@@ -493,9 +498,10 @@ final class UIOptimizationTests: XCTestCase {
         assertNoRepliesSubmitted()
     }
 
-    func test08CompactHeaderSearchAndUnreadMenu() {
+    func test08CompactHeaderSearchAndViewMenu() {
         scenario("activity")
         let app = open()
+        browse("messages", in: app)
         let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_info").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         let navigation = app.navigationBars.firstMatch
@@ -519,11 +525,8 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertFalse(field.exists)
 
         app.buttons["inbox.browseMenu"].tap()
-        app.buttons["Mark all messages as read"].tap()
-        selectFilter("unread", in: app)
-        XCTAssertTrue(app.staticTexts["All caught up"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["inbox.browseMenu"].isHittable)
-        selectFilter("all", in: app)
+        assertViewOptionsOnly(in: app)
+        app.buttons["browse.messages"].tap()
         XCTAssertTrue(row.waitForExistence(timeout: 10))
     }
     private func browse(_ mode: String, in app: XCUIApplication) {
@@ -620,33 +623,20 @@ final class UIOptimizationTests: XCTestCase {
         }
     }
 
-    func test20LocalGroupingMergeAndUnmerge() {
+    func test20GroupedViewsRetainNavigationWithoutSelectionActions() {
         scenario("grouping")
         let app = open()
         browse("sessions", in: app)
         XCTAssertTrue(app.staticTexts["Deploy"].firstMatch.waitForExistence(timeout: 10))
         capture("grouping-sessions", app)
         app.buttons["inbox.browseMenu"].tap()
-        app.buttons["inbox.selectGroups"].tap()
+        assertViewOptionsOnly(in: app)
+        app.buttons["browse.sessions"].tap()
         app.staticTexts["Deploy"].firstMatch.tap()
-        app.staticTexts["Review"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["inbox.merge"].isEnabled)
-        XCTAssertTrue(app.buttons["inbox.merge"].isHittable)
-        XCTAssertFalse(app.tabBars.firstMatch.exists)
-        app.buttons["inbox.merge"].tap()
-        let merged = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "inbox.group.merge:")).firstMatch
-        XCTAssertTrue(merged.waitForExistence(timeout: 10))
-        capture("grouping-merged", app)
-        merged.tap()
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "notification.ntf_group_a1").firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.firstMatch.exists)
         capture("grouping-group-messages", app)
-        app.buttons["group.actions"].tap()
-        app.buttons["group.members"].tap()
-        XCTAssertTrue(app.buttons["group.unmerge"].waitForExistence(timeout: 5))
-        capture("grouping-members", app)
-        app.buttons["group.unmerge"].tap()
-        XCTAssertTrue(app.buttons["inbox.browseMenu"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Deploy"].firstMatch.waitForExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
         browse("workspaces", in: app)
         XCTAssertTrue(app.staticTexts["meow"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts.matching(identifier: "meow").count, 1)
@@ -704,12 +694,10 @@ final class UIOptimizationTests: XCTestCase {
         browse("messages", in: app)
     }
 
-    func test23SourceGroupDetailBackAndUnreadEmptyState() {
+    func test23SourceGroupDetailBackAndSearchEmptyState() {
         scenario("grouping")
         let app = open()
         browse("sources", in: app)
-        app.buttons["inbox.browseMenu"].tap()
-        app.buttons["filter.unread"].tap()
         let source = app.staticTexts["Monitor"].firstMatch
         XCTAssertTrue(source.waitForExistence(timeout: 10))
         capture("grouping-sources", app)
@@ -718,6 +706,10 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5)); row.tap()
         XCTAssertTrue(app.staticTexts["legacy service result"].firstMatch.waitForExistence(timeout: 5))
         app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "read messages remain visible without unread filtering")
+        app.buttons["group.search"].tap()
+        let query = app.textFields["group.searchField"]
+        XCTAssertTrue(query.waitForExistence(timeout: 5)); query.tap(); query.typeText("no such message")
         XCTAssertTrue(app.staticTexts["No matching messages"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["group.actions"].exists, "empty groups keep their page until the user leaves")
         capture("grouping-empty", app)
@@ -789,9 +781,8 @@ final class UIOptimizationTests: XCTestCase {
                 capture("plain-header-" + mode + (chinese ? "-large-zh" : "-en"), app)
             }
             app.buttons["inbox.browseMenu"].tap()
-            XCTAssertTrue(app.buttons["filter.all"].exists)
-            XCTAssertTrue(app.buttons["filter.unread"].exists)
-            app.buttons["filter.unread"].tap()
+            assertViewOptionsOnly(in: app)
+            app.buttons["browse.sources"].tap()
             XCTAssertEqual(app.staticTexts["inbox.title"].label, "Agent", "the title stays identical to the view name")
             browse("messages", in: app)
             app.terminate()

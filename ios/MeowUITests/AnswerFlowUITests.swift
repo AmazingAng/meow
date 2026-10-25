@@ -419,27 +419,24 @@ final class DesignRegressionUITests: XCTestCase {
 }
 
 extension DesignRegressionUITests {
-    func testFilterTargetsAndEmptyStateStayUsable() throws {
+    func testViewTargetsStayUsable() throws {
         let app = try openSettings()
         app.tabBars.buttons["Inbox"].tap()
         let menu = app.buttons["inbox.browseMenu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(menu.frame.height, 44)
         menu.tap()
-        for name in ["all", "unread", "pending"] {
-            let filter = app.buttons["filter.\(name)"]
-            XCTAssertTrue(filter.waitForExistence(timeout: 5))
-            XCTAssertGreaterThanOrEqual(filter.frame.height, 44)
+        for name in ["messages", "sessions", "workspaces", "sources"] {
+            let option = app.buttons["browse.\(name)"]
+            XCTAssertTrue(option.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(option.frame.height, 44)
         }
-        app.buttons["Mark all as read"].tap()
-        menu.tap()
-        app.buttons["filter.unread"].tap()
-        XCTAssertTrue(app.staticTexts["All caught up"].waitForExistence(timeout: 10))
-        XCTAssertTrue(menu.isHittable, "the empty view must not cover the filter menu")
-        capture("inbox-empty-unread", in: app)
-        menu.tap()
-        app.buttons["filter.all"].tap()
-        XCTAssertTrue(app.staticTexts["UI test: build completed"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["filter.unread"].exists)
+        XCTAssertFalse(app.buttons["inbox.selectGroups"].exists)
+        XCTAssertFalse(app.buttons["Mark all messages as read"].exists)
+        capture("inbox-view-options", in: app)
+        app.buttons["browse.messages"].tap()
+        XCTAssertTrue(menu.isHittable)
     }
 
     func testReplyComposerKeepsDraftAndDismissesKeyboard() throws {
