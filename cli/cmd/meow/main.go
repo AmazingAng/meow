@@ -419,7 +419,7 @@ func cmdLogin(args []string) int {
 	k := strings.TrimSpace(*key)
 	if k == "" {
 		// Prompting keeps the key out of shell history.
-		fmt.Fprint(os.Stderr, "Device Key (Meow app → Settings → Copy Device Key): ")
+		fmt.Fprint(os.Stderr, "Device Key (Meow app → Settings → Device Key (tap to copy)): ")
 		line, err := in.ReadString('\n')
 		if err != nil && line == "" {
 			return fail(err)

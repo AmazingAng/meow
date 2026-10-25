@@ -6,8 +6,9 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var isSendingTest = false
     @State private var isRetrying = false
-    @State private var isCreatingKey = false
-    @State private var confirmRotate = false
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var showAgentPrompt = false
+    @State private var showFocusHelp = false
     @State private var showServer = false
     @State private var showReregister = false
     @State private var showSavedReplies = false
@@ -18,12 +19,12 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if model.loadError != nil || model.pushRegistrationError != nil {
+                if model.loadError != nil || model.pushRegistrationError != nil || model.deviceKey == nil {
                     Section {
-                        Label("Connection needs attention", systemImage: "exclamationmark.triangle")
+                        Text("Connection needs attention")
                             .foregroundStyle(.orange)
                             .accessibilityIdentifier("settings.connectionWarning")
-                        Text(model.loadError ?? model.pushRegistrationError ?? "")
+                        Text(model.loadError ?? model.pushRegistrationError ?? String(localized: "Your Device Key is unavailable. Re-register this server to reconnect your computer."))
                             .font(.footnote).foregroundStyle(.secondary)
                         Button("Retry") {
                             isRetrying = true
@@ -36,7 +37,7 @@ struct SettingsView: View {
                         }
                         .disabled(isRetrying)
                         .accessibilityIdentifier("connection.check")
-                        if model.loadError != nil {
+                        if model.loadError != nil || model.deviceKey == nil {
                             Button("Re-register this server…") { showReregister = true }
                                 .accessibilityIdentifier("server.reregister")
                         }
@@ -47,7 +48,7 @@ struct SettingsView: View {
                         LabeledContent {
                             Text(permission).foregroundStyle(.secondary)
                         } label: {
-                            Label("Notifications", systemImage: "bell")
+                            Text("Notifications")
                                 .foregroundStyle(.primary)
                         }
                     }
@@ -55,12 +56,16 @@ struct SettingsView: View {
                                         ? Text("Allow notifications") : Text("Open notification settings"))
                     .accessibilityIdentifier("settings.notifications")
                     .accessibilityValue(Text(permission))
+                    Button { showFocusHelp = true } label: {
+                        Text("During Focus")
+                    }
+                    .accessibilityIdentifier("settings.focusHelp")
                     Picker(selection: $notificationSound) {
                         ForEach(NotificationSoundChoice.allCases) { choice in
                             Text(choice.title).tag(choice)
                         }
                     } label: {
-                        Label("Notification sound", systemImage: "speaker.wave.2")
+                        Text("Notification sound")
                     }
                     .pickerStyle(.menu)
                     .accessibilityIdentifier("notifications.sound")
@@ -76,7 +81,7 @@ struct SettingsView: View {
                         }
                     } label: {
                         HStack {
-                            Label("Send a test notification", systemImage: "paperplane")
+                            Text("Send a test notification")
                             if isSendingTest { Spacer(); ProgressView() }
                         }
                     }
@@ -88,29 +93,21 @@ struct SettingsView: View {
                             Text(verbatim: model.serverDisplay).foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         } label: {
-                            Label("Server", systemImage: "network").foregroundStyle(.primary)
+                            Text("Server").foregroundStyle(.primary)
                         }
                     }
                     .accessibilityIdentifier("settings.server")
                     if let key = model.deviceKey {
-                        HStack {
-                            CopyButton(title: "Copy Device Key", text: key)
-                            Spacer()
-                            Button(role: .destructive) { confirmRotate = true } label: {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                    .frame(minWidth: 44, minHeight: 44)
-                            }
-                            .accessibilityLabel("Create new Device Key…")
-                            .accessibilityIdentifier("settings.rotateKey")
-                            .disabled(isCreatingKey)
-                        }
-                        .buttonStyle(.borderless)
+                        CopyButton(title: "Device Key", text: key,
+                                   maskedPreview: String(key.prefix(3)) + "…" + String(key.suffix(3)))
+                            .accessibilityHint("Tap to copy the complete Device Key")
+                            .accessibilityIdentifier("settings.deviceKey")
                     } else {
-                        Button("Create new Device Key…") { confirmRotate = true }
-                            .disabled(isCreatingKey)
+                        LabeledContent("Device Key", value: String(localized: "Unavailable"))
+                            .foregroundStyle(.secondary)
                     }
                     ShareLink(item: model.installAndSetupCommand) {
-                        Label("Share setup command", systemImage: "square.and.arrow.up")
+                        Text("Share setup command")
                     }
                     .accessibilityIdentifier("settings.shareSetup")
                 } header: {
@@ -121,33 +118,63 @@ struct SettingsView: View {
                 if !model.failedReplies.isEmpty || !model.queuedReplies.isEmpty {
                     Section {
                         Button { showSavedReplies = true } label: {
-                            Label("Saved reply records", systemImage: "archivebox")
+                            Text("Saved reply records")
                         }
                     }
                 }
                 Section {
-                } footer: {
-                    HStack {
-                        Link("Help", destination: URL(string: "https://github.com/AmazingAng/meow#readme")!)
-                        Spacer()
-                        Text(verbatim: "Meow " + version)
+                    Link(destination: URL(string: "https://github.com/AmazingAng/meow#installation")!) {
+                        Text("Installation and usage")
                     }
-                    .font(.footnote)
+                    .accessibilityIdentifier("settings.helpDocs")
+                    Link(destination: URL(string: "https://github.com/AmazingAng/meow#http-api")!) {
+                        Text("HTTP API and script examples")
+                    }
+                    .accessibilityIdentifier("settings.helpAPI")
+                    Button("Ask your agent to use Meow") { showAgentPrompt = true }
+                        .accessibilityIdentifier("settings.showPrompt")
+                } header: {
+                    Text("Help")
+                } footer: {
+                    Text(verbatim: "Meow " + version)
                 }
             }
             .navigationTitle("Settings")
             .onDisappear { soundPlayer?.stop() }
-            .alert("Create a new Device Key?", isPresented: $confirmRotate) {
+            .alert("During Focus", isPresented: $showFocusHelp) {
+                Button("Open notification settings", action: openSystemNotificationSettings)
                 Button("Cancel", role: .cancel) {}
-                Button("Create new key", role: .destructive) {
-                    isCreatingKey = true
-                    Task {
-                        await model.rotateKey()
-                        isCreatingKey = false
+            } message: {
+                Text("Turn on Time Sensitive Notifications for Meow. Then go to iPhone Settings → Focus → your Focus → Apps and allow Time Sensitive Notifications. Important alerts can then arrive during Do Not Disturb. Silent mode still silences their sound.")
+            }
+            .sheet(isPresented: $showAgentPrompt) {
+                NavigationStack {
+                    ScrollView {
+                        Text(verbatim: agentPrompt)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(24)
+                            .accessibilityIdentifier("settings.agentPrompt")
+                    }
+                    .safeAreaInset(edge: .bottom) {
+                        CopyButton(title: "Copy prompt", text: agentPrompt)
+                            .labelStyle(.titleOnly)
+                            .buttonStyle(.borderedProminent)
+                            .accessibilityIdentifier("settings.copyPrompt")
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(.bar)
+                    }
+                    .navigationTitle("Agent prompt")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showAgentPrompt = false }
+                        }
                     }
                 }
-            } message: {
-                Text("The current key will stop working. Update your agents with the new key.")
+                .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showServer) { ServerSheet() }
             .sheet(isPresented: $showReregister) { ServerSheet(reregister: true) }
@@ -164,6 +191,10 @@ struct SettingsView: View {
         }
     }
 
+    private var agentPrompt: String {
+        String(localized: "Help me set up and use Meow for this task. Read the official skill at https://github.com/AmazingAng/meow/blob/main/skills/meow/SKILL.md and check the connection with meow doctor. If a Device Key is needed, ask me to paste it into the terminal, not this chat. Notify me when the task finishes, fails, or needs my input; skip routine progress. I will reply on the computer.")
+    }
+
     private var permission: LocalizedStringKey {
         switch model.permission {
         case .authorized, .provisional, .ephemeral: "On"
@@ -175,7 +206,13 @@ struct SettingsView: View {
     private func openNotificationSettings() {
         if model.permission == .notDetermined {
             Task { await model.requestNotificationPermission() }
-        } else if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+        } else {
+            openSystemNotificationSettings()
+        }
+    }
+
+    private func openSystemNotificationSettings() {
+        if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
             UIApplication.shared.open(url)
         }
     }

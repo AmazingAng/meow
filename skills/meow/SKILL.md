@@ -46,7 +46,7 @@ curl -fsSL https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/instal
 The user needs the Meow iPhone app first. In the app they choose a server and allow notifications. Settings shows:
 
 - the server address (Settings → Server)
-- the Device Key (Settings → Copy Device Key). It starts with `meow_` and can only send notifications.
+- the Device Key (tap the Device Key row in Settings to copy it). It starts with `meow_` and can only send notifications.
 
 Never ask the user to paste the Device Key into the chat. Never put it on a command line, in a file you create, or in your output. `meow` reads it from a prompt so that it stays out of shell history.
 

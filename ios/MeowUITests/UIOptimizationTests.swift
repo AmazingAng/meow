@@ -123,10 +123,17 @@ final class UIOptimizationTests: XCTestCase {
         let app = open()
         XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Settings"].tap()
-        let copyKey = app.buttons["Copy Device Key"]
-        reveal(copyKey, in: app); copyKey.tap()
-        XCTAssertTrue(app.buttons["Copied"].waitForExistence(timeout: 5))
+        let copyKey = app.buttons["settings.deviceKey"]
+        reveal(copyKey, in: app)
+        XCTAssertTrue(copyKey.label.contains("meo…ure") || (copyKey.value as? String)?.contains("meo…ure") == true)
+        XCTAssertFalse(app.buttons["Copy Device Key"].exists)
+        XCTAssertFalse(app.staticTexts["meow_disposable_ui_fixture"].exists)
+        copyKey.tap()
+        XCTAssertTrue(app.staticTexts["Copied"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.alerts.firstMatch.exists, "copy must not also trigger key rotation")
+        // Paste into the unsaved server editor to verify the full fixture key,
+        // rather than merely checking the copy confirmation or masked preview.
+        assertCopiedText("meow_disposable_ui_fixture", in: app)
         let share = app.buttons["settings.shareSetup"]
         reveal(share, in: app); share.tap()
         let copy = app.descendants(matching: .any).matching(NSPredicate(format: "label IN %@", ["Copy", "拷贝", "复制"])).firstMatch
@@ -134,6 +141,21 @@ final class UIOptimizationTests: XCTestCase {
         capture("settings-share-command", app)
         copy.tap()
         XCTAssertTrue(app.navigationBars["Settings"].exists)
+    }
+
+    private func assertCopiedText(_ expected: String, in app: XCUIApplication, chinese: Bool = false) {
+        let server = app.buttons["settings.server"]
+        reveal(server, in: app); server.tap()
+        let field = app.textFields["server.address"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        let current = field.value as? String ?? ""
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+        field.press(forDuration: 1.1)
+        let paste = app.descendants(matching: .any).matching(NSPredicate(format: "label IN %@", ["Paste", "粘贴"])).firstMatch
+        XCTAssertTrue(paste.waitForExistence(timeout: 5)); paste.tap()
+        XCTAssertEqual(field.value as? String, expected)
+        app.buttons[chinese ? "取消" : "Cancel"].tap()
     }
 
     func test02InboxHasOnlyAllAndUnreadFilters() {
@@ -194,7 +216,7 @@ final class UIOptimizationTests: XCTestCase {
         wait(for: [done], timeout: 5)
     }
 
-    func test05SettingsAndReregisterCancellation() {
+    func test05SettingsAndServerCancellation() {
         let app = open()
         XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Settings"].tap()
@@ -211,11 +233,8 @@ final class UIOptimizationTests: XCTestCase {
         reveal(server, in: app); server.tap()
         XCTAssertTrue(app.textFields["server.address"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
-        let rotate = app.buttons["settings.rotateKey"]
-        reveal(rotate, in: app); rotate.tap()
-        XCTAssertTrue(app.alerts["Create a new Device Key?"].waitForExistence(timeout: 5))
-        capture("settings-key-confirmation", app)
-        app.alerts.buttons["Cancel"].tap()
+        XCTAssertFalse(app.buttons["settings.rotateKey"].exists)
+        XCTAssertFalse(app.buttons["Create new Device Key…"].exists)
         XCTAssertFalse(app.alerts.firstMatch.exists)
     }
 
@@ -242,21 +261,74 @@ final class UIOptimizationTests: XCTestCase {
         var app = open(chinese: true)
         XCTAssertTrue(app.tabBars.buttons["设置"].waitForExistence(timeout: 10))
         app.tabBars.buttons["设置"].tap()
-        XCTAssertTrue(app.buttons["settings.shareSetup"].isHittable)
+        XCTAssertTrue(app.buttons["settings.focusHelp"].exists)
         capture("settings-home-zh", app)
+        reveal(app.buttons["settings.shareSetup"], in: app)
         app.terminate()
         app = open(large: true, chinese: true)
         XCTAssertTrue(app.tabBars.buttons["设置"].waitForExistence(timeout: 10))
         app.tabBars.buttons["设置"].tap()
         capture("settings-home-large-zh", app)
-        for id in ["notifications.sound", "settings.server", "settings.rotateKey", "settings.shareSetup"] {
+        for id in ["settings.focusHelp", "notifications.sound", "settings.server", "settings.deviceKey", "settings.shareSetup"] {
             reveal(app.buttons[id], in: app)
         }
         capture("settings-connection-large-zh", app)
         XCTAssertTrue(app.navigationBars["设置"].exists, "all settings remain on one page")
-        app.buttons["settings.rotateKey"].tap()
-        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
-        app.alerts.buttons["取消"].tap()
+        let showPrompt = app.buttons["settings.showPrompt"]
+        reveal(showPrompt, in: app)
+        XCTAssertFalse(app.staticTexts["settings.agentPrompt"].exists)
+        capture("settings-help-large-zh", app)
+        showPrompt.tap()
+        let copyPrompt = app.buttons["settings.copyPrompt"]
+        XCTAssertTrue(copyPrompt.waitForExistence(timeout: 5))
+        XCTAssertTrue(copyPrompt.isHittable, "copy stays visible even with accessibility text")
+        capture("settings-prompt-large-zh", app)
+        copyPrompt.tap()
+        app.buttons["完成"].tap()
+        XCTAssertFalse(app.staticTexts["settings.agentPrompt"].exists)
+    }
+
+    func testSettingsFocusHelpAndAgentPrompt() {
+        for chinese in [false, true] {
+            let app = open(chinese: chinese)
+            XCTAssertTrue(app.tabBars.buttons[chinese ? "设置" : "Settings"].waitForExistence(timeout: 10))
+            app.tabBars.buttons[chinese ? "设置" : "Settings"].tap()
+            app.buttons["settings.focusHelp"].tap()
+            let alert = app.alerts.firstMatch
+            XCTAssertTrue(alert.waitForExistence(timeout: 5))
+            XCTAssertTrue(alert.buttons[chinese ? "打开通知设置" : "Open notification settings"].exists)
+            capture(chinese ? "settings-focus-guide-zh" : "settings-focus-guide", app)
+            if chinese {
+                alert.buttons["取消"].tap()
+            } else {
+                alert.buttons["Open notification settings"].tap()
+                let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+                XCTAssertTrue(settings.wait(for: .runningForeground, timeout: 5))
+                app.activate()
+            }
+            let docs = app.descendants(matching: .any).matching(identifier: "settings.helpDocs").firstMatch
+            reveal(docs, in: app)
+            XCTAssertTrue(docs.exists)
+            XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "settings.helpAPI").firstMatch.exists)
+            let showPrompt = app.buttons["settings.showPrompt"]
+            reveal(showPrompt, in: app)
+            XCTAssertFalse(app.staticTexts["settings.agentPrompt"].exists)
+            capture(chinese ? "settings-help-zh" : "settings-help", app)
+            showPrompt.tap()
+            let copy = app.buttons["settings.copyPrompt"]
+            XCTAssertTrue(copy.waitForExistence(timeout: 5))
+            let prompt = app.staticTexts["settings.agentPrompt"]
+            XCTAssertTrue(prompt.label.contains("meow doctor"))
+            XCTAssertTrue(prompt.label.contains("skills/meow/SKILL.md"))
+            XCTAssertFalse(prompt.label.contains("meow_disposable_ui_fixture"))
+            capture(chinese ? "settings-prompt-zh" : "settings-prompt", app)
+            let expectedPrompt = prompt.label
+            copy.tap()
+            app.buttons[chinese ? "完成" : "Done"].tap()
+            XCTAssertFalse(app.staticTexts["settings.agentPrompt"].exists)
+            assertCopiedText(expectedPrompt, in: app, chinese: chinese)
+            app.terminate()
+        }
     }
 
     func testSettingsConnectionFailureAndRecovery() {

@@ -165,6 +165,8 @@ struct ExpiryCountdown: View {
 struct CopyButton: View {
     var title: LocalizedStringKey = "Copy"
     var text: String
+    /// A non-selectable preview; tapping still copies the complete text.
+    var maskedPreview: String? = nil
     @State private var copied = false
 
     var body: some View {
@@ -176,8 +178,24 @@ struct CopyButton: View {
             copied = true
             UIAccessibility.post(notification: .announcement, argument: String(localized: "Copied"))
         } label: {
-            Label(copied ? "Copied" : title, systemImage: copied ? "checkmark" : "doc.on.doc")
-                .frame(minHeight: 44)
+            if let maskedPreview {
+                LabeledContent {
+                    if copied {
+                        Text("Copied").foregroundStyle(.tint)
+                    } else {
+                        Text(verbatim: maskedPreview)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                } label: {
+                    Text(title).foregroundStyle(.primary)
+                }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+            } else {
+                Label(copied ? "Copied" : title, systemImage: copied ? "checkmark" : "doc.on.doc")
+                    .frame(minHeight: 44)
+            }
         }
         .task(id: copied) {
             guard copied else { return }

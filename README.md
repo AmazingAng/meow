@@ -103,7 +103,7 @@ meow doctor
 
 `meow ask` and `meow wait` are unavailable in the V1 CLI and return an explanatory error without creating a question. The server protocol and underlying question implementation remain for compatibility. Existing questions, options and historical answers remain readable in the app. Previously queued replies are preserved as copyable records and are not sent automatically.
 
-The iPhone app suggests the official server, `https://api.meow.blue`, on first launch. You can edit the address for a self-hosted server; saved server choices are preserved. During setup, share the installation command with your computer and copy the Device Key separately when the terminal asks for it. The shared command does not include the key. The masked key preview shows only `meow_…` and the last 4 characters and cannot be selected; use **Copy Device Key** to copy the complete key, or reveal it for manual transfer. **Settings → Help** links to the installation guide and HTTP API examples for scripts. Settings offers one shareable setup command and a separate **Copy Device Key** action. The old key-bearing login/curl examples are no longer shown in onboarding; `meow login` and the HTTP API remain supported.
+The iPhone app suggests the official server, `https://api.meow.blue`, on first launch. You can edit the address for a self-hosted server; saved server choices are preserved. During setup, share the installation command with your computer and copy the Device Key separately when the terminal asks for it. The shared command does not include the key. The onboarding key preview shows only `meow_…` and the last 4 characters and cannot be selected; use **Copy Device Key** to copy the complete key, or reveal it for manual transfer. **Settings → Help** contains installation and HTTP API links plus an agent prompt that opens in a sheet for reading and copying. Settings shows the first and last 3 characters of the Device Key; tap the row to copy the complete key. A shareable setup command is available beside it. The old key-bearing login/curl examples are no longer shown in onboarding; `meow login` and the HTTP API remain supported.
 
 Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `MEOW_SERVER` and `MEOW_SOURCE` override it. No server address is assumed: setup/login use the address supplied by the app or your existing configuration.
 
@@ -135,7 +135,7 @@ Legacy question states remain visible as history. Reading a notification does no
 
 In iPhone Settings → Notifications → Meow, enable **Time Sensitive Notifications**.
 Also enable Time Sensitive Notifications in Settings → Focus → your Focus → Apps.
-Meow's notification-permission row opens the iPhone notification settings, where Time Sensitive Notifications can be enabled. Meow cannot inspect or change each Focus's allowlist. From the CLI, use
+Meow's **During Focus** button explains both steps and offers to open the iPhone notification settings. Meow cannot inspect or change each Focus's allowlist. From the CLI, use
 `meow send --priority high "Your decision is needed"`.
 Both direct APNs and the wake gateway use the same priority mapping.
 
