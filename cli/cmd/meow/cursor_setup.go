@@ -48,63 +48,9 @@ func planCursor(o setupOptions) ([]fileChange, []string, error) {
 			"Cursor reloads hooks.json on save. Finish a task and confirm the reminder on your iPhone. The setup test does not run the hook.",
 			"The notification body is the last assistant reply in that turn's transcript. Aborted turns are ignored. status error is a failure.",
 			"Meow does not install a permission hook. Cursor blocks those actions when the hook prints nothing.",
-			"Grok can load this same file, but sends its own payload. meow setup grokbot connects Grok. The Cursor adapter ignores that payload.",
 		}
 		home, _ := os.UserHomeDir()
 		notes = append(notes, skillHint(filepath.Join(home, ".agents", "skills", "meow", "SKILL.md"), "cursor")...)
-	}
-	return changes, notes, nil
-}
-
-func grokbotCommands(o setupOptions) map[string]string {
-	suffix := ""
-	if !o.summary {
-		suffix = " --no-summary"
-	}
-	base := setup.ShellQuote(o.exe) + " hook "
-	return map[string]string{
-		"Stop":         base + "grokbot-stop" + suffix,
-		"StopFailure":  base + "grokbot-failure" + suffix,
-		"Notification": base + "grokbot-notify" + suffix,
-	}
-}
-
-func planGrokbot(o setupOptions) ([]fileChange, []string, error) {
-	dir, err := grokDir()
-	if err != nil {
-		return nil, nil, err
-	}
-	path := filepath.Join(dir, "hooks", "meow.json")
-	old, exists, err := setup.ReadOptional(path)
-	if err != nil {
-		return nil, nil, err
-	}
-	commands := grokbotCommands(o)
-	data, err := setup.LifecycleHooks(old, commands, o.install, []string{"grokbot-stop", "grokbot-failure", "grokbot-notify"}, o.executables()...)
-	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w", tilde(path), err)
-	}
-	var changes []fileChange
-	if !setup.EquivalentJSON(old, data) {
-		lines := []string{"remove the Meow Stop, StopFailure and Notification hooks"}
-		if o.install {
-			lines = []string{
-				"Stop hook (end_turn with an assistant reply): " + commands["Stop"],
-				"StopFailure hook (API error)",
-				"Notification hook (permission_prompt and elicitation_dialog): " + commands["Notification"],
-			}
-		}
-		changes = append(changes, fileChange{path: path, data: data, exists: exists, lines: lines})
-	}
-	var notes []string
-	if o.install {
-		notes = []string{
-			"Grok loads hooks from its hooks directory. Open /hooks and reload, then finish a task and check your iPhone.",
-			"Session-end Stop, subagent stops, blank replies and idle_prompt notifications are ignored.",
-			"If Cursor is connected too, Grok may also run ~/.cursor/hooks.json. That adapter ignores Grok's payload, so the turn is sent once.",
-		}
-		home, _ := os.UserHomeDir()
-		notes = append(notes, skillHint(filepath.Join(home, ".agents", "skills", "meow", "SKILL.md"), "grok")...)
 	}
 	return changes, notes, nil
 }

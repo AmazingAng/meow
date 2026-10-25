@@ -10,8 +10,7 @@ func TestAgentEventsAreExplicit(t *testing.T) {
 		{"claude-stop", "Stop", "result"}, {"claude-notify", "Notification", "attention"},
 		{"claude-failure", "StopFailure", "failure"}, {"codex-stop", "Stop", "result"},
 		{"codex-permission", "PermissionRequest", "attention"}, {"codex", "", "result"},
-		{"cursor-stop", "stop", "result"}, {"grokbot-stop", "Stop", "result"},
-		{"grokbot-failure", "StopFailure", "failure"}, {"grokbot-notify", "Notification", "attention"},
+		{"cursor-stop", "stop", "result"},
 	} {
 		t.Run(tc.adapter, func(t *testing.T) {
 			input, _ := json.Marshal(map[string]any{"session_id": "s", "sessionId": "s", "turn_id": "t", "prompt_id": "p", "promptId": "p", "hook_event_name": tc.hook, "conversation_id": "s", "generation_id": "g", "status": "completed", "last_assistant_message": "text", "lastAssistantMessage": "text", "message": "look", "notificationType": "permission_prompt", "error": "failure", "type": "agent-turn-complete", "thread-id": "s", "turn-id": "t"})

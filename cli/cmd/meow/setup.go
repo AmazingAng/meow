@@ -26,7 +26,6 @@ Usage:
   meow setup claude [flags]    Claude Code: Stop, StopFailure and Notification hooks
   meow setup codex [flags]     Codex: Stop and PermissionRequest lifecycle hooks
   meow setup cursor [flags]    Cursor: stop hook in ~/.cursor/hooks.json
-  meow setup grokbot [flags]   Grok: Stop, StopFailure and Notification hooks
 
 You get a notification when the agent finishes a task or needs you. Reply in
 the agent on your computer. meow setup shows the changes and asks before
@@ -96,10 +95,8 @@ func cmdSetup(args []string) int {
 		name, plan = "Codex", planCodex
 	case "cursor":
 		name, plan = "Cursor", planCursor
-	case "grokbot":
-		name, plan = "Grok", planGrokbot
 	default:
-		return usageErr(`meow setup supports "claude", "codex", "cursor" and "grokbot"`)
+		return usageErr(`meow setup supports "claude", "codex" and "cursor"`)
 	}
 	o := setupOptions{install: !*uninstall, summary: !*noSummary}
 
@@ -255,14 +252,6 @@ func codexDir() (string, error) {
 func cursorDir() (string, error) {
 	home, err := os.UserHomeDir()
 	return filepath.Join(home, ".cursor"), err
-}
-
-func grokDir() (string, error) {
-	if d := os.Getenv("GROK_HOME"); d != "" {
-		return d, nil
-	}
-	home, err := os.UserHomeDir()
-	return filepath.Join(home, ".grok"), err
 }
 
 func planClaude(o setupOptions) ([]fileChange, []string, error) {

@@ -100,7 +100,7 @@ func cmdSetupWizard(args []string) int {
 	if len(detected) > 0 {
 		fmt.Fprintln(os.Stderr, "Detected agents: "+strings.Join(detected, ", "))
 	}
-	for _, supported := range []agentInfo{{"claude", "Claude Code"}, {"codex", "Codex"}, {"cursor", "Cursor"}, {"grokbot", "Grok"}} {
+	for _, supported := range []agentInfo{{"claude", "Claude Code"}, {"codex", "Codex"}, {"cursor", "Cursor"}} {
 		found := false
 		for _, agent := range agents {
 			if agent.id == supported.id {
@@ -112,8 +112,8 @@ func cmdSetupWizard(args []string) int {
 		}
 	}
 	if len(agents) == 0 {
-		fmt.Fprintln(os.Stderr, "\nNo Claude Code, Codex, Cursor or Grok setup found on this computer.")
-		fmt.Fprintln(os.Stderr, `Install one, then run "meow setup claude", "meow setup codex", "meow setup cursor" or "meow setup grokbot".`)
+		fmt.Fprintln(os.Stderr, "\nNo Claude Code, Codex or Cursor setup found on this computer.")
+		fmt.Fprintln(os.Stderr, `Install one, then run "meow setup claude", "meow setup codex" or "meow setup cursor".`)
 		sendSetupTest(cfg, "Meow CLI")
 		return exitOK
 	}
@@ -199,7 +199,7 @@ func cmdDoctor(args []string) int {
 
 	agents := detectAgents()
 	if len(agents) == 0 {
-		fmt.Fprintln(os.Stderr, "- No Claude Code, Codex, Cursor or Grok setup found")
+		fmt.Fprintln(os.Stderr, "- No Claude Code, Codex or Cursor setup found")
 	}
 	for _, a := range agents {
 		installed := cfg.Installed[a.id] != ""
@@ -238,7 +238,6 @@ func detectAgents() []agentInfo {
 		{agentInfo{"claude", "Claude Code"}, claudeDir, []string{"claude"}},
 		{agentInfo{"codex", "Codex"}, codexDir, []string{"codex"}},
 		{agentInfo{"cursor", "Cursor"}, cursorDir, []string{"cursor"}},
-		{agentInfo{"grokbot", "Grok"}, grokDir, []string{"grok", "grokbot"}},
 	} {
 		if d, err := a.dir(); err == nil {
 			if fi, err := os.Stat(d); err == nil && fi.IsDir() {

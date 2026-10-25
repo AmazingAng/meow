@@ -25,10 +25,9 @@ func decodeCursorStop(data []byte) (Event, bool, error) {
 	if err := json.Unmarshal(data, &in); err != nil {
 		return Event{}, false, fmt.Errorf("invalid Cursor event: %w", err)
 	}
-	// Grok executes ~/.cursor/hooks.json with its own envelope. Ignoring that
-	// shape lets the grokbot adapter own it, so one turn is not notified twice
-	// and a Grok payload is not logged as a broken Cursor event.
-	if cursorPayloadIsGrok(in) {
+	// Some other agents load ~/.cursor/hooks.json and send their own envelope.
+	// Ignore that shape instead of logging it as a broken Cursor event.
+	if cursorPayloadIsForeign(in) {
 		return Event{}, false, nil
 	}
 	if in.HookEventName != "" && in.HookEventName != "stop" {
@@ -74,7 +73,7 @@ func decodeCursorStop(data []byte) (Event, bool, error) {
 	return e, true, nil
 }
 
-func cursorPayloadIsGrok(in cursorStopInput) bool {
+func cursorPayloadIsForeign(in cursorStopInput) bool {
 	if in.Status != "" || in.ConversationID != "" {
 		return false
 	}

@@ -59,8 +59,6 @@ func Lookup(name string) (Adapter, error) {
 		return decoder(func(b []byte) (Event, bool, error) { return decodeCodexHook(name, b) }), nil
 	case "cursor-stop":
 		return decoder(decodeCursorStop), nil
-	case "grokbot-stop", "grokbot-failure", "grokbot-notify":
-		return decoder(func(b []byte) (Event, bool, error) { return decodeGrokbot(name, b) }), nil
 	case "generic":
 		return decoder(decodeService), nil
 	default:
