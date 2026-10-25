@@ -124,7 +124,7 @@ Built-ins:
 
 | Adapter | Input | Meaning |
 | --- | --- | --- |
-| `claude-stop` | Claude event JSON on stdin | New result; does not imply success |
+| `claude-stop` | Claude event JSON on stdin | New result only for a nonblank assistant reply; does not imply success |
 | `claude-failure` | StopFailure event JSON | Runtime/API error |
 | `claude-notify` | Notification event JSON | Attention needed, including permission/form prompts |
 | `codex` | Legacy notify JSON for explicit adapter imports | Completed turn; the retired automatic `meow hook codex` command sends no pushes |

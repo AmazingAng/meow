@@ -57,7 +57,7 @@ func TestClaudeContextTitlesAndBoundedFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, kind := range []string{"claude-stop", "claude-notify", "claude-failure"} {
-		raw, _ := json.Marshal(map[string]any{"session_id": "s1", "prompt_id": "p", "cwd": "/w/project", "transcript_path": path})
+		raw, _ := json.Marshal(map[string]any{"session_id": "s1", "prompt_id": "p", "cwd": "/w/project", "transcript_path": path, "last_assistant_message": "Done"})
 		req, _, send, err := buildHookNotification(kind, raw, false)
 		if err != nil || !send || req.Context == nil || req.Context.Session != "Named session" {
 			t.Fatalf("%s: %+v %v", kind, req, err)

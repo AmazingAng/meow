@@ -191,7 +191,7 @@ func TestHookWithoutKeyOrDisabled(t *testing.T) {
 	t.Setenv("MEOW_KEY", "")
 	start := time.Now()
 	var code int
-	out := captureOutput(t, `{"session_id":"s","prompt_id":"p"}`, func() { code = run([]string{"hook", "claude-stop"}) })
+	out := captureOutput(t, `{"session_id":"s","prompt_id":"p","last_assistant_message":"Done"}`, func() { code = run([]string{"hook", "claude-stop"}) })
 	if code != 0 || out != "" || time.Since(start) > 2*time.Second {
 		t.Fatalf("exit=%d output=%q", code, out)
 	}
