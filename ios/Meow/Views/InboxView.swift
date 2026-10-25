@@ -3,8 +3,6 @@ import SwiftUI
 struct InboxView: View {
     @Environment(AppModel.self) private var model
     @State private var now = Date.now
-    @State private var selectingGroups = false
-    @State private var selectedGroups: Set<String> = []
     @State private var isSearching = false
     @State private var deletion: DeletionConfirmation?
     @State private var confirmsDeletion = false
@@ -39,8 +37,8 @@ struct InboxView: View {
             .toolbar {
                 inboxTitleToolbar
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    InboxBrowseMenu(selectingGroups: $selectingGroups)
-                    if !selectingGroups { deletionMenu }
+                    InboxBrowseMenu()
+                    deletionMenu
                     if isSearching || !model.search.isEmpty {
                         Button("Cancel") {
                             searchFocused = false
@@ -72,28 +70,9 @@ struct InboxView: View {
                     DetailView(id: id)
                 }
             }
-            .toolbar {
-                if selectingGroups {
-                    ToolbarItemGroup(placement: .bottomBar) {
-                        Button("Cancel") { selectingGroups = false; selectedGroups = [] }
-                        Spacer()
-                        Button("Merge selected groups") {
-                            model.mergeInboxGroups(selectedGroups)
-                            selectedGroups = []; selectingGroups = false
-                        }
-                        .disabled(selectedGroups.count < 2 || model.isGroupingInbox)
-                        .accessibilityIdentifier("inbox.merge")
-                    }
-                }
-            }
-            .toolbar(selectingGroups ? .hidden : .visible, for: .tabBar)
-            .onChange(of: model.inboxMode) { selectedGroups = []; selectingGroups = false }
             .onChange(of: model.inboxGroupingScope) {
-                selectedGroups = []; selectingGroups = false
                 isSearching = false; searchFocused = false
             }
-            .onChange(of: model.search) { selectedGroups = [] }
-            .onChange(of: model.filter) { selectedGroups = [] }
             .task {
                 if !model.hasLoaded { await model.refresh() }
             }
@@ -189,27 +168,10 @@ struct InboxView: View {
             rows(model.notifications, now: now)
         } else {
             ForEach(model.visibleInboxGroups) { group in
-                if selectingGroups {
-                    Button {
-                        if selectedGroups.contains(group.id) { selectedGroups.remove(group.id) }
-                        else { selectedGroups.insert(group.id) }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: selectedGroups.contains(group.id) ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(Color.accentColor)
-                            InboxGroupRow(group: group, isSearching: !model.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityValue(selectedGroups.contains(group.id) ? Text("Selected") : Text("Not selected"))
-                    .accessibilityIdentifier("inbox.group.\(group.id)")
-                } else {
-                    NavigationLink(value: "inbox-group:" + group.id) {
-                        InboxGroupRow(group: group, isSearching: !model.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                        .accessibilityIdentifier("inbox.group.\(group.id)")
+                NavigationLink(value: "inbox-group:" + group.id) {
+                    InboxGroupRow(group: group, isSearching: !model.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+                .accessibilityIdentifier("inbox.group.\(group.id)")
             }
             if model.hasMoreInboxGroups {
                 ProgressView().frame(maxWidth: .infinity)
@@ -300,58 +262,21 @@ private struct MascotEmptyState: View {
 
 private struct InboxBrowseMenu: View {
     @Environment(AppModel.self) private var model
-    @Binding var selectingGroups: Bool
 
     var body: some View {
         Menu {
-            Section {
-                ForEach(InboxGroupingMode.allCases) { mode in
-                    Button { model.inboxMode = mode } label: {
-                        if model.inboxMode == mode { Label(mode.title, systemImage: "checkmark") }
-                        else { Label(mode.title, systemImage: mode.symbol) }
-                    }
-                    .accessibilityIdentifier("browse.\(mode.rawValue)")
+            ForEach(InboxGroupingMode.allCases) { mode in
+                Button { model.inboxMode = mode } label: {
+                    Label(mode.title, systemImage: model.inboxMode == mode ? "checkmark.square.fill" : "square")
                 }
-            }
-            Section("Filter notifications") {
-                ForEach(AppModel.Filter.visibleCases) { filter in
-                    Button { model.filter = filter } label: {
-                        if model.filter == filter {
-                            Label { filterTitle(filter) } icon: { Image(systemName: "checkmark") }
-                        } else {
-                            filterTitle(filter)
-                        }
-                    }
-                    .accessibilityIdentifier("filter.\(filter.rawValue)")
-                }
-            }
-            Section {
-                if model.inboxMode != .messages {
-                    Button("Select groups") { selectingGroups.toggle() }
-                        .disabled(model.matchingInboxGroups.isEmpty || model.isGroupingInbox)
-                        .accessibilityIdentifier("inbox.selectGroups")
-                }
-                Button("Mark all messages as read") { Task { await model.markAllRead() } }
-                    .disabled(model.counts.unread == 0 || model.isMarkingGroupRead || model.isMarkingAllRead)
+                .accessibilityIdentifier("browse.\(mode.rawValue)")
+                .accessibilityValue(model.inboxMode == mode ? Text("Selected") : Text("Not selected"))
             }
         } label: {
             Label("Browse inbox", systemImage: "square.grid.2x2")
         }
         .accessibilityIdentifier("inbox.browseMenu")
         .accessibilityValue(Text(model.inboxMode.title))
-    }
-
-    private func count(_ filter: AppModel.Filter) -> Int {
-        switch filter {
-        case .all: 0
-        case .unread: model.counts.unread
-        case .pending: model.counts.pending
-        }
-    }
-
-    private func filterTitle(_ filter: AppModel.Filter) -> Text {
-        let value = count(filter)
-        return value > 0 ? Text(filter.title) + Text(verbatim: " \(value.formatted())") : Text(filter.title)
     }
 }
 

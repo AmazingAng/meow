@@ -109,8 +109,7 @@ Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `ME
 
 ## Local inbox and search
 
-The iOS app saves synchronized messages in a local SQLite database. Search,
-All / Unread filters, and display pagination use those saved messages
+The iOS app saves synchronized messages in a local SQLite database. Search, grouping and display pagination use those saved messages
 without network requests, including history beyond the first visible page.
 Saved history remains searchable after restarting the app while offline.
 
@@ -239,7 +238,7 @@ curl -H "Authorization: Bearer $MEOW_KEY" -d "Build completed" "$MEOW_SERVER/v1/
 
 The optional notification `context` object accepts `workspace`, `workspace_id`, `session` and `session_id`. Display names allow 200 Unicode characters; IDs allow 128. Values are trimmed and must be single-line text without control characters. Context is returned by notification detail and inbox endpoints and included in creation idempotency. Omitting it preserves the previous request format. Update the server, CLI and iOS app for session context to appear end to end; server startup migrates SQLite to schema v3 while preserving history.
 
-In the iOS inbox, swipe left and tap the trash icon to delete one message. The header trash menu clears a selected time range after confirmation. Time ranges use the iPhone's local calendar and apply to all messages, including those hidden by search or unread filters. Deletion removes server records and the local cache; it cannot be undone. Update the server before using these controls; unsupported endpoints and network failures keep local messages and show an error. Bulk deletion requires both bounds (`0 <= from < before <= 253402300799999`); missing, duplicate and unknown query parameters are rejected. Deleting a legacy question message also removes its question and responses and wakes waiting clients with `404`; it never approves anything. Creation idempotency records keep their normal retention to prevent sender retries from recreating deleted messages. An APNs notification already accepted by Apple may remain in Notification Center.
+In the iOS inbox, swipe left and tap the trash icon to delete one message. The header trash menu clears a selected time range after confirmation. Time ranges use the iPhone's local calendar and apply to all messages, including those hidden by search. Deletion removes server records and the local cache; it cannot be undone. Update the server before using these controls; unsupported endpoints and network failures keep local messages and show an error. Bulk deletion requires both bounds (`0 <= from < before <= 253402300799999`); missing, duplicate and unknown query parameters are rejected. Deleting a legacy question message also removes its question and responses and wakes waiting clients with `404`; it never approves anything. Creation idempotency records keep their normal retention to prevent sender retries from recreating deleted messages. An APNs notification already accepted by Apple may remain in Notification Center.
 
 Question lifecycle: `pending` → `answered` | `rejected` | `expired` | `cancelled`. Exactly one response is accepted per question. A retry with the same `Idempotency-Key` and answer returns the stored result. Any other second response gets `409`, and a response after expiry gets `410`. Expiry never approves anything.
 
