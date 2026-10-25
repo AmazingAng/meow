@@ -7,7 +7,7 @@ import (
 )
 
 // Cursor stop hooks report how the agent loop ended. The assistant reply is
-// not in this payload; the CLI reads it from the event's transcript. Permission
+// not in this payload; the CLI uses a generation-bound response snapshot. Permission
 // gates are not observation hooks: an empty stdout blocks the action, so Meow
 // does not subscribe to them.
 type cursorStopInput struct {

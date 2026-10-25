@@ -6,7 +6,7 @@ import "fmt"
 // list under hooks.<event>, not Claude's nested matcher groups. Ownership is
 // an exact generated command, so a user's script that mentions the same words
 // is left alone.
-func CursorHooks(src []byte, command string, install bool, known ...string) ([]byte, error) {
+func CursorHooks(src []byte, command, responseCommand string, install bool, known ...string) ([]byte, error) {
 	members, err := parseObject(src)
 	if err != nil {
 		return nil, err
@@ -54,6 +54,9 @@ func CursorHooks(src []byte, command string, install bool, known ...string) ([]b
 		}
 	}
 	if install {
+		if responseCommand != "" {
+			hooks["afterAgentResponse"] = append(list(hooks["afterAgentResponse"]), map[string]any{"command": responseCommand, "timeout": 30})
+		}
 		hooks["stop"] = append(list(hooks["stop"]), map[string]any{"command": command, "timeout": 30})
 		if !hasMember(members, "version") {
 			raw, err := marshal(1)
@@ -94,15 +97,24 @@ func hasMember(members []member, key string) bool {
 }
 
 func ownedCursor(command string, known []string) bool {
+	for _, kind := range []string{"cursor-stop", "cursor-response"} {
+		if ownedCursorKind(command, kind, known) {
+			return true
+		}
+	}
+	return false
+}
+
+func ownedCursorKind(command, kind string, known []string) bool {
 	for _, exe := range known {
 		if exe == "" {
 			continue
 		}
-		prefix := ShellQuote(exe) + " hook cursor-stop"
+		prefix := ShellQuote(exe) + " hook " + kind
 		if command == prefix || command == prefix+" --no-summary" {
 			return true
 		}
 	}
-	prefix := "meow hook cursor-stop"
+	prefix := "meow hook " + kind
 	return command == prefix || command == prefix+" --no-summary"
 }

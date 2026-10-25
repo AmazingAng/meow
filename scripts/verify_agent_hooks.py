@@ -127,10 +127,14 @@ def real_cli(out):
             hook('codex-permission', dict(session_id='s', turn_id='t', hook_event_name='PermissionRequest', tool_name='Bash', tool_input={'command': 'git push'}), 'live-permission')
             hook('claude-failure', dict(session_id='s', prompt_id='p', error='rate_limit', error_details='Try later'), 'live-failure')
             hook('claude-stop', dict(session_id='s', prompt_id='p2', last_assistant_message='{"suggestions":[]}'), 'live-structured')
+            hook('cursor-response', dict(hook_event_name='afterAgentResponse', conversation_id='c', generation_id='g', text='Cursor generation reply'), 'live-cursor-response')
             hook('cursor-stop', dict(hook_event_name='stop', conversation_id='c', generation_id='g', status='completed', workspace_roots=['/work/meow']), 'live-cursor')
             hook('cursor-stop', dict(hook_event_name='stop', conversation_id='c', generation_id='g2', status='aborted'), 'live-cursor-aborted')
             hook('cursor-stop', dict(hook_event_name='Stop', sessionId='s', lastAssistantMessage='from another agent', reason='end_turn'), 'live-cursor-ignores-foreign')
             inbox = request('/v1/inbox', token=registration['device_token'])['notifications']
+            cursor = [n for n in inbox if n['source'] == 'Cursor']
+            if len(cursor) != 1 or cursor[0]['body'] != 'Cursor generation reply':
+                raise RuntimeError('Cursor generation snapshot was lost')
             if len(inbox) != 5:
                 raise RuntimeError('wrong persisted count: ' + str(len(inbox)))
             results = [n for n in inbox if n['source'] == 'Codex' and n['title'] == 'New result']

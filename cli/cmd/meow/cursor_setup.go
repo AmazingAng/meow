@@ -26,11 +26,14 @@ func planCursor(o setupOptions) ([]fileChange, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	command := ""
+	command, responseCommand := "", ""
 	if o.install {
 		command = cursorCommand(o)
+		if o.summary {
+			responseCommand = setup.ShellQuote(o.exe) + " hook cursor-response"
+		}
 	}
-	data, err := setup.CursorHooks(old, command, o.install, o.executables()...)
+	data, err := setup.CursorHooks(old, command, responseCommand, o.install, o.executables()...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: %w", tilde(path), err)
 	}
@@ -39,6 +42,9 @@ func planCursor(o setupOptions) ([]fileChange, []string, error) {
 		lines := []string{"remove the Meow stop hook"}
 		if o.install {
 			lines = []string{"stop hook (completed turn, or failure when status is error): " + command}
+			if responseCommand != "" {
+				lines = append(lines, "afterAgentResponse hook (generation-bound reply snapshot): "+responseCommand)
+			}
 		}
 		changes = append(changes, fileChange{path: path, data: data, exists: exists, lines: lines})
 	}
@@ -46,7 +52,7 @@ func planCursor(o setupOptions) ([]fileChange, []string, error) {
 	if o.install {
 		notes = []string{
 			"Cursor reloads hooks.json on save. Finish a task and confirm the reminder on your iPhone. The setup test does not run the hook.",
-			"The notification body is the last assistant reply in that turn's transcript. Aborted turns are ignored. status error is a failure.",
+			"afterAgentResponse captures the reply for its generation. Stop sends that snapshot, or a generic reminder if missing. Aborted turns are ignored; status error is a failure.",
 			"Meow does not install a permission hook. Cursor blocks those actions when the hook prints nothing.",
 		}
 		home, _ := os.UserHomeDir()
