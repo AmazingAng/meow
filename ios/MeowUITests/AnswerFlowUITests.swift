@@ -255,7 +255,7 @@ final class OfflineReplyUITests: XCTestCase {
         add(pending)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.tabBars.buttons["Settings"].tap()
-        let changeServer = app.buttons["Change server…"]
+        let changeServer = app.buttons["settings.server"]
         for _ in 0..<4 {
             if changeServer.exists { break }
             app.swipeUp()
@@ -309,7 +309,7 @@ final class DiscardReplyUITests: XCTestCase {
         add(pending)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.tabBars.buttons["Settings"].tap()
-        let changeServer = app.buttons["Change server…"]
+        let changeServer = app.buttons["settings.server"]
         for _ in 0..<4 {
             if changeServer.exists { break }
             app.swipeUp()
@@ -386,24 +386,18 @@ final class DesignRegressionUITests: XCTestCase {
         add(shot)
     }
 
-    func testKeyRotationUsesCenteredCancellableAlert() throws {
+    func testDeviceKeyHasNoRenewalAction() throws {
         let app = try openSettings()
-        let rotate = app.buttons["Create new Device Key…"]
-        reveal(rotate, in: app)
-        rotate.tap()
-        let alert = app.alerts["Create a new Device Key?"]
-        assertCentered(alert, in: app)
-        XCTAssertTrue(alert.buttons["Cancel"].isHittable)
-        XCTAssertTrue(alert.buttons["Create new key"].isHittable)
-        capture("key-rotation-confirmation", in: app)
-        alert.buttons["Cancel"].tap()
-        XCTAssertFalse(alert.exists)
-        XCTAssertTrue(rotate.isHittable)
+        let key = app.buttons["settings.deviceKey"]
+        reveal(key, in: app)
+        XCTAssertFalse(app.buttons["Create new Device Key…"].exists)
+        key.tap()
+        XCTAssertFalse(app.alerts.firstMatch.exists)
     }
 
     func testServerEditorUsesCenteredCancellableAlert() throws {
         let app = try openSettings()
-        let change = app.buttons["Change server…"]
+        let change = app.buttons["settings.server"]
         reveal(change, in: app)
         change.tap()
         let address = app.textFields.firstMatch
@@ -486,7 +480,7 @@ extension DesignRegressionUITests {
         app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
         app.launch()
         app.tabBars.buttons["设置"].tap()
-        let change = app.buttons["更换服务器…"]
+        let change = app.buttons["settings.server"]
         reveal(change, in: app)
         change.tap()
         let address = app.textFields.firstMatch
@@ -506,7 +500,7 @@ extension DesignRegressionUITests {
 
     func testInvalidAddressShowsInlineValidation() throws {
         let app = try openSettings()
-        let change = app.buttons["Change server…"]
+        let change = app.buttons["settings.server"]
         reveal(change, in: app)
         change.tap()
         let address = app.textFields.firstMatch

@@ -161,6 +161,16 @@
         }
       }
     },
+    "Agent prompt": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 提示词"
+          }
+        }
+      }
+    },
     "Agents and scripts use your Device Key to send to this iPhone. The key can only send, never read or answer.": {
       "localizations": {
         "zh-Hans": {
@@ -267,6 +277,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已批准"
+          }
+        }
+      }
+    },
+    "Ask your agent to use Meow": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让 Agent 使用 Meow"
           }
         }
       }
@@ -534,7 +554,6 @@
       }
     },
     "Connection": {
-      "extractionState": "stale",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -550,6 +569,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "连接与通知状态"
+          }
+        }
+      }
+    },
+    "Connection needs attention": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接需要处理"
           }
         }
       }
@@ -650,6 +679,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "复制密钥输入命令"
+          }
+        }
+      }
+    },
+    "Copy prompt": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制提示词"
           }
         }
       }
@@ -1136,6 +1175,26 @@
         }
       }
     },
+    "Help": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帮助"
+          }
+        }
+      }
+    },
+    "Help me set up and use Meow for this task. Read the official skill at https://github.com/AmazingAng/meow/blob/main/skills/meow/SKILL.md and check the connection with meow doctor. If a Device Key is needed, ask me to paste it into the terminal, not this chat. Notify me when the task finishes, fails, or needs my input; skip routine progress. I will reply on the computer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请帮我配置 Meow 并用于当前任务。先阅读官方 skill：https://github.com/AmazingAng/meow/blob/main/skills/meow/SKILL.md，用 meow doctor 检查连接。需要 Device Key 时让我在终端粘贴，不要发到聊天里。任务完成、出错或需要我处理时通知我，不推送日常进度；我会回到电脑回复。"
+          }
+        }
+      }
+    },
     "Hide Device Key": {
       "localizations": {
         "zh-Hans": {
@@ -1242,6 +1301,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "先安装命令行工具"
+          }
+        }
+      }
+    },
+    "Installation and usage": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装与使用文档"
           }
         }
       }
@@ -2171,6 +2240,16 @@
         }
       }
     },
+    "Run the shared command on your computer, then paste your Device Key when asked.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在电脑上运行分享的命令，再按提示粘贴设备密钥。"
+          }
+        }
+      }
+    },
     "Run this command in your computer's terminal. It installs Meow and configures the agents it finds. Paste your Device Key when asked. For Codex, authorize both Meow hooks in /hooks, then finish a task to verify automatic notifications.": {
       "localizations": {
         "zh-Hans": {
@@ -2600,6 +2679,16 @@
         }
       }
     },
+    "Tap to copy the complete Device Key": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轻点复制完整 Device Key"
+          }
+        }
+      }
+    },
     "Test connection": {
       "localizations": {
         "zh-Hans": {
@@ -2895,6 +2984,16 @@
         }
       }
     },
+    "Turn on Time Sensitive Notifications for Meow. Then go to iPhone Settings → Focus → your Focus → Apps and allow Time Sensitive Notifications. Important alerts can then arrive during Do Not Disturb. Silent mode still silences their sound.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先在 Meow 的通知设置中开启“时效性通知”，再前往 iPhone 设置 → 专注模式 → 你使用的模式 → App，允许“时效性通知”。重要提醒即可在免打扰期间送达；静音模式下仍不会响铃。"
+          }
+        }
+      }
+    },
     "Turn on notifications": {
       "localizations": {
         "zh-Hans": {
@@ -3171,6 +3270,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "所有通知都已读。"
+          }
+        }
+      }
+    },
+    "Your Device Key is unavailable. Re-register this server to reconnect your computer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device Key 不可用。请重新注册此服务器，然后在电脑上重新连接。"
           }
         }
       }

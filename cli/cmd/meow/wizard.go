@@ -47,7 +47,7 @@ func cmdSetupWizard(args []string) int {
 		if !stdinIsTerminal() {
 			return usageErr("no server configured; pass --server https://your-meow-server")
 		}
-		fmt.Fprint(os.Stderr, "Meow server (Server URL in the Meow app): ")
+		fmt.Fprint(os.Stderr, "Meow server (connection page, or Settings → Server): ")
 		line, _ := in.ReadString('\n')
 		cfg.Server = strings.TrimRight(strings.TrimSpace(line), "/")
 	}
@@ -70,7 +70,7 @@ func cmdSetupWizard(args []string) int {
 			return usageErr(`no working Device Key; run "meow login" first`)
 		}
 		// Read from the prompt, never from flags, so the key stays out of shell history.
-		fmt.Fprint(os.Stderr, "Device Key (Meow app → Connect your computer, or Settings → Device Key): ")
+		fmt.Fprint(os.Stderr, "Device Key (Meow app → Connect your computer, or Settings → Device Key (tap to copy)): ")
 		line, _ := in.ReadString('\n')
 		key := strings.TrimSpace(line)
 		if !strings.HasPrefix(key, "meow_") {
@@ -315,7 +315,7 @@ func checkKey(server, key string) (client.WhoAmI, error) {
 	who, err := client.New(server, key).WhoAmI(ctx)
 	var ae *client.Error
 	if errors.As(err, &ae) && (ae.Status == http.StatusUnauthorized || ae.Status == http.StatusForbidden) {
-		return client.WhoAmI{}, errors.New("the Device Key isn't valid on this server (wrong server, or the key was rotated). Copy it again from Meow → Connect your computer, or Settings → Device Key")
+		return client.WhoAmI{}, errors.New("the Device Key isn't valid on this server (wrong server, or the key was rotated). Copy it again from Meow → Connect your computer, or Settings → Device Key (tap to copy)")
 	}
 	if err != nil {
 		return client.WhoAmI{}, err
@@ -333,7 +333,7 @@ func stdinIsTerminal() bool {
 // making an HTTP request or persisting it as a saved key.
 func rejectMaskedDeviceKey(key string) error {
 	if strings.Contains(key, "…") || strings.Contains(key, "...") {
-		return errors.New(`this Device Key is masked or incomplete. Use "Copy Device Key" in Meow instead of copying the shortened text`)
+		return errors.New(`this Device Key is masked or incomplete. Tap Device Key in Meow Settings, or use "Copy Device Key" during setup, instead of copying the shortened text`)
 	}
 	return nil
 }
