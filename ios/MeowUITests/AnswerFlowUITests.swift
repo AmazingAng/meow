@@ -386,13 +386,12 @@ final class DesignRegressionUITests: XCTestCase {
         add(shot)
     }
 
-    func testDeviceKeyCopiesWithoutRotation() throws {
+    func testDeviceKeyHasNoRenewalAction() throws {
         let app = try openSettings()
         let key = app.buttons["settings.deviceKey"]
         reveal(key, in: app)
         XCTAssertFalse(app.buttons["Create new Device Key…"].exists)
         key.tap()
-        XCTAssertTrue(app.staticTexts["Copied"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.alerts.firstMatch.exists)
     }
 

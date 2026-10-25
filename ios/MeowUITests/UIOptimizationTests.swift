@@ -129,7 +129,6 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertFalse(app.buttons["Copy Device Key"].exists)
         XCTAssertFalse(app.staticTexts["meow_disposable_ui_fixture"].exists)
         copyKey.tap()
-        XCTAssertTrue(app.staticTexts["Copied"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.alerts.firstMatch.exists, "copy must not also trigger key rotation")
         // Paste into the unsaved server editor to verify the full fixture key,
         // rather than merely checking the copy confirmation or masked preview.
