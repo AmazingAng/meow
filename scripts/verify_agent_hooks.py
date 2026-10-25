@@ -83,6 +83,7 @@ def real_cli(out):
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
         env = dict(os.environ, HOME=str(d), CODEX_HOME=str(d / 'codex'), CLAUDE_CONFIG_DIR=str(d / 'claude'),
+                   GROK_HOME=str(d / 'grok'),
                    MEOW_CONFIG=str(d / 'meow.json'), MEOW_EXECUTABLE=str(binary), MEOW_LANGUAGE='en', MEOW_HOOK_DISABLED='0',
                    MEOW_DB=str(d / 'origin.db'), MEOW_ADDR=f'127.0.0.1:{port}', MEOW_SERVER=f'http://127.0.0.1:{port}',
                    MEOW_APNS_KEY_FILE='', MEOW_PUSH_GATEWAY_URL='')
@@ -106,7 +107,7 @@ def real_cli(out):
                 raise RuntimeError('origin not ready')
             registration = request('/v1/devices', {'name': 'hook verification'})
             env['MEOW_KEY'] = registration['key']['secret']
-            for agent in ('claude', 'codex'):
+            for agent in ('claude', 'codex', 'cursor', 'grokbot'):
                 run([str(binary), 'setup', agent, '--yes', '--no-test'], out, 'live-setup-' + agent, env=env)
             def hook(kind, event, name):
                 raw = json.dumps(event, ensure_ascii=False)
@@ -127,17 +128,25 @@ def real_cli(out):
             hook('codex-permission', dict(session_id='s', turn_id='t', hook_event_name='PermissionRequest', tool_name='Bash', tool_input={'command': 'git push'}), 'live-permission')
             hook('claude-failure', dict(session_id='s', prompt_id='p', error='rate_limit', error_details='Try later'), 'live-failure')
             hook('claude-stop', dict(session_id='s', prompt_id='p2', last_assistant_message='{"suggestions":[]}'), 'live-structured')
+            hook('cursor-stop', dict(hook_event_name='stop', conversation_id='c', generation_id='g', status='completed', workspace_roots=['/work/meow']), 'live-cursor')
+            hook('cursor-stop', dict(hook_event_name='stop', conversation_id='c', generation_id='g2', status='aborted'), 'live-cursor-aborted')
+            hook('cursor-stop', dict(hook_event_name='Stop', sessionId='s', lastAssistantMessage='from grok', reason='end_turn'), 'live-cursor-ignores-grok')
+            hook('grokbot-stop', dict(hook_event_name='Stop', sessionId='s', promptId='p', cwd='/work/meow', reason='end_turn', lastAssistantMessage='Grok finished'), 'live-grok-stop')
+            hook('grokbot-stop', dict(hook_event_name='Stop', sessionId='s', promptId='end', reason='shutdown', lastAssistantMessage='bye'), 'live-grok-shutdown')
+            hook('grokbot-failure', dict(hook_event_name='StopFailure', sessionId='s', promptId='err', error='rate_limit', errorDetails='Try later'), 'live-grok-failure')
+            hook('grokbot-notify', dict(hook_event_name='Notification', sessionId='s', notificationType='permission_prompt', message='Allow deploy?'), 'live-grok-permission')
+            hook('grokbot-notify', dict(hook_event_name='Notification', sessionId='s', notificationType='idle_prompt', message='waiting'), 'live-grok-idle')
             inbox = request('/v1/inbox', token=registration['device_token'])['notifications']
-            if len(inbox) != 4:
+            if len(inbox) != 8:
                 raise RuntimeError('wrong persisted count: ' + str(len(inbox)))
             results = [n for n in inbox if n['source'] == 'Codex' and n['title'] == 'New result']
             if len(results) != 1 or results[0]['body'] != body:
                 raise RuntimeError('body was lost or replay created duplicates')
-            if sum(n['priority'] == 'high' for n in inbox) != 2:
+            if sum(n['priority'] == 'high' for n in inbox) != 4:
                 raise RuntimeError('missing permission/error priority')
-            for agent in ('claude', 'codex'):
+            for agent in ('claude', 'codex', 'cursor', 'grokbot'):
                 run([str(binary), 'setup', agent, '--uninstall', '--yes'], out, 'live-uninstall-' + agent, env=env)
-            return dict(stored=4, replay_deduplicated=True, full_body=True, hooks_only=True)
+            return dict(stored=8, replay_deduplicated=True, full_body=True, hooks_only=True)
         finally:
             process.terminate()
             try:

@@ -61,6 +61,7 @@ func wizardEnv(t *testing.T, key string, agents ...string) string {
 	t.Setenv("MEOW_CONFIG", filepath.Join(dir, "meow", "config.json"))
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(dir, "claude"))
 	t.Setenv("CODEX_HOME", filepath.Join(dir, "codex"))
+	t.Setenv("GROK_HOME", filepath.Join(dir, "grok"))
 	t.Setenv("MEOW_KEY", "")
 	t.Setenv("MEOW_SERVER", "")
 	exe := filepath.Join(dir, "bin", "meow")
@@ -132,7 +133,7 @@ func TestWizardWarnsWhenPhoneCantReceive(t *testing.T) {
 	if !strings.Contains(out, "hasn't registered for notifications") {
 		t.Fatalf("no warning about the phone:\n%s", out)
 	}
-	if !strings.Contains(out, "No Claude Code or Codex setup found") {
+	if !strings.Contains(out, "No Claude Code, Codex, Cursor or Grok setup found") {
 		t.Fatalf("no hint when no agent is installed:\n%s", out)
 	}
 }

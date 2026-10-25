@@ -1,6 +1,6 @@
 ---
 name: meow
-description: Install, configure, troubleshoot and use Meow, notifications for AI agents on the user's iPhone. Use when the user wants to set up Meow or the meow CLI, connect Claude Code or Codex to it, fix notifications that don't arrive, self-host a Meow server, or notify the user that an agent finished, failed or needs attention. V1 only delivers notifications; replies and decisions stay in the agent on the computer.
+description: Install, configure, troubleshoot and use Meow, notifications for AI agents on the user's iPhone. Use when the user wants to set up Meow or the meow CLI, connect Claude Code, Codex, Cursor or Grok to it, fix notifications that don't arrive, self-host a Meow server, or notify the user that an agent finished, failed or needs attention. V1 only delivers notifications; replies and decisions stay in the agent on the computer.
 ---
 
 # Meow
@@ -67,7 +67,7 @@ If they only want to save the key, `meow login --server URL` prompts for it. Whe
 
 ## 3. Connect an agent
 
-If the user connected agents during `meow setup`, skip this step. Otherwise, `meow setup claude` or `meow setup codex` installs hooks so that the user is notified when the agent finishes a turn or is waiting for permission. It needs a saved Device Key.
+If the user connected agents during `meow setup`, skip this step. Otherwise, `meow setup claude`, `meow setup codex`, `meow setup cursor` or `meow setup grokbot` installs hooks so that the user is notified when the agent finishes a turn or is waiting for permission. It needs a saved Device Key.
 
 From an agent, without a terminal, first run the command without `--yes`:
 
@@ -83,6 +83,8 @@ meow setup claude --yes
 
 - Claude Code: async `Stop`, `StopFailure` and `Notification` hooks in `settings.json` (`$CLAUDE_CONFIG_DIR` or `~/.claude`). Running sessions pick them up.
 - Codex: async `Stop` and `PermissionRequest` in `hooks.json` (`$CODEX_HOME` or `~/.codex`). Setup cleans old Meow `notify` entries and restores any wrapped original handler while preserving foreign config. Start a new session, have the user authorize both hooks in `/hooks`, then finish a real task and confirm its result on the iPhone. No separate migration step is needed. Without authorized hooks, automatic Codex notifications are unavailable; manual `meow send` still works. `meow doctor` distinguishes configuration from observed execution, not current trust or phone delivery. The setup test verifies CLI delivery only. Use a Codex version supporting lifecycle hooks.
+- Cursor: a `stop` command in `~/.cursor/hooks.json`. Cursor reloads the file on save. `completed` is a result reminder and `error` is a failure; `aborted` is ignored. The stop payload has no assistant text. Cursor permission hooks are gates, and an empty reply blocks the action, so Meow does not install one. The command runs in the foreground with a 30 second timeout.
+- Grok: `Stop`, `StopFailure` and `Notification` in `$GROK_HOME/hooks/meow.json` or `~/.grok/hooks/meow.json`. Reload with `/hooks`. Stop notifies only when the reason is `end_turn` and the assistant reply is nonblank. StopFailure notifies on an API error. Notification notifies for `permission_prompt` and `elicitation_dialog`. `idle_prompt`, session shutdown and subagent stops are ignored. Grok also loads `~/.cursor/hooks.json`, but that command's adapter ignores Grok's payload so a turn is not sent twice.
 - Every edited file is backed up as `<file>.bak.<timestamp>`. Re-running is safe.
 - `--no-summary` leaves the agent's last message out of notifications. `--no-test` skips the test notification.
 - Setup never touches this skill. It backs up and removes an outdated `meow` skill that an earlier version of `meow setup` wrote. If setup lists that removal, reinstall this skill afterwards with `npx skills add AmazingAng/meow -g`.

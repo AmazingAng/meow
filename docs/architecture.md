@@ -130,6 +130,10 @@ Built-ins:
 | `codex` | Legacy notify JSON for explicit adapter imports | Completed turn; the retired automatic `meow hook codex` command sends no pushes |
 | `codex-stop` | Lifecycle event JSON on stdin | New result; retains existing temporary-suggestion filtering |
 | `codex-permission` | Lifecycle event JSON on stdin | Attention needed |
+| `cursor-stop` | Cursor `stop` JSON on stdin | Completed turn is a result with no reply text; `error` is a failure; `aborted` and unknown statuses are ignored. A Grok envelope is ignored so `grokbot-*` can own it |
+| `grokbot-stop` | Grok Stop JSON on stdin | New result for `end_turn` with a nonblank assistant reply. Session-end, subagent and blank replies are ignored |
+| `grokbot-failure` | Grok StopFailure JSON | Runtime/API error |
+| `grokbot-notify` | Grok Notification JSON | Attention for `permission_prompt` and `elicitation_dialog`; other notification types are ignored |
 | `generic` | Standard notification JSON | Service-provided title/body/type/context; body is retained |
 
 `adapters.Adapter.Decode` returns `(Event, send, error)`. `send=false, error=nil` means an intentionally ignored event. Errors are malformed inputs. `adapters.Adapt` applies size/object checks, optional host context resolution, title/summary policy, validation and deduplication. `adapters.Build(name, ...)` selects a built-in adapter. `Options` explicitly supplies language, summary policy and the optional context resolver; adapters never read environment variables.

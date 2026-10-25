@@ -1,11 +1,13 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -113,6 +115,82 @@ func TestContextNormalizationAndIdentity(t *testing.T) {
 	long := cleanContextLabel(strings.Repeat("猫", 300)+"\x00\n", 200)
 	if utf8.RuneCountInString(long) != 200 || strings.ContainsAny(long, "\x00\n") {
 		t.Fatal(long)
+	}
+}
+
+func TestCursorSessionName(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	path := filepath.Join(dir, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE composerHeaders (composerId TEXT PRIMARY KEY, value TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO composerHeaders (composerId, value) VALUES (?, ?)`, "conv", `{"composerId":"conv","name":"Cursor and meow adapters"}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO composerHeaders (composerId, value) VALUES (?, ?)`, "blank", `{"name":"  "}`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	got := hookContext("Cursor", "/work/meow-repo", "conv", "", "")
+	if got == nil || got.Session != "Cursor and meow adapters" || got.SessionID != "conv" || got.Workspace != "meow-repo" {
+		t.Fatalf("%+v", got)
+	}
+	if missing := hookContext("Cursor", "/work/meow-repo", "other", "", ""); missing.Session != "" {
+		t.Fatal(missing)
+	}
+	if blank := hookContext("Cursor", "", "blank", "", ""); blank.Session != "" {
+		t.Fatal(blank)
+	}
+	if kept := hookContext("Cursor", "", "conv", "Kept", ""); kept.Session != "Kept" {
+		t.Fatal(kept)
+	}
+	raw, _ := json.Marshal(map[string]any{"hook_event_name": "stop", "conversation_id": "conv", "generation_id": "g", "status": "completed", "workspace_roots": []string{"/work/meow-repo"}})
+	req, _, send, err := buildHookNotification("cursor-stop", raw, false)
+	if err != nil || !send || req.Context == nil || req.Context.Session != "Cursor and meow adapters" {
+		t.Fatalf("%+v %v", req, err)
+	}
+}
+
+func TestGrokSessionName(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("GROK_HOME", dir)
+	write := func(cwd, id, body string) {
+		t.Helper()
+		path := filepath.Join(dir, "sessions", url.PathEscape(cwd), id, "summary.json")
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("/work/meow", "sess", `{"generated_title":"Grok 会话标题","session_summary":"不应使用这段摘要"}`)
+	write("/elsewhere", "moved", `{"generated_title":"","session_summary":"搬迁后的标题"}`)
+	got := hookContext("Grok", "/work/meow", "sess", "", "")
+	if got == nil || got.Session != "Grok 会话标题" || got.SessionID != "sess" || got.Workspace != "meow" {
+		t.Fatalf("%+v", got)
+	}
+	if moved := hookContext("Grok", "/work/meow", "moved", "", ""); moved.Session != "搬迁后的标题" {
+		t.Fatal(moved)
+	}
+	if bad := hookContext("Grok", "/work/meow", "../sess", "", ""); bad == nil || bad.Session != "" {
+		t.Fatal(bad)
+	}
+	if kept := hookContext("Grok", "/work/meow", "sess", "Kept", ""); kept.Session != "Kept" {
+		t.Fatal(kept)
+	}
+	raw, _ := json.Marshal(map[string]any{"hook_event_name": "Stop", "sessionId": "sess", "promptId": "p", "cwd": "/work/meow", "reason": "end_turn", "lastAssistantMessage": "完成"})
+	req, _, send, err := buildHookNotification("grokbot-stop", raw, false)
+	if err != nil || !send || req.Context == nil || req.Context.Session != "Grok 会话标题" {
+		t.Fatalf("%+v %v", req, err)
 	}
 }
 
