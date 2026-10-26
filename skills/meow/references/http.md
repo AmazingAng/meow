@@ -18,11 +18,19 @@ If the job can install the CLI (step 1 in [../SKILL.md](../SKILL.md)), `MEOW_SER
 meow send --source "CI" --event failure --priority high --title "Build failed" "main @ abc1234: 3 tests failed"
 ```
 
+To group notifications by repository and run, add context. For example, on GitHub Actions:
+
+```sh
+meow send --source "GitHub Actions" --workspace "$GITHUB_REPOSITORY" --workspace-id "$GITHUB_REPOSITORY" \
+  --session "$GITHUB_WORKFLOW" --session-id "$GITHUB_RUN_ID" \
+  --event failure --title "Build failed" "main @ abc1234: 3 tests failed"
+```
+
 ## With curl
 
 `POST $MEOW_SERVER/v1/notifications` with `Authorization: Bearer $MEOW_KEY`.
 
-Plain text: the first line is the title and the rest is the body. Optional query parameters are `title`, `source`, `priority`, `event` and `type`. Use `--data-binary`; `-d` drops newlines.
+Plain text: the first line is the title and the rest is the body. Optional query parameters are `title`, `source`, `priority`, `event` and `type`; context needs JSON. Use `--data-binary`; `-d` drops newlines.
 
 ```sh
 printf 'Build failed\nmain @ abc1234: 3 tests failed\n' |
@@ -35,7 +43,7 @@ JSON needs `Content-Type: application/json`; without it the body is treated as p
 ```sh
 curl -fsS -H "Authorization: Bearer $MEOW_KEY" -H "Content-Type: application/json" \
   -H "Idempotency-Key: build-1234-attempt-1" \
-  --data-binary '{"title":"Build failed","body":"main @ abc1234: 3 tests failed","source":"CI","event":"failure","priority":"high"}' \
+  --data-binary '{"title":"Build failed","body":"main @ abc1234: 3 tests failed","source":"CI","event":"failure","priority":"high","context":{"workspace":"acme/api","workspace_id":"acme/api","session_id":"run-1234"}}' \
   "$MEOW_SERVER/v1/notifications"
 ```
 
@@ -47,6 +55,7 @@ curl -fsS -H "Authorization: Bearer $MEOW_KEY" -H "Content-Type: application/jso
 | `event` | `result`, `failure` or `attention`; optional, never inferred |
 | `priority` | `low` (silent), `normal` (default) or `high` (Time Sensitive) |
 | `type` | `info` (default) or `alert` (needs the user) |
+| `context` | Object with `workspace`, `workspace_id`, `session` and `session_id`. Names up to 200 characters, IDs up to 128, single line. The app groups by source, `workspace_id` and `session_id`; names are only labels. |
 
 The request body can be up to 64 KB.
 

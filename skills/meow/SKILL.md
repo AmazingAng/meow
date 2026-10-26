@@ -146,6 +146,24 @@ echo "Build log tail..." | meow send --title "Build failed" --priority high
 
 `--priority` is `low` (silent), `normal` (the default) or `high` (Time Sensitive; use for important alerts). The title can be up to 256 characters, the body up to 4000 and `--source` up to 64.
 
+### Project and session
+
+The app groups notifications by agent, project and session. Pass the same values the hooks use, so a manual send joins the same group:
+
+```sh
+meow send --source "Claude Code" \
+  --workspace "$(basename "$PWD")" \
+  --workspace-id "$(printf '%s' "$PWD" | shasum -a 256 | cut -c1-32)" \
+  --session-id "$CLAUDE_CODE_SESSION_ID" \
+  --title "Migration done" "Applied 3 migrations to staging"
+```
+
+- `--source`: exactly `Claude Code`, `Codex` or `Cursor` for those agents. Another agent uses its own name, the same every time.
+- `--workspace` and `--workspace-id`: run from the project root, the directory the session started in. The ID is the first 32 hex characters of the SHA-256 of that absolute path, as the hooks compute it. On Linux, use `sha256sum` in place of `shasum -a 256`.
+- `--session-id`: Claude Code provides it as `$CLAUDE_CODE_SESSION_ID`; an empty value is left out. For other agents, leave it out. Never make one up: a wrong ID puts the notification in a separate group.
+- `--session` is only a display name. Leave it out unless you know it.
+- `MEOW_WORKSPACE`, `MEOW_WORKSPACE_ID`, `MEOW_SESSION` and `MEOW_SESSION_ID` set the same fields.
+
 ### Rules
 
 - Ask only when you need the user: a risky or irreversible step, a real choice, or missing information. Decide routine things yourself.
