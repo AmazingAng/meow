@@ -1,6 +1,6 @@
 # Running a Meow server
 
-Read this only when the user wants to host their own server. Everything below comes from the repository https://github.com/AmazingAng/meow (`deploy/README.md` and `docs/wake-gateway.md` have the full details).
+Most users use the official server, `https://api.meow.blue`, and don't need this page. Read it only when the user explicitly wants to host their own server, for example to keep notification content on their own machine. Everything below comes from the repository https://github.com/AmazingAng/meow (`deploy/README.md` and `docs/wake-gateway.md` have the full details).
 
 The server is a single Go process with one SQLite file. The iPhone and the CLI must both reach it. Pick one way to deliver push notifications:
 

@@ -11,7 +11,7 @@ Use CLI 0.1.7 or later. Older setup commands can overwrite this skill, and `meow
 
 - iPhone app: creates the device, shows the server address and the Device Key.
 - `meow` CLI (macOS and Linux): sends notifications.
-- Server: the iPhone and the CLI must reach the same Meow server. To run one, see [references/server.md](references/server.md).
+- Server: most users use the official hosted server, `https://api.meow.blue`, which the app suggests on first launch. It needs no setup on the user's side. The iPhone and the CLI must use the same server, and the CLI has no default, so always pass the address. Notification content is stored on that server, so never send secrets. To host one instead, see [references/server.md](references/server.md).
 - Scripts, CI jobs and services can send over HTTP or with the CLI; see [references/http.md](references/http.md).
 
 This skill is installed with `npx skills add AmazingAng/meow -g` (Node.js 22.20 or later). `meow setup` doesn't install or update it. Update it with `npx skills update meow -g`.
@@ -48,7 +48,7 @@ curl -fsSL https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/instal
 
 The user needs the Meow iPhone app first. In the app they choose a server and allow notifications. Settings shows:
 
-- the server address (Settings → Server). The app suggests the official server, `https://api.meow.blue`; a self-hosted address replaces it. Use what the app shows.
+- the server address (Settings → Server). This is usually `https://api.meow.blue`; if it shows another address, the user chose a self-hosted server and you use that one.
 - the Device Key (tap the Device Key row in Settings to copy it). It starts with `meow_` and can only send notifications.
 
 Never ask the user to paste the Device Key into the chat. Never put it on a command line, in a file you create, or in your output. `meow` reads it from a prompt so that it stays out of shell history.
@@ -56,8 +56,10 @@ Never ask the user to paste the Device Key into the chat. Never put it on a comm
 You can't type into that prompt for the user. Ask them to open their own terminal window (not a `!` command inside the agent) and run:
 
 ```sh
-meow setup --server https://THEIR_MEOW_SERVER
+meow setup --server https://api.meow.blue
 ```
+
+For a self-hosted server, replace the address with the one the app shows.
 
 The app's "install and setup command" does the same thing and also installs the CLI. Setup:
 
@@ -113,7 +115,7 @@ Ask the user whether the notification arrived. `sent <id>` only means the server
 
 | Symptom | Fix |
 | --- | --- |
-| `No server configured` | The user runs `meow setup --server URL`, with the address from the app. |
+| `No server configured` | The CLI has no default server. The user runs `meow setup --server https://api.meow.blue`, or the address the app shows. |
 | Server is not reachable, or the TLS certificate isn't trusted | Follow the message `meow doctor` prints. A LAN or `127.0.0.1` address only works on the same network or VPN. A self-signed certificate is rejected; use a public certificate, such as the one Caddy obtains. |
 | The Device Key isn't valid on this server | Wrong server, or the key was rotated in the app. The user runs `meow login` and pastes the current key. |
 | The iPhone hasn't registered for notifications | The user opens Meow and allows notifications. In iPhone Settings → Notifications → Meow, notifications must be on. |

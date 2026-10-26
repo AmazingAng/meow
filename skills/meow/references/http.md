@@ -6,7 +6,7 @@ Read this when something other than an agent on the user's computer sends notifi
 
 The sender needs the server address and a Device Key (`meow_…`), which can only send notifications.
 
-- The user stores the Device Key in the platform's secret store, such as a GitHub Actions secret, and exposes it as `MEOW_KEY`. The server address can be a plain variable, `MEOW_SERVER`.
+- The user stores the Device Key in the platform's secret store, such as a GitHub Actions secret, and exposes it as `MEOW_KEY`. The server address can be a plain variable, `MEOW_SERVER`: usually `https://api.meow.blue`, or the self-hosted address the app shows. There is no default.
 - Never write the key into the repository, a workflow file, a command you show, or a log. Don't use `curl -v` or `--trace`; they print the `Authorization` header.
 - Anyone with the key can send notifications to the user. If it leaks, tell the user. The app has no key rotation in Settings, and re-registering creates a new key without revoking the old one.
 
