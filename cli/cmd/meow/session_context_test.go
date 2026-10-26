@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -113,6 +114,65 @@ func TestContextNormalizationAndIdentity(t *testing.T) {
 	long := cleanContextLabel(strings.Repeat("猫", 300)+"\x00\n", 200)
 	if utf8.RuneCountInString(long) != 200 || strings.ContainsAny(long, "\x00\n") {
 		t.Fatal(long)
+	}
+}
+
+func TestCursorSessionName(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	path := filepath.Join(dir, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE composerHeaders (composerId TEXT PRIMARY KEY, value TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO composerHeaders (composerId, value) VALUES (?, ?)`, "conv", `{"composerId":"conv","name":"Cursor and meow adapters"}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO composerHeaders (composerId, value) VALUES (?, ?)`, "blank", `{"name":"  "}`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	got := hookContext("Cursor", "/work/meow-repo", "conv", "", "")
+	if got == nil || got.Session != "Cursor and meow adapters" || got.SessionID != "conv" || got.Workspace != "meow-repo" {
+		t.Fatalf("%+v", got)
+	}
+	if missing := hookContext("Cursor", "/work/meow-repo", "other", "", ""); missing.Session != "" {
+		t.Fatal(missing)
+	}
+	if blank := hookContext("Cursor", "", "blank", "", ""); blank.Session != "" {
+		t.Fatal(blank)
+	}
+	if kept := hookContext("Cursor", "", "conv", "Kept", ""); kept.Session != "Kept" {
+		t.Fatal(kept)
+	}
+	raw, _ := json.Marshal(map[string]any{"hook_event_name": "stop", "conversation_id": "conv", "generation_id": "g", "status": "completed", "workspace_roots": []string{"/work/meow-repo"}})
+	req, _, send, err := buildHookNotification("cursor-stop", raw, false)
+	if err != nil || !send || req.Context == nil || req.Context.Session != "Cursor and meow adapters" {
+		t.Fatalf("%+v %v", req, err)
+	}
+}
+
+// Cursor stop does not identify transcript records by generation. It must not
+// use a mutable transcript, even when it contains a plausible assistant reply.
+func TestCursorStopDoesNotReadTranscript(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	path := filepath.Join(dir, "transcript.jsonl")
+	if err := os.WriteFile(path, []byte(`{"role":"assistant","message":{"content":[{"type":"text","text":"Another generation"}]}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(map[string]any{"hook_event_name": "stop", "conversation_id": "conv", "generation_id": "g", "status": "completed", "transcript_path": path})
+	for _, summary := range []bool{true, false} {
+		req, _, send, err := buildHookNotification("cursor-stop", raw, summary)
+		if err != nil || !send || req.Body != "" {
+			t.Fatalf("mutable transcript used: %+v %v", req, err)
+		}
 	}
 }
 

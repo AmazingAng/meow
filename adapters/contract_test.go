@@ -72,7 +72,7 @@ func TestCustomAndGenericAdapters(t *testing.T) {
 }
 
 func TestInvalidAdapterInputsAndResolver(t *testing.T) {
-	for _, name := range []string{"generic", "claude-stop", "codex", "codex-stop"} {
+	for _, name := range []string{"generic", "claude-stop", "codex", "codex-stop", "cursor-stop"} {
 		for _, input := range []string{"null", "[]", "{}", "bad", `{"title":`, string(bytes.Repeat([]byte{'x'}, MaxInputBytes+1))} {
 			if _, err := Build(name, []byte(input), Options{}); err == nil {
 				t.Fatalf("%s accepted invalid input", name)

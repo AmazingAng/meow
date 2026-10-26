@@ -106,7 +106,7 @@ def real_cli(out):
                 raise RuntimeError('origin not ready')
             registration = request('/v1/devices', {'name': 'hook verification'})
             env['MEOW_KEY'] = registration['key']['secret']
-            for agent in ('claude', 'codex'):
+            for agent in ('claude', 'codex', 'cursor'):
                 run([str(binary), 'setup', agent, '--yes', '--no-test'], out, 'live-setup-' + agent, env=env)
             def hook(kind, event, name):
                 raw = json.dumps(event, ensure_ascii=False)
@@ -127,17 +127,24 @@ def real_cli(out):
             hook('codex-permission', dict(session_id='s', turn_id='t', hook_event_name='PermissionRequest', tool_name='Bash', tool_input={'command': 'git push'}), 'live-permission')
             hook('claude-failure', dict(session_id='s', prompt_id='p', error='rate_limit', error_details='Try later'), 'live-failure')
             hook('claude-stop', dict(session_id='s', prompt_id='p2', last_assistant_message='{"suggestions":[]}'), 'live-structured')
+            hook('cursor-response', dict(hook_event_name='afterAgentResponse', conversation_id='c', generation_id='g', text='Cursor generation reply'), 'live-cursor-response')
+            hook('cursor-stop', dict(hook_event_name='stop', conversation_id='c', generation_id='g', status='completed', workspace_roots=['/work/meow']), 'live-cursor')
+            hook('cursor-stop', dict(hook_event_name='stop', conversation_id='c', generation_id='g2', status='aborted'), 'live-cursor-aborted')
+            hook('cursor-stop', dict(hook_event_name='Stop', sessionId='s', lastAssistantMessage='from another agent', reason='end_turn'), 'live-cursor-ignores-foreign')
             inbox = request('/v1/inbox', token=registration['device_token'])['notifications']
-            if len(inbox) != 4:
+            cursor = [n for n in inbox if n['source'] == 'Cursor']
+            if len(cursor) != 1 or cursor[0]['body'] != 'Cursor generation reply':
+                raise RuntimeError('Cursor generation snapshot was lost')
+            if len(inbox) != 5:
                 raise RuntimeError('wrong persisted count: ' + str(len(inbox)))
             results = [n for n in inbox if n['source'] == 'Codex' and n['title'] == 'New result']
             if len(results) != 1 or results[0]['body'] != body:
                 raise RuntimeError('body was lost or replay created duplicates')
             if sum(n['priority'] == 'high' for n in inbox) != 2:
                 raise RuntimeError('missing permission/error priority')
-            for agent in ('claude', 'codex'):
+            for agent in ('claude', 'codex', 'cursor'):
                 run([str(binary), 'setup', agent, '--uninstall', '--yes'], out, 'live-uninstall-' + agent, env=env)
-            return dict(stored=4, replay_deduplicated=True, full_body=True, hooks_only=True)
+            return dict(stored=5, replay_deduplicated=True, full_body=True, hooks_only=True)
         finally:
             process.terminate()
             try:

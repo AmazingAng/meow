@@ -25,6 +25,7 @@ Usage:
   meow setup [--server URL]    guided: check the server, log in, connect every agent found
   meow setup claude [flags]    Claude Code: Stop, StopFailure and Notification hooks
   meow setup codex [flags]     Codex: Stop and PermissionRequest lifecycle hooks
+  meow setup cursor [flags]    Cursor: stop hook in ~/.cursor/hooks.json
 
 You get a notification when the agent finishes a task or needs you. Reply in
 the agent on your computer. meow setup shows the changes and asks before
@@ -92,8 +93,10 @@ func cmdSetup(args []string) int {
 		name, plan = "Claude Code", planClaude
 	case "codex":
 		name, plan = "Codex", planCodex
+	case "cursor":
+		name, plan = "Cursor", planCursor
 	default:
-		return usageErr(`meow setup supports "claude" and "codex"`)
+		return usageErr(`meow setup supports "claude", "codex" and "cursor"`)
 	}
 	o := setupOptions{install: !*uninstall, summary: !*noSummary}
 
@@ -244,6 +247,11 @@ func codexDir() (string, error) {
 	}
 	home, err := os.UserHomeDir()
 	return filepath.Join(home, ".codex"), err
+}
+
+func cursorDir() (string, error) {
+	home, err := os.UserHomeDir()
+	return filepath.Join(home, ".cursor"), err
 }
 
 func planClaude(o setupOptions) ([]fileChange, []string, error) {

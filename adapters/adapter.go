@@ -34,10 +34,13 @@ type decoder func([]byte) (Event, bool, error)
 func (d decoder) Decode(data []byte) (Event, bool, error) { return d(data) }
 
 // Options makes host policies explicit; no adapter reads ambient process state.
+// ResolveBody supplies text the event itself does not carry. It runs only when
+// a summary was requested and the decoded body is blank.
 type Options struct {
 	IncludeSummary bool
 	Language       string
 	ResolveContext func(Origin) *message.Context
+	ResolveBody    func(Origin) string
 }
 
 type Result struct {
@@ -54,6 +57,8 @@ func Lookup(name string) (Adapter, error) {
 		return decoder(decodeCodexNotify), nil
 	case "codex-stop", "codex-permission":
 		return decoder(func(b []byte) (Event, bool, error) { return decodeCodexHook(name, b) }), nil
+	case "cursor-stop":
+		return decoder(decodeCursorStop), nil
 	case "generic":
 		return decoder(decodeService), nil
 	default:
@@ -103,6 +108,9 @@ func Adapt(a Adapter, data []byte, options Options) (Result, error) {
 		}
 		n.Title = WithProject(n.Title, e.Origin.Cwd)
 		if options.IncludeSummary {
+			if strings.TrimSpace(n.Body) == "" && options.ResolveBody != nil {
+				n.Body = options.ResolveBody(e.Origin)
+			}
 			n.Body = Summary(n.Body)
 		} else {
 			n.Body = ""

@@ -79,7 +79,7 @@ func cmdHook(args []string) (code int) {
 		return
 	}
 
-	if _, err := adapters.Lookup(kind); err != nil {
+	if _, err := adapters.Lookup(kind); err != nil && kind != "cursor-response" {
 		hookLog("%s: unknown hook", kind)
 		return
 	}
@@ -99,7 +99,25 @@ func cmdHook(args []string) (code int) {
 		return
 	}
 
-	req, idem, send, err := buildHookNotification(kind, input, summary)
+	cfg, err := config.Load()
+	if err != nil || cfg.Key == "" {
+		hookLog("%s: no Device Key configured; run \"meow login\"", kind)
+		return
+	}
+	if kind == "cursor-response" {
+		if err := captureCursorResponse(input, summary, cfg); err != nil {
+			hookLog("cursor-response: snapshot unavailable")
+		}
+		return
+	}
+	var req client.NotifyRequest
+	var idem string
+	var send bool
+	if kind == "cursor-stop" {
+		req, idem, send, err = cursorStopNotification(input, summary, cfg)
+	} else {
+		req, idem, send, err = buildHookNotification(kind, input, summary)
+	}
 	if err != nil {
 		hookLog("%s: invalid hook input", kind)
 		return
@@ -111,11 +129,6 @@ func cmdHook(args []string) (code int) {
 		if err := recordCodexHookRun(input, summary); err != nil {
 			hookLog("codex-stop: cannot record runtime evidence")
 		}
-	}
-	cfg, err := config.Load()
-	if err != nil || cfg.Key == "" {
-		hookLog("%s: no Device Key configured; run \"meow login\"", kind)
-		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

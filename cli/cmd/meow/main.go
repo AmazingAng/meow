@@ -42,7 +42,7 @@ Usage:
   meow login [--key KEY] [--server URL]  save your Device Key
   meow whoami                          show the configured key and device
   meow setup                           guided setup: server, Device Key, agents, test
-  meow setup claude|codex              notify you when an agent finishes or needs you
+  meow setup claude|codex|cursor  notify you when an agent finishes or needs you
   meow doctor                          check the server, Device Key, iPhone and agents
   meow version
 

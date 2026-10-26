@@ -132,7 +132,7 @@ func TestWizardWarnsWhenPhoneCantReceive(t *testing.T) {
 	if !strings.Contains(out, "hasn't registered for notifications") {
 		t.Fatalf("no warning about the phone:\n%s", out)
 	}
-	if !strings.Contains(out, "No Claude Code or Codex setup found") {
+	if !strings.Contains(out, "No Claude Code, Codex or Cursor setup found") {
 		t.Fatalf("no hint when no agent is installed:\n%s", out)
 	}
 }

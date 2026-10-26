@@ -2,17 +2,22 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 
 	"meow.blue/meow/adapters"
 	"meow.blue/meow/message"
+
+	_ "modernc.org/sqlite"
 )
 
-// Metadata lookups are optional and bounded. No database, subprocess, recursive
-// transcript search, user prompts or conversation text are used as session names.
+// Metadata lookups are optional and bounded. They never read conversation text.
+// Codex uses session_index.jsonl. Claude uses title records in the event's own
+// transcript. Cursor reads the composer name for the event's conversation id.
 const metadataTailLimit = 2 << 20
 
 func hookContext(agent, cwd, id, name, transcript string) *message.Context {
@@ -37,6 +42,8 @@ func hookContext(agent, cwd, id, name, transcript string) *message.Context {
 			if transcript != "" {
 				c.Session = readSessionName(transcript, c.SessionID, true)
 			}
+		case "Cursor":
+			c.Session = readCursorSessionName(c.SessionID)
 		}
 	}
 	return c
@@ -98,4 +105,55 @@ func readSessionName(path, id string, claude bool) string {
 		}
 	}
 	return ai
+}
+
+// Cursor keeps the chat title in composerHeaders, keyed by the hook's
+// conversation id. Only that row's name is read. A missing or unreadable
+// database leaves the session id in place.
+func readCursorSessionName(id string) string {
+	if id == "" {
+		return ""
+	}
+	path := cursorStateDB()
+	if path == "" {
+		return ""
+	}
+	db, err := sql.Open("sqlite", sqliteReadOnlyDSN(path))
+	if err != nil {
+		return ""
+	}
+	defer db.Close()
+	var raw string
+	if err := db.QueryRow(`SELECT value FROM composerHeaders WHERE composerId = ?`, id).Scan(&raw); err != nil || len(raw) > 1<<20 {
+		return ""
+	}
+	var header struct {
+		Name string `json:"name"`
+	}
+	if json.Unmarshal([]byte(raw), &header) != nil {
+		return ""
+	}
+	return cleanContextLabel(header.Name, message.MaxContextName)
+}
+
+func cursorStateDB() string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	for _, path := range []string{
+		filepath.Join(home, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb"),
+		filepath.Join(home, ".config", "Cursor", "User", "globalStorage", "state.vscdb"),
+	} {
+		info, err := os.Stat(path)
+		if err == nil && info.Mode().IsRegular() {
+			return path
+		}
+	}
+	return ""
+}
+
+func sqliteReadOnlyDSN(path string) string {
+	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path), RawQuery: "mode=ro"}
+	return u.String()
 }
