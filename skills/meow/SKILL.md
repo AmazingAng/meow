@@ -1,6 +1,6 @@
 ---
 name: meow
-description: Install, configure, troubleshoot and use Meow, notifications for AI agents on the user's iPhone. Use when the user wants to set up Meow or the meow CLI, connect Claude Code, Codex or Cursor to it, fix notifications that don't arrive, self-host a Meow server, or notify the user that an agent finished, failed or needs attention. V1 only delivers notifications; replies and decisions stay in the agent on the computer.
+description: Install, configure, troubleshoot and use Meow, notifications for AI agents on the user's iPhone. Use when the user wants to set up Meow or the meow CLI, connect Claude Code, Codex, Cursor or another agent to it, send from a script, CI job or build service, fix notifications that don't arrive, self-host a Meow server, or notify the user that an agent finished, failed or needs attention. V1 only delivers notifications; replies and decisions stay in the agent on the computer.
 ---
 
 # Meow
@@ -12,6 +12,7 @@ Use CLI 0.1.7 or later. Older setup commands can overwrite this skill, and `meow
 - iPhone app: creates the device, shows the server address and the Device Key.
 - `meow` CLI (macOS and Linux): sends notifications.
 - Server: the iPhone and the CLI must reach the same Meow server. To run one, see [references/server.md](references/server.md).
+- Scripts, CI jobs and services can send over HTTP or with the CLI; see [references/http.md](references/http.md).
 
 This skill is installed with `npx skills add AmazingAng/meow -g` (Node.js 22.20 or later). `meow setup` doesn't install or update it. Update it with `npx skills update meow -g`.
 
@@ -91,6 +92,14 @@ meow setup claude --yes
 - Setup never touches this skill. It backs up and removes an outdated `meow` skill that an earlier version of `meow setup` wrote. If setup lists that removal, reinstall this skill afterwards with `npx skills add AmazingAng/meow -g`.
 - To undo: `meow setup claude --uninstall --yes`. It removes only the hooks Meow added. To remove this skill: `npx skills remove meow -g`.
 
+### Other agents
+
+`meow setup` supports only `claude`, `codex` and `cursor`. Don't hand-write hook configuration for another agent. Without hooks there are no automatic reminders, so send them yourself with `meow send --source "AGENT_NAME"` when a task finishes, fails or needs the user (see [Use Meow](#use-meow)). To be notified when a long command ends, chain a send after it:
+
+```sh
+make test; meow send --source "AGENT_NAME" --title "make test exited with $?" "Details are in the agent on your computer."
+```
+
 ## 4. Verify
 
 ```sh
@@ -113,7 +122,7 @@ Ask the user whether the notification arrived. `sent <id>` only means the server
 | `meow` not found after installing | Use `~/.local/bin/meow`, or ask the user to add `~/.local/bin` to PATH. |
 | A legacy ask/wait command fails with "notification-only" | Expected in V1. Use `meow send` and ask in the agent. |
 
-`MEOW_SERVER` and `MEOW_KEY` override the config file, and `MEOW_SOURCE` sets the default sender label. Don't set `MEOW_KEY` in shell profiles or files you commit.
+`MEOW_SERVER` and `MEOW_KEY` override the config file, and `MEOW_SOURCE` sets the default sender label. Don't set `MEOW_KEY` in shell profiles or files you commit; in CI, use the platform's secret store ([references/http.md](references/http.md)).
 
 ## Use Meow
 
