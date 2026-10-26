@@ -48,7 +48,7 @@ MEOW_DOMAIN=meow.example.com MEOW_PUSH_GATEWAY_URL=https://push.example.com \
   docker compose -p meow-relay -f compose.relay.yaml up -d --build
 ```
 
-The app registers with the gateway automatically. The gateway only sees routing IDs, never the message content. The phone fetches content and sends replies directly to this server, so the server must still be reachable from the phone (public HTTPS, or a VPN when away from the LAN).
+The app registers with the gateway automatically. The gateway only sees routing IDs, never the message content. The phone fetches content directly from this server, so the server must still be reachable from the phone (public HTTPS, or a VPN when away from the LAN).
 
 ## Settings
 
@@ -56,7 +56,7 @@ The app registers with the gateway automatically. The gateway only sees routing 
 | --- | --- | --- |
 | `MEOW_ADDR` | `:8080` | Listen address |
 | `MEOW_DB` | `meow.db` | Keep it on a persistent volume |
-| `MEOW_RETENTION` | `720h` | Old notifications and resolved questions are pruned |
+| `MEOW_RETENTION` | `720h` | Old notifications and legacy questions are pruned |
 | `MEOW_TRUST_PROXY` | | Set to `true` behind a reverse proxy, so rate limits use `X-Forwarded-For` |
 | `MEOW_APNS_KEY_FILE`, `MEOW_APNS_KEY_ID`, `MEOW_APNS_TEAM_ID`, `MEOW_APNS_TOPIC` | | Direct APNs |
 | `MEOW_PUSH_GATEWAY_URL` | | Wake gateway |

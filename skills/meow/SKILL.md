@@ -5,7 +5,9 @@ description: Install, configure, troubleshoot and use Meow, notifications for AI
 
 # Meow
 
-Meow sends a notification to the user's iPhone. Meow V1 only delivers notifications. Use CLI 0.1.2 or later; older setup commands can overwrite this skill. The user reads them on the phone and responds in the agent on their computer.
+Meow sends a notification to the user's iPhone. Meow V1 only delivers notifications: the user reads them on the phone and responds in the agent on their computer.
+
+Use CLI 0.1.7 or later. Older setup commands can overwrite this skill, and `meow setup cursor` needs 0.1.7.
 
 - iPhone app: creates the device, shows the server address and the Device Key.
 - `meow` CLI (macOS and Linux): sends notifications.
@@ -38,14 +40,14 @@ curl -fsSL https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/instal
 
 - If `~/.local/bin` is not on PATH, the installer prints the `export PATH=...` line. Suggest it to the user; don't edit their shell profile without asking.
 - Don't pass `--server` to the installer from an agent. With `--server` it starts interactive setup, which needs a terminal.
-- To pin a version: download the script, then run `sh install.sh --version 0.1.2 --install-dir "$HOME/.local/bin"`.
+- To pin a version: download the script, then run `sh install.sh --version 0.1.7 --install-dir "$HOME/.local/bin"`.
 - Windows is not supported.
 
 ## 2. Connect the CLI to the iPhone
 
 The user needs the Meow iPhone app first. In the app they choose a server and allow notifications. Settings shows:
 
-- the server address (Settings → Server)
+- the server address (Settings → Server). The app suggests the official server, `https://api.meow.blue`; a self-hosted address replaces it. Use what the app shows.
 - the Device Key (tap the Device Key row in Settings to copy it). It starts with `meow_` and can only send notifications.
 
 Never ask the user to paste the Device Key into the chat. Never put it on a command line, in a file you create, or in your output. `meow` reads it from a prompt so that it stays out of shell history.
@@ -83,7 +85,7 @@ meow setup claude --yes
 
 - Claude Code: async `Stop`, `StopFailure` and `Notification` hooks in `settings.json` (`$CLAUDE_CONFIG_DIR` or `~/.claude`). Running sessions pick them up.
 - Codex: async `Stop` and `PermissionRequest` in `hooks.json` (`$CODEX_HOME` or `~/.codex`). Setup cleans old Meow `notify` entries and restores any wrapped original handler while preserving foreign config. Start a new session, have the user authorize both hooks in `/hooks`, then finish a real task and confirm its result on the iPhone. No separate migration step is needed. Without authorized hooks, automatic Codex notifications are unavailable; manual `meow send` still works. `meow doctor` distinguishes configuration from observed execution, not current trust or phone delivery. The setup test verifies CLI delivery only. Use a Codex version supporting lifecycle hooks.
-- Cursor: `afterAgentResponse` capture and a `stop` command in `~/.cursor/hooks.json`. Cursor reloads the file on save. `completed` is a result and `error` is a failure; `aborted` is ignored. The stop payload has no assistant text. A local snapshot captures `afterAgentResponse.text` for the exact conversation/generation; stop freezes that reply and the delivery key. Missing snapshots produce a generic reminder; transcript bodies are never read. Private state is isolated by server/Device Key; files older than 24 hours are cleaned on the next Cursor hook. Re-run `meow setup cursor` after upgrading; `--no-summary` installs only stop and captures no text. Cursor permission hooks are gates, and an empty reply blocks the action, so Meow does not install one. The command runs in the foreground with a 30 second timeout.
+- Cursor: `afterAgentResponse` and `stop` hooks in `~/.cursor/hooks.json`; Cursor reloads the file on save. A completed turn sends a result with the reply text, an error sends a failure, and an aborted turn sends nothing. If no reply was captured, the notification is a generic reminder. Meow installs no permission hook, because Cursor treats those as gates that block the action. Re-run `meow setup cursor` after upgrading the CLI.
 - Every edited file is backed up as `<file>.bak.<timestamp>`. Re-running is safe.
 - `--no-summary` leaves the agent's last message out of notifications. `--no-test` skips the test notification.
 - Setup never touches this skill. It backs up and removes an outdated `meow` skill that an earlier version of `meow setup` wrote. If setup lists that removal, reinstall this skill afterwards with `npx skills add AmazingAng/meow -g`.
@@ -124,7 +126,7 @@ meow send --alert --priority high --source "Codex" --title "Needs your attention
   "Deploy v1.2.0? Options: approve or reject. Tests passed. Respond in the agent on your computer."
 ```
 
-V1 does not support phone replies or approvals. Do not use the legacy ask/wait commands. Reading a notification never counts as an answer or approval.
+`--alert` marks the notification as needing the user; the app shows it with a bell and "Continue in the agent on your computer." V1 does not support phone replies or approvals. Do not use the legacy ask/wait commands. Reading a notification never counts as an answer or approval.
 
 ### Tell the user without waiting
 
