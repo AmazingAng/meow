@@ -1,15 +1,18 @@
 ---
 name: meow
-description: Install, configure, troubleshoot and use Meow, notifications for AI agents on the user's iPhone. Use when the user wants to set up Meow or the meow CLI, connect Claude Code, Codex or Cursor to it, fix notifications that don't arrive, self-host a Meow server, or notify the user that an agent finished, failed or needs attention. V1 only delivers notifications; replies and decisions stay in the agent on the computer.
+description: Install, configure, troubleshoot and use Meow, notifications for AI agents on the user's iPhone. Use when the user wants to set up Meow or the meow CLI, connect Claude Code, Codex, Cursor or another agent to it, send from a script, CI job or build service, fix notifications that don't arrive, self-host a Meow server, or notify the user that an agent finished, failed or needs attention. V1 only delivers notifications; replies and decisions stay in the agent on the computer.
 ---
 
 # Meow
 
-Meow sends a notification to the user's iPhone. Meow V1 only delivers notifications. Use CLI 0.1.2 or later; older setup commands can overwrite this skill. The user reads them on the phone and responds in the agent on their computer.
+Meow sends a notification to the user's iPhone. Meow V1 only delivers notifications: the user reads them on the phone and responds in the agent on their computer.
+
+Use CLI 0.1.7 or later. Older setup commands can overwrite this skill, and `meow setup cursor` needs 0.1.7.
 
 - iPhone app: creates the device, shows the server address and the Device Key.
 - `meow` CLI (macOS and Linux): sends notifications.
-- Server: the iPhone and the CLI must reach the same Meow server. To run one, see [references/server.md](references/server.md).
+- Server: most users use the official hosted server, `https://api.meow.blue`, which the app suggests on first launch. It needs no setup on the user's side. The iPhone and the CLI must use the same server, and the CLI has no default, so always pass the address. Notification content is stored on that server, so never send secrets. To host one instead, see [references/server.md](references/server.md).
+- Scripts, CI jobs and services can send over HTTP or with the CLI; see [references/http.md](references/http.md).
 
 This skill is installed with `npx skills add AmazingAng/meow -g` (Node.js 22.20 or later). `meow setup` doesn't install or update it. Update it with `npx skills update meow -g`.
 
@@ -38,14 +41,14 @@ curl -fsSL https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/instal
 
 - If `~/.local/bin` is not on PATH, the installer prints the `export PATH=...` line. Suggest it to the user; don't edit their shell profile without asking.
 - Don't pass `--server` to the installer from an agent. With `--server` it starts interactive setup, which needs a terminal.
-- To pin a version: download the script, then run `sh install.sh --version 0.1.2 --install-dir "$HOME/.local/bin"`.
+- To pin a version: download the script, then run `sh install.sh --version 0.1.7 --install-dir "$HOME/.local/bin"`.
 - Windows is not supported.
 
 ## 2. Connect the CLI to the iPhone
 
 The user needs the Meow iPhone app first. In the app they choose a server and allow notifications. Settings shows:
 
-- the server address (Settings → Server)
+- the server address (Settings → Server). This is usually `https://api.meow.blue`; if it shows another address, the user chose a self-hosted server and you use that one.
 - the Device Key (tap the Device Key row in Settings to copy it). It starts with `meow_` and can only send notifications.
 
 Never ask the user to paste the Device Key into the chat. Never put it on a command line, in a file you create, or in your output. `meow` reads it from a prompt so that it stays out of shell history.
@@ -53,8 +56,10 @@ Never ask the user to paste the Device Key into the chat. Never put it on a comm
 You can't type into that prompt for the user. Ask them to open their own terminal window (not a `!` command inside the agent) and run:
 
 ```sh
-meow setup --server https://THEIR_MEOW_SERVER
+meow setup --server https://api.meow.blue
 ```
+
+For a self-hosted server, replace the address with the one the app shows.
 
 The app's "install and setup command" does the same thing and also installs the CLI. Setup:
 
@@ -83,11 +88,27 @@ meow setup claude --yes
 
 - Claude Code: async `Stop`, `StopFailure` and `Notification` hooks in `settings.json` (`$CLAUDE_CONFIG_DIR` or `~/.claude`). Running sessions pick them up.
 - Codex: async `Stop` and `PermissionRequest` in `hooks.json` (`$CODEX_HOME` or `~/.codex`). Setup cleans old Meow `notify` entries and restores any wrapped original handler while preserving foreign config. Start a new session, have the user authorize both hooks in `/hooks`, then finish a real task and confirm its result on the iPhone. No separate migration step is needed. Without authorized hooks, automatic Codex notifications are unavailable; manual `meow send` still works. `meow doctor` distinguishes configuration from observed execution, not current trust or phone delivery. The setup test verifies CLI delivery only. Use a Codex version supporting lifecycle hooks.
-- Cursor: `afterAgentResponse` capture and a `stop` command in `~/.cursor/hooks.json`. Cursor reloads the file on save. `completed` is a result and `error` is a failure; `aborted` is ignored. The stop payload has no assistant text. A local snapshot captures `afterAgentResponse.text` for the exact conversation/generation; stop freezes that reply and the delivery key. Missing snapshots produce a generic reminder; transcript bodies are never read. Private state is isolated by server/Device Key; files older than 24 hours are cleaned on the next Cursor hook. Re-run `meow setup cursor` after upgrading; `--no-summary` installs only stop and captures no text. Cursor permission hooks are gates, and an empty reply blocks the action, so Meow does not install one. The command runs in the foreground with a 30 second timeout.
+- Cursor: `afterAgentResponse` and `stop` hooks in `~/.cursor/hooks.json`; Cursor reloads the file on save. A completed turn sends a result with the reply text, an error sends a failure, and an aborted turn sends nothing. If no reply was captured, the notification is a generic reminder. Meow installs no permission hook, because Cursor treats those as gates that block the action. Re-run `meow setup cursor` after upgrading the CLI.
 - Every edited file is backed up as `<file>.bak.<timestamp>`. Re-running is safe.
 - `--no-summary` leaves the agent's last message out of notifications. `--no-test` skips the test notification.
 - Setup never touches this skill. It backs up and removes an outdated `meow` skill that an earlier version of `meow setup` wrote. If setup lists that removal, reinstall this skill afterwards with `npx skills add AmazingAng/meow -g`.
 - To undo: `meow setup claude --uninstall --yes`. It removes only the hooks Meow added. To remove this skill: `npx skills remove meow -g`.
+
+### Other agents
+
+`meow setup` supports only `claude`, `codex` and `cursor`. Don't hand-write hook configuration for another agent. Without hooks there are no automatic reminders, so send them yourself with `meow send --source "AGENT_NAME"` when a task finishes, fails or needs the user (see [Use Meow](#use-meow)). To be notified when a long command ends, chain a send after it:
+
+```sh
+(
+  meow_task_status=0
+  make test || meow_task_status=$?
+  meow send --source "AGENT_NAME" --title "make test exited with $meow_task_status" \
+    "Details are in the agent on your computer." || printf '%s\n' 'Meow notification failed' >&2
+  exit "$meow_task_status"
+)
+```
+
+This preserves the task's exit status even with `set -e` or a failed notification. The subshell confines the status variable and `exit` to this command.
 
 ## 4. Verify
 
@@ -102,7 +123,7 @@ Ask the user whether the notification arrived. `sent <id>` only means the server
 
 | Symptom | Fix |
 | --- | --- |
-| `No server configured` | The user runs `meow setup --server URL`, with the address from the app. |
+| `No server configured` | The CLI has no default server. The user runs `meow setup --server https://api.meow.blue`, or the address the app shows. |
 | Server is not reachable, or the TLS certificate isn't trusted | Follow the message `meow doctor` prints. A LAN or `127.0.0.1` address only works on the same network or VPN. A self-signed certificate is rejected; use a public certificate, such as the one Caddy obtains. |
 | The Device Key isn't valid on this server | Wrong server, or the key was rotated in the app. The user runs `meow login` and pastes the current key. |
 | The iPhone hasn't registered for notifications | The user opens Meow and allows notifications. In iPhone Settings → Notifications → Meow, notifications must be on. |
@@ -111,7 +132,7 @@ Ask the user whether the notification arrived. `sent <id>` only means the server
 | `meow` not found after installing | Use `~/.local/bin/meow`, or ask the user to add `~/.local/bin` to PATH. |
 | A legacy ask/wait command fails with "notification-only" | Expected in V1. Use `meow send` and ask in the agent. |
 
-`MEOW_SERVER` and `MEOW_KEY` override the config file, and `MEOW_SOURCE` sets the default sender label. Don't set `MEOW_KEY` in shell profiles or files you commit.
+`MEOW_SERVER` and `MEOW_KEY` override the config file, and `MEOW_SOURCE` sets the default sender label. Don't set `MEOW_KEY` in shell profiles or files you commit; in CI, use the platform's secret store ([references/http.md](references/http.md)).
 
 ## Use Meow
 
@@ -124,7 +145,7 @@ meow send --alert --priority high --source "Codex" --title "Needs your attention
   "Deploy v1.2.0? Options: approve or reject. Tests passed. Respond in the agent on your computer."
 ```
 
-V1 does not support phone replies or approvals. Do not use the legacy ask/wait commands. Reading a notification never counts as an answer or approval.
+`--alert` marks the notification as needing the user; the app shows it with a bell and "Continue in the agent on your computer." V1 does not support phone replies or approvals. Do not use the legacy ask/wait commands. Reading a notification never counts as an answer or approval.
 
 ### Tell the user without waiting
 
@@ -134,6 +155,24 @@ echo "Build log tail..." | meow send --title "Build failed" --priority high
 ```
 
 `--priority` is `low` (silent), `normal` (the default) or `high` (Time Sensitive; use for important alerts). The title can be up to 256 characters, the body up to 4000 and `--source` up to 64.
+
+### Project and session
+
+The app groups notifications by agent, project and session. Pass the same values the hooks use, so a manual send joins the same group:
+
+```sh
+meow send --source "Claude Code" \
+  --workspace "$(basename "$PWD")" \
+  --workspace-id "$(printf '%s' "$PWD" | shasum -a 256 | cut -c1-32)" \
+  --session-id "$CLAUDE_CODE_SESSION_ID" \
+  --title "Migration done" "Applied 3 migrations to staging"
+```
+
+- `--source`: exactly `Claude Code`, `Codex` or `Cursor` for those agents. Another agent uses its own name, the same every time.
+- `--workspace` and `--workspace-id`: run from the project root, the directory the session started in. The ID is the first 32 hex characters of the SHA-256 of that absolute path, as the hooks compute it. On Linux, use `sha256sum` in place of `shasum -a 256`.
+- `--session-id`: Claude Code provides it as `$CLAUDE_CODE_SESSION_ID`; an empty value is left out. For other agents, leave it out. Never make one up: a wrong ID puts the notification in a separate group.
+- `--session` is only a display name. Leave it out unless you know it.
+- `MEOW_WORKSPACE`, `MEOW_WORKSPACE_ID`, `MEOW_SESSION` and `MEOW_SESSION_ID` set the same fields.
 
 ### Rules
 

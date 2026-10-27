@@ -1,6 +1,6 @@
 # Running a Meow server
 
-Read this only when the user wants to host their own server. Everything below comes from the repository https://github.com/AmazingAng/meow (`deploy/README.md` and `docs/wake-gateway.md` have the full details).
+Most users use the official server, `https://api.meow.blue`, and don't need this page. Read it only when the user explicitly wants to host their own server, for example to keep notification content on their own machine. Everything below comes from the repository https://github.com/AmazingAng/meow (`deploy/README.md` and `docs/wake-gateway.md` have the full details).
 
 The server is a single Go process with one SQLite file. The iPhone and the CLI must both reach it. Pick one way to deliver push notifications:
 
@@ -48,7 +48,7 @@ MEOW_DOMAIN=meow.example.com MEOW_PUSH_GATEWAY_URL=https://push.example.com \
   docker compose -p meow-relay -f compose.relay.yaml up -d --build
 ```
 
-The app registers with the gateway automatically. The gateway only sees routing IDs, never the message content. The phone fetches content and sends replies directly to this server, so the server must still be reachable from the phone (public HTTPS, or a VPN when away from the LAN).
+The app registers with the gateway automatically. The gateway only sees routing IDs, never the message content. The phone fetches content directly from this server, so the server must still be reachable from the phone (public HTTPS, or a VPN when away from the LAN).
 
 ## Settings
 
@@ -56,7 +56,7 @@ The app registers with the gateway automatically. The gateway only sees routing 
 | --- | --- | --- |
 | `MEOW_ADDR` | `:8080` | Listen address |
 | `MEOW_DB` | `meow.db` | Keep it on a persistent volume |
-| `MEOW_RETENTION` | `720h` | Old notifications and resolved questions are pruned |
+| `MEOW_RETENTION` | `720h` | Old notifications and legacy questions are pruned |
 | `MEOW_TRUST_PROXY` | | Set to `true` behind a reverse proxy, so rate limits use `X-Forwarded-For` |
 | `MEOW_APNS_KEY_FILE`, `MEOW_APNS_KEY_ID`, `MEOW_APNS_TEAM_ID`, `MEOW_APNS_TOPIC` | | Direct APNs |
 | `MEOW_PUSH_GATEWAY_URL` | | Wake gateway |
