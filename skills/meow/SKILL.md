@@ -99,8 +99,16 @@ meow setup claude --yes
 `meow setup` supports only `claude`, `codex` and `cursor`. Don't hand-write hook configuration for another agent. Without hooks there are no automatic reminders, so send them yourself with `meow send --source "AGENT_NAME"` when a task finishes, fails or needs the user (see [Use Meow](#use-meow)). To be notified when a long command ends, chain a send after it:
 
 ```sh
-make test; meow send --source "AGENT_NAME" --title "make test exited with $?" "Details are in the agent on your computer."
+(
+  meow_task_status=0
+  make test || meow_task_status=$?
+  meow send --source "AGENT_NAME" --title "make test exited with $meow_task_status" \
+    "Details are in the agent on your computer." || printf '%s\n' 'Meow notification failed' >&2
+  exit "$meow_task_status"
+)
 ```
+
+This preserves the task's exit status even with `set -e` or a failed notification. The subshell confines the status variable and `exit` to this command.
 
 ## 4. Verify
 
