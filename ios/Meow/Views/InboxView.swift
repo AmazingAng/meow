@@ -39,16 +39,6 @@ struct InboxView: View {
             .toolbar {
                 inboxTitleToolbar
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    if let selection = model.unreadInboxSelection {
-                        Button { Task { await model.markInboxRead(selection) } } label: {
-                            Label {
-                                if model.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { Text("Mark all as read") }
-                                else { Text("Mark matching messages as read") }
-                            } icon: { Image(systemName: "checkmark.circle") }
-                        }
-                        .disabled(model.isMarkingGroupRead || model.isMarkingAllRead || model.isDeletingNotifications)
-                        .accessibilityIdentifier("inbox.markRead")
-                    }
                     InboxBrowseMenu()
                     deletionMenu
                     if isSearching || !model.search.isEmpty {

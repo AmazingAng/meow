@@ -1,5 +1,7 @@
 # Inbox read and swipe action evidence
 
+Historical verification for commit `8726548`, before the 2026-10-29 removal of the header read button. The header-related claims and ten-function coverage below describe that original revision; the appended correction records the current UI contract.
+
 Contract: [inbox-actions-spec.md](inbox-actions-spec.md). Spec approval: not obtained (autonomous run). Independent verification: not performed. Tests and checkers were authored in this task; their results support the stated behaviors and do not constitute independent proof.
 
 ## Reproduce
@@ -63,3 +65,17 @@ Recorded tools: XcodeGen 2.46.0 and Python 3.14.3. Xcode and simulator versions 
 - No new parser or wire format warrants an added property-testing dependency. Existing generated-range/grouping tests run with the unit suite; the 3000-target test adds scale and persistence observation rather than an arbitrary performance deadline. Randomized-order whole-suite testing and independent review were not performed. Final UI cases are isolated to remove the demonstrated order dependence.
 - Read changes are optimistic and failures roll back after the batch finishes. Network work uses at most four requests concurrently; large groups still require one existing API request per target. Automatic read runs once per group visit, so changing the search while staying inside a group does not silently read more messages.
 - This does not add a durable network transaction/outbox. Termination after a remote delete but before local commit, or after optimistic read persistence but before a failed response, is not covered by these tests. Existing local-storage failures remain visible through the model's storage-error mechanism. System notification-center cleanup and physical-device badge delivery are outside this app-inbox change.
+
+## Header correction — 2026-10-29
+
+The user removed the header read button from the design. The header now has only view switching, trash and search. The unused `unreadInboxSelection` getter was removed; batch mutation, scope, persistence and retry code are unchanged. The 3000-target test uses the existing generic selection helper and still asserts complete local persistence and the final read state. Header-specific UI expectations now require the button to be absent; group swipe and confirmation assertions remain.
+
+Targeted verification passed: **248 unit tests and three UI tests, zero failures/skips**. Inspected the normal English header and maximum-size Chinese iPhone SE 3 dark-mode screenshots. The new run did not repeat the previous mutation gauntlet or claim its old ten-function coverage for this revision. Current compact evidence is retained locally in `dist/inbox-header-no-read/`; no server, CLI or TestFlight release was made.
+
+Reproduce with fresh output paths:
+
+```sh
+python3 -B ios/scripts/verify_ui_optimization.py --output /tmp/header-check/compact --test-case test08CompactHeaderSearchAndViewMenu
+python3 -B ios/scripts/verify_ui_optimization.py --output /tmp/header-check/swipe --ui-only --test-case test27InboxReadHeaderAndGroupSwipeActions
+python3 -B ios/scripts/verify_ui_optimization.py --output /tmp/header-check/small-dark --ui-only --test-case test30ReadActionsLargeChinese --device-type com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation --appearance dark
+```

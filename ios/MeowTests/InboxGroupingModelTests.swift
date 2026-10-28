@@ -100,7 +100,7 @@ final class InboxGroupingModelTests: XCTestCase {
         let items = (0..<3000).map { item("n\($0)") }
         try await store.save(items, scope: scope)
         let model = model(); await model.refresh()
-        let selection = try XCTUnwrap(model.unreadInboxSelection)
+        let selection = try XCTUnwrap(model.inboxSelection(model.savedNotifications))
         XCTAssertEqual(selection.ids.count, 3000)
         let started = expectation(description: "four held reads"); started.expectedFulfillmentCount = 4
         let release = DispatchSemaphore(value: 0), calls = Counter()
@@ -120,7 +120,7 @@ final class InboxGroupingModelTests: XCTestCase {
         for _ in 0..<4 { release.signal() }
         await reading.value
         XCTAssertEqual(calls.value, 3000)
-        XCTAssertNil(model.unreadInboxSelection)
+        XCTAssertTrue(model.savedNotifications.allSatisfy { !$0.isUnread })
     }
 
     func testAnotherGroupVisitWaitsForActiveReadWithoutLosingItsSnapshot() async throws {

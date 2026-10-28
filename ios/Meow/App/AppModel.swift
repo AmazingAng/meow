@@ -853,11 +853,6 @@ final class AppModel {
         return InboxMessageSelection(scope: scope, ids: Set(items.map(\.id)))
     }
 
-    var unreadInboxSelection: InboxMessageSelection? {
-        let unread = matchingNotifications.filter(\.isUnread)
-        return unread.isEmpty ? nil : inboxSelection(unread)
-    }
-
     func markInboxRead(_ selection: InboxMessageSelection) async {
         guard !selection.ids.isEmpty else { return }
         // A second group visit keeps its snapshot while the previous batch finishes.

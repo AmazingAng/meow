@@ -601,7 +601,7 @@ final class UIOptimizationTests: XCTestCase {
                           "the first message should follow the compact navigation bar")
         XCTAssertFalse(app.staticTexts["Other notifications"].exists)
         XCTAssertFalse(app.textFields["inbox.searchField"].exists)
-        XCTAssertTrue(app.buttons["inbox.markRead"].exists)
+        XCTAssertFalse(app.buttons["inbox.markRead"].exists)
         capture("compact-inbox", app)
 
         app.buttons["inbox.search"].tap()
@@ -812,10 +812,8 @@ final class UIOptimizationTests: XCTestCase {
         assertInboxStats(unread: 3, total: 3)
         let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: row)
         wait(for: [gone], timeout: 5)
-        let all = app.buttons["inbox.markRead"]
-        XCTAssertTrue(all.isHittable); all.tap()
-        assertInboxStats(unread: 0, total: 3)
-        capture("inbox-all-read", app)
+        XCTAssertFalse(app.buttons["inbox.markRead"].exists)
+        capture("inbox-no-header-read-action", app)
     }
 
     func test28GroupVisitDoesNotReadNewArrivalOnRefreshOrDetailReturn() {
@@ -883,8 +881,7 @@ final class UIOptimizationTests: XCTestCase {
         scenario("grouping")
         let app = open(large: true, chinese: true)
         browse("sessions", in: app)
-        let allRead = app.buttons["inbox.markRead"]
-        XCTAssertTrue(allRead.isHittable)
+        XCTAssertFalse(app.buttons["inbox.markRead"].exists)
         let deploy = app.staticTexts["Deploy"].firstMatch
         let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "inbox.group.", "Deploy")).firstMatch
         reveal(row, in: app)
@@ -898,9 +895,9 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(confirmation.buttons["删除"].isHittable)
         capture("inbox-group-delete-large-zh", app)
         confirmation.buttons["取消"].tap()
-        allRead.tap()
-        assertInboxStats(unread: 0, total: 5)
-        capture("inbox-read-header-large-zh", app)
+        assertInboxStats(unread: 5, total: 5)
+        XCTAssertFalse(app.buttons["inbox.markRead"].exists)
+        capture("inbox-no-read-header-large-zh", app)
     }
 
     private func assertInboxStats(unread: Int, total: Int) {

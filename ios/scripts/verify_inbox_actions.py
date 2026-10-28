@@ -9,7 +9,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 FUNCTIONS = {
-    'AppModel.inboxSelection(_:)', 'AppModel.unreadInboxSelection.getter', 'AppModel.markInboxRead(_:)',
+    'AppModel.inboxSelection(_:)', 'AppModel.markInboxRead(_:)',
     'AppModel.deleteNotifications(_:)', 'static AppModel.deleteRemoteMessage(_:api:)',
     'AppModel.markMatchingRead(_:)', 'static AppModel.markRemoteRead(_:api:)',
     'AppModel.setBatchRead(_:at:)', 'AppModel.removeDeletedMessages(_:)',
