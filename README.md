@@ -162,7 +162,7 @@ and separate user consent. Meow does not currently claim this capability.
 
 The [`meow` skill](skills/meow/SKILL.md) teaches Claude Code, Codex and other
 agents to install the CLI, guide setup, troubleshoot and send notifications.
-Use Meow CLI 0.1.2 or later: older setup commands can overwrite a separately installed skill. Install the skill, then ask the agent to set up Meow:
+Use Meow CLI 0.1.7 or later for all three supported agent integrations. Check `meow version` before setup; `meow doctor` does not enforce this minimum. Upgrade an existing Homebrew installation with `brew update && brew upgrade amazingang/tap/meow`, or re-run the direct installer without `--server`; saved credentials are preserved. Install the skill, then ask the agent to set up Meow:
 
 ```sh
 npx skills add AmazingAng/meow -g          # Node.js 22.20+; asks which agents to install to
@@ -214,6 +214,8 @@ meow setup --server https://your-meow-server     # asks for the Device Key, conn
 Agents and ordinary services share the same V1 notification object. `message/` owns the protocol and validation, `adapters/` converts external events, and `client/` handles HTTP transport. Existing CLI commands and the `/v1` API remain compatible. Services can send a JSON object with `meow send --json --idempotency-key EVENT_ID < notification.json` or POST the same object directly.
 
 See the [module boundaries and integration guide](docs/architecture.md), [JSON Schema](contracts/notification-v1.schema.json), and [cross-language fixtures](contracts/fixtures/notifications.json). Built-in adapters emit explicit `event` values (`result`, `attention`, `failure`), independently of titles, `type` and `priority`. Events without this optional field remain generic. Codex permission reminders include only the human explanation (`description` / `justification`); tool names, commands and other parameters stay on the computer. Without an explanation the notification still shows its attention title and session context. `--no-summary` omits the body.
+
+For scripts, CI, backups and monitors, the [service integration guide](skills/meow/references/http.md#project-and-session-for-services) explains CLI/HTTP examples and each context field. `source` names the sending service, `context.workspace` is the project name, and `context.session` is the task/run/incident name. Stable `workspace_id` and `session_id` distinguish work across updates; they are separate from per-notification idempotency keys. No agent hooks, custom adapter or server change are needed.
 
 ## HTTP API
 

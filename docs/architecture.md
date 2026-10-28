@@ -85,6 +85,8 @@ Deploying this presentation requires a new iOS build for relay notifications and
 
 A service that can send standard JSON needs no custom adapter.
 
+See the [service context guide](../skills/meow/references/http.md#project-and-session-for-services) for project/session field mapping, CI/backup/incident examples, the App's per-view grouping behavior, and the distinction between session IDs and per-update idempotency keys.
+
 ```sh
 # A custom title and explicit semantic event can also be sent with flags.
 meow send --event result --title "Backup completed" "Snapshot stored successfully."

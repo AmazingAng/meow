@@ -11,7 +11,7 @@ Use CLI 0.1.7 or later. Older setup commands can overwrite this skill, and `meow
 
 - iPhone app: creates the device, shows the server address and the Device Key.
 - `meow` CLI (macOS and Linux): sends notifications.
-- Server: most users use the official hosted server, `https://api.meow.blue`, which the app suggests on first launch. It needs no setup on the user's side. The iPhone and the CLI must use the same server, and the CLI has no default, so always pass the address. Notification content is stored on that server, so never send secrets. To host one instead, see [references/server.md](references/server.md).
+- Server: most users use the official hosted server, `https://api.meow.blue`, which the app suggests on first launch. It needs no setup on the user's side. The iPhone and the CLI must use the same server. Pass the address on initial setup/login; later sends use the saved configuration or `MEOW_SERVER`. Notification content is stored on that server, so never send secrets. To host one instead, see [references/server.md](references/server.md).
 - Scripts, CI jobs and services can send over HTTP or with the CLI; see [references/http.md](references/http.md).
 
 This skill is installed with `npx skills add AmazingAng/meow -g` (Node.js 22.20 or later). `meow setup` doesn't install or update it. Update it with `npx skills update meow -g`.
@@ -20,12 +20,14 @@ Start by checking the current state, then do only the steps that are missing:
 
 ```sh
 command -v meow || ls ~/.local/bin/meow
-meow version && meow doctor
+meow version
 ```
 
 If `meow` isn't on PATH but `~/.local/bin/meow` exists, use `~/.local/bin/meow` in place of `meow` in every command below.
 
-`meow doctor` changes nothing. It checks the server, the Device Key, push registration and the connected agents, and prints a next step for each failure. If every line starts with `✓`, go straight to [Use Meow](#use-meow).
+Check the version before proceeding: if it is older than 0.1.7, upgrade using step 1 even if notifications already work. A custom/dev version string does not establish compatibility; check its provenance rather than assuming it is the latest release.
+
+Then run `meow doctor`. It changes nothing and checks the server, the Device Key, push registration and the connected agents, but does not enforce the minimum CLI version. If the version is suitable and every check passes, go straight to [Use Meow](#use-meow).
 
 ## 1. Install the CLI
 
@@ -43,6 +45,8 @@ curl -fsSL https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/instal
 - Don't pass `--server` to the installer from an agent. With `--server` it starts interactive setup, which needs a terminal.
 - To pin a version: download the script, then run `sh install.sh --version 0.1.7 --install-dir "$HOME/.local/bin"`.
 - Windows is not supported.
+
+To upgrade an existing Homebrew installation, use `brew update && brew upgrade amazingang/tap/meow`. For a direct installation, re-run the installer above without `--server`; it replaces the binary without changing saved credentials or hooks. Afterwards check `command -v meow` and `meow version` again. If PATH still selects another copy, use the upgraded binary's absolute path. Do not re-run setup or prompt for a Device Key merely to upgrade; only re-run an agent's setup when its hook configuration needs updating (for example Cursor's two-hook integration).
 
 ## 2. Connect the CLI to the iPhone
 
@@ -102,7 +106,9 @@ meow setup claude --yes
 (
   meow_task_status=0
   make test || meow_task_status=$?
-  meow send --source "AGENT_NAME" --title "make test exited with $meow_task_status" \
+  meow_task_event=result
+  if [ "$meow_task_status" -ne 0 ]; then meow_task_event=failure; fi
+  meow send --source "AGENT_NAME" --event "$meow_task_event" --title "make test exited with $meow_task_status" \
     "Details are in the agent on your computer." || printf '%s\n' 'Meow notification failed' >&2
   exit "$meow_task_status"
 )
@@ -114,7 +120,7 @@ This preserves the task's exit status even with `set -e` or a failed notificatio
 
 ```sh
 meow doctor
-meow send --source "Claude Code" "Meow is working"
+meow send --source "Claude Code" --event result --session "Connection test" "Meow is working"
 ```
 
 Ask the user whether the notification arrived. `sent <id>` only means the server accepted it.
@@ -141,27 +147,29 @@ Ask the user whether the notification arrived. `sent <id>` only means the server
 Ask using the agent's normal computer interface, then send a notification with the question, options and context:
 
 ```sh
-meow send --alert --priority high --source "Codex" --title "Needs your attention" \
+meow send --alert --priority high --event attention --source "Codex" --title "Needs your attention" \
   "Deploy v1.2.0? Options: approve or reject. Tests passed. Respond in the agent on your computer."
 ```
 
-`--alert` marks the notification as needing the user; the app shows it with a bell and "Continue in the agent on your computer." V1 does not support phone replies or approvals. Do not use the legacy ask/wait commands. Reading a notification never counts as an answer or approval.
+`--event attention` supplies the semantic category used by the app's category icons and group attention indicator. `--alert` independently sets `type=alert`; it does not set `event`. Neither a title nor `--priority high` supplies a category. V1 does not support phone replies or approvals. Do not use the legacy ask/wait commands. Reading a notification never counts as an answer or approval.
 
 ### Tell the user without waiting
 
 ```sh
-meow send --source "Claude Code" --title "Migration paused" "Table orders is locked; retrying in 10 minutes"
-echo "Build log tail..." | meow send --title "Build failed" --priority high
+meow send --source "Claude Code" --event result --title "Migration paused" "Table orders is locked; retrying in 10 minutes"
+echo "Build log tail..." | meow send --source "Claude Code" --event failure --title "Build failed" --priority high
 ```
 
 `--priority` is `low` (silent), `normal` (the default) or `high` (Time Sensitive; use for important alerts). The title can be up to 256 characters, the body up to 4000 and `--source` up to 64.
+
+Use `--event result` for new output (not necessarily success), `attention` when the user needs to act, and `failure` for an execution error. Include known project/session context below on real agent sends; these short examples omit it for readability.
 
 ### Project and session
 
 The app groups notifications by agent, project and session. Pass the same values the hooks use, so a manual send joins the same group:
 
 ```sh
-meow send --source "Claude Code" \
+meow send --source "Claude Code" --event result \
   --workspace "$(basename "$PWD")" \
   --workspace-id "$(printf '%s' "$PWD" | shasum -a 256 | cut -c1-32)" \
   --session-id "$CLAUDE_CODE_SESSION_ID" \
@@ -173,6 +181,8 @@ meow send --source "Claude Code" \
 - `--session-id`: Claude Code provides it as `$CLAUDE_CODE_SESSION_ID`; an empty value is left out. For other agents, leave it out. Never make one up: a wrong ID puts the notification in a separate group.
 - `--session` is only a display name. Leave it out unless you know it.
 - `MEOW_WORKSPACE`, `MEOW_WORKSPACE_ID`, `MEOW_SESSION` and `MEOW_SESSION_ID` set the same fields.
+
+For non-agent apps, CI, backups and monitors, read [service context examples](references/http.md#project-and-session-for-services). `--workspace` / `context.workspace` is the project name; `--session` / `context.session` is the task, run or incident name. Services choose their own stable IDs; they do not need an agent session or Meow hooks.
 
 ### Rules
 
