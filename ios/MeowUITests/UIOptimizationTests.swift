@@ -601,7 +601,7 @@ final class UIOptimizationTests: XCTestCase {
                           "the first message should follow the compact navigation bar")
         XCTAssertFalse(app.staticTexts["Other notifications"].exists)
         XCTAssertFalse(app.textFields["inbox.searchField"].exists)
-        XCTAssertFalse(app.buttons["Mark all as read"].exists)
+        XCTAssertTrue(app.buttons["inbox.markRead"].exists)
         capture("compact-inbox", app)
 
         app.buttons["inbox.search"].tap()
@@ -740,11 +740,13 @@ final class UIOptimizationTests: XCTestCase {
         let app = open()
         browse("sessions", in: app)
         XCTAssertTrue(app.staticTexts["Deploy"].firstMatch.waitForExistence(timeout: 10))
+        app.buttons["inbox.search"].tap()
+        let rootSearch = app.textFields["inbox.searchField"]
+        XCTAssertTrue(rootSearch.waitForExistence(timeout: 5)); rootSearch.typeText("needle")
         app.staticTexts["Deploy"].firstMatch.tap()
         XCTAssertTrue(app.buttons["group.search"].waitForExistence(timeout: 5))
-        app.buttons["group.search"].tap()
         let field = app.textFields["group.searchField"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText("needle")
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
         let row = app.descendants(matching: .any).matching(identifier: "notification.ntf_group_a1").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         let other = app.descendants(matching: .any).matching(identifier: "notification.ntf_group_a2").firstMatch
@@ -752,7 +754,8 @@ final class UIOptimizationTests: XCTestCase {
         wait(for: [gone], timeout: 5)
         app.buttons["group.actions"].tap()
         let mark = app.buttons["group.markRead"]
-        XCTAssertTrue(mark.isEnabled); mark.tap()
+        XCTAssertFalse(mark.isEnabled, "entry already marks the matching snapshot read")
+        app.tap()
         let done = expectation(description: "only matching message read")
         // Allow the local action to commit before querying the independent fixture.
         DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
@@ -773,6 +776,150 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Deploy"].firstMatch.waitForExistence(timeout: 10))
         capture("grouping-restored-mode", app)
         browse("messages", in: app)
+    }
+
+    func test26GroupEntryMarksItsMessagesRead() {
+        scenario("grouping")
+        let app = open()
+        browse("sessions", in: app)
+        let deploy = app.staticTexts["Deploy"].firstMatch
+        XCTAssertTrue(deploy.waitForExistence(timeout: 10)); deploy.tap()
+        XCTAssertTrue(app.buttons["group.search"].waitForExistence(timeout: 5))
+        assertInboxStats(unread: 3, total: 5)
+        capture("inbox-group-auto-read", app)
+    }
+
+    func test27InboxReadHeaderAndGroupSwipeActions() {
+        scenario("grouping")
+        let app = open()
+        browse("sessions", in: app)
+        let row = app.staticTexts["Deploy"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.swipeLeft()
+        XCTAssertTrue(app.buttons["Mark as read"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Delete"].exists)
+        capture("inbox-group-swipe", app)
+        app.buttons["Mark as read"].tap()
+        assertInboxStats(unread: 3, total: 5)
+        row.swipeLeft(); app.buttons["Delete"].tap()
+        let confirmation = app.alerts["Delete group messages?"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 3))
+        capture("inbox-group-delete-confirmation", app)
+        confirmation.buttons["Cancel"].tap()
+        assertInboxStats(unread: 3, total: 5)
+        row.swipeLeft(); app.buttons["Delete"].tap()
+        confirmation.buttons["Delete"].tap()
+        assertInboxStats(unread: 3, total: 3)
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: row)
+        wait(for: [gone], timeout: 5)
+        let all = app.buttons["inbox.markRead"]
+        XCTAssertTrue(all.isHittable); all.tap()
+        assertInboxStats(unread: 0, total: 3)
+        capture("inbox-all-read", app)
+    }
+
+    func test28GroupVisitDoesNotReadNewArrivalOnRefreshOrDetailReturn() {
+        scenario("grouping")
+        let app = open()
+        browse("sessions", in: app)
+        let deploy = app.staticTexts["Deploy"].firstMatch
+        XCTAssertTrue(deploy.waitForExistence(timeout: 10)); deploy.tap()
+        assertInboxStats(unread: 3, total: 5)
+        let appended = expectation(description: "new notification")
+        URLSession.shared.dataTask(with: URL(string: server + "/fixture/append-group-message")!) { _, _, _ in appended.fulfill() }.resume()
+        wait(for: [appended], timeout: 5)
+        let list = app.collectionViews.firstMatch
+        let top = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
+        let bottom = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+        top.press(forDuration: 0.2, thenDragTo: bottom)
+        let incoming = app.descendants(matching: .any).matching(identifier: "notification.ntf_incoming").firstMatch
+        XCTAssertTrue(incoming.waitForExistence(timeout: 8))
+        assertInboxStats(unread: 4, total: 6)
+        let old = app.descendants(matching: .any).matching(identifier: "notification.ntf_group_a1").firstMatch
+        old.tap()
+        XCTAssertTrue(app.navigationBars["Notification"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(incoming.waitForExistence(timeout: 5))
+        assertInboxStats(unread: 4, total: 6)
+        incoming.swipeLeft()
+        XCTAssertTrue(app.buttons["Mark as read"].waitForExistence(timeout: 3))
+        capture("inbox-new-message-swipe", app)
+        app.buttons["Mark as read"].tap()
+        assertInboxStats(unread: 3, total: 6)
+        incoming.swipeLeft(); app.buttons["Delete"].tap()
+        assertInboxStats(unread: 3, total: 5)
+        capture("inbox-group-new-message-handled", app)
+    }
+
+    func test29MessageSwipeAndSearchGroupDeletionKeepUnmatchedHistory() {
+        scenario("grouping")
+        let app = open()
+        browse("messages", in: app)
+        let single = app.descendants(matching: .any).matching(identifier: "notification.ntf_group_legacy").firstMatch
+        XCTAssertTrue(single.waitForExistence(timeout: 10)); single.swipeLeft()
+        capture("inbox-message-swipe", app)
+        app.buttons["Mark as read"].tap()
+        assertInboxStats(unread: 4, total: 5)
+        single.swipeLeft(); app.buttons["Delete"].tap()
+        assertInboxStats(unread: 4, total: 4)
+        browse("sessions", in: app)
+        app.buttons["inbox.search"].tap()
+        let search = app.textFields["inbox.searchField"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5)); search.typeText("needle")
+        let deploy = app.staticTexts["Deploy"].firstMatch
+        XCTAssertTrue(deploy.waitForExistence(timeout: 5)); deploy.swipeLeft()
+        app.buttons["Delete"].tap()
+        let confirmation = app.alerts["Delete group messages?"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 3))
+        XCTAssertTrue(confirmation.staticTexts["Deploy — matching messages: 1. Permanently delete them from this server and this iPhone?"].exists)
+        confirmation.buttons["Delete"].tap()
+        assertInboxStats(unread: 3, total: 3)
+        app.buttons["inbox.cancelSearch"].tap()
+        XCTAssertTrue(deploy.waitForExistence(timeout: 5), "unmatched messages keep the group and its history")
+        capture("inbox-search-delete-retains-group", app)
+    }
+
+    func test30ReadActionsLargeChinese() {
+        scenario("grouping")
+        let app = open(large: true, chinese: true)
+        browse("sessions", in: app)
+        let allRead = app.buttons["inbox.markRead"]
+        XCTAssertTrue(allRead.isHittable)
+        let deploy = app.staticTexts["Deploy"].firstMatch
+        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "inbox.group.", "Deploy")).firstMatch
+        reveal(row, in: app)
+        XCTAssertTrue(deploy.waitForExistence(timeout: 10)); row.swipeLeft()
+        XCTAssertTrue(app.buttons["标为已读"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["删除"].isHittable)
+        capture("inbox-group-swipe-large-zh", app)
+        app.buttons["删除"].tap()
+        let confirmation = app.alerts["删除分组消息？"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 3))
+        XCTAssertTrue(confirmation.buttons["删除"].isHittable)
+        capture("inbox-group-delete-large-zh", app)
+        confirmation.buttons["取消"].tap()
+        allRead.tap()
+        assertInboxStats(unread: 0, total: 5)
+        capture("inbox-read-header-large-zh", app)
+    }
+
+    private func assertInboxStats(unread: Int, total: Int) {
+        let done = expectation(description: "independent inbox state")
+        DispatchQueue.global().async {
+            var last: [String: Int]?
+            for _ in 0..<50 {
+                if let data = try? Data(contentsOf: URL(string: self.server + "/fixture/stats")!),
+                   let stats = try? JSONSerialization.jsonObject(with: data) as? [String: Int] {
+                    last = stats
+                    if stats["unread"] == unread && stats["total"] == total { break }
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            XCTAssertEqual(last?["unread"], unread)
+            XCTAssertEqual(last?["total"], total)
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 10)
     }
 
     func test22GroupedInboxLargeChineseText() {

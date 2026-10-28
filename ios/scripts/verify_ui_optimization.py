@@ -82,11 +82,15 @@ class Fixture(BaseHTTPRequestHandler):
     def get(self):
         url = urlsplit(self.path)
         if url.path == '/fixture/stats':
-            return self.send_json({'responses': type(self).response_count, 'unread': sum(n['read_at'] is None for n in self.items),
+            return self.send_json({'responses': type(self).response_count, 'unread': sum(n['read_at'] is None for n in self.items), 'total': len(self.items),
                                    'key_attempts': type(self).key_attempts, 'key_revocations': type(self).key_revocations,
                                    'sender_key_old': type(self).sender_key_old, 'sender_key_new': type(self).sender_key_new})
         if url.path == '/fixture/reset':
             self.reset()
+            return self.send_json({})
+        if url.path == '/fixture/append-group-message':
+            self.items.append(dict(self.items[0], id='ntf_incoming', created_at=timestamp(datetime.now(timezone.utc)), read_at=None,
+                                   body='A new result arriving during this visit'))
             return self.send_json({})
         if url.path == '/fixture/scenario':
             self.reset()
@@ -204,6 +208,15 @@ class Fixture(BaseHTTPRequestHandler):
         return self.send_json({}, 404)
 
     def do_DELETE(self):
+        with self.lock:
+            self.delete()
+
+    def delete(self):
+        if self.path.startswith('/v1/notifications/'):
+            ident = self.path.removeprefix('/v1/notifications/')
+            found = any(n['id'] == ident for n in self.items)
+            self.items[:] = [n for n in self.items if n['id'] != ident]
+            return self.send_json({} if found else {'error': {'code': 'not_found', 'message': 'Already absent'}}, 200 if found else 404)
         if self.path in ('/v1/keys/key_ui', '/v1/keys/key_recovered'):
             type(self).key_revocations += 1
             type(self).active_sender_keys.discard('meow_disposable_ui_fixture' if self.path.endswith('key_ui') else 'meow_recovered_ui_fixture')

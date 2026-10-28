@@ -116,6 +116,8 @@ The iOS app saves synchronized messages in a local SQLite database. Search, grou
 without network requests, including history beyond the first visible page.
 Saved history remains searchable after restarting the app while offline.
 
+Entering a session, project or Agent group marks the current matching snapshot read once. New arrivals remain unread. Swipe a message or group left to mark it read or delete it; group deletion confirms the matching message count and removes successful items from both server and iPhone. The header checkmark marks all local matches read without changing the four-option view menu. Search and pagination never broaden these operations beyond the selected IDs.
+
 On foreground entry or pull-to-refresh, the app loads saved messages first and
 fetches every page of retained server history in the background. Only a complete
 snapshot reconciles deletions; a failed page preserves the previous cache. This

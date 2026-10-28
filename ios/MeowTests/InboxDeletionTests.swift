@@ -54,8 +54,9 @@ final class InboxDeletionRangeTests: XCTestCase {
 private final class DeletionProtocol: URLProtocol, @unchecked Sendable {
     static let lock = NSLock()
     static var handler: ((URLRequest) throws -> (Int, Data))?
-    static func install(_ handler: @escaping (URLRequest) throws -> (Int, Data)) {
-        lock.withLock { Self.handler = handler }
+    static var retryAfter: String?
+    static func install(retryAfter: String? = nil, _ handler: @escaping (URLRequest) throws -> (Int, Data)) {
+        lock.withLock { Self.handler = handler; Self.retryAfter = retryAfter }
         URLProtocol.registerClass(Self.self)
     }
     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "delete.invalid" }
@@ -66,7 +67,7 @@ private final class DeletionProtocol: URLProtocol, @unchecked Sendable {
                 guard let handler = Self.lock.withLock({ Self.handler }) else { throw URLError(.cancelled) }
                 let (status, data) = try handler(self.request)
                 self.client?.urlProtocol(self, didReceive: HTTPURLResponse(url: self.request.url!, statusCode: status,
-                    httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+                    httpVersion: nil, headerFields: Self.lock.withLock { Self.retryAfter.map { ["Retry-After": $0] } })!, cacheStoragePolicy: .notAllowed)
                 self.client?.urlProtocol(self, didLoad: data)
                 self.client?.urlProtocolDidFinishLoading(self)
             } catch { self.client?.urlProtocol(self, didFailWithError: error) }
@@ -246,6 +247,123 @@ final class InboxDeletionModelTests: XCTestCase {
 
 
 extension InboxDeletionModelTests {
+    func testSelectedReadAndDeleteRespectRetryAfter() async throws {
+        let model = try await model([item("one")])
+        let selection = try XCTUnwrap(model.inboxSelection(model.savedNotifications))
+        for deleting in [false, true] {
+            let lock = NSLock()
+            var times: [ContinuousClock.Instant] = []
+            DeletionProtocol.install(retryAfter: "1") { request in
+                XCTAssertEqual(request.httpMethod, deleting ? "DELETE" : "POST")
+                let count = lock.withLock { times.append(.now); return times.count }
+                if count == 1 { return (429, Data(#"{"error":{"code":"rate_limited","message":"wait"}}"#.utf8)) }
+                return (204, Data())
+            }
+            if deleting { await model.deleteNotifications(selection) }
+            else { await model.markInboxRead(selection) }
+            let attempts = lock.withLock { times }
+            XCTAssertEqual(attempts.count, 2)
+            if attempts.count == 2 { XCTAssertGreaterThanOrEqual(attempts[0].duration(to: attempts[1]), .seconds(1)) }
+            XCTAssertNil(model.alert)
+            XCTAssertNil(model.toast)
+        }
+        XCTAssertTrue(model.savedNotifications.isEmpty)
+    }
+
+    func testPersistentRateLimitStopsAfterThreeAttemptsAndPreservesMessages() async throws {
+        let model = try await model([item("one")])
+        let selection = try XCTUnwrap(model.inboxSelection(model.savedNotifications))
+        for deleting in [false, true] {
+            let lock = NSLock()
+            var count = 0
+            DeletionProtocol.install(retryAfter: "0") { _ in
+                lock.withLock { count += 1 }
+                return (429, Data(#"{"error":{"code":"rate_limited","message":"wait"}}"#.utf8))
+            }
+            if deleting { await model.deleteNotifications(selection) }
+            else { await model.markInboxRead(selection) }
+            XCTAssertEqual(lock.withLock { count }, 3)
+            XCTAssertTrue(try XCTUnwrap(model.notification(id: "one")).isUnread)
+        }
+    }
+
+    func testSelectedDeletionIncludesAllPagesAndRetainsFailuresAndNewArrivals() async throws {
+        let initial = (0..<75).map { item("n\($0)") } + [item("unmatched")]
+        let model = try await model(initial)
+        model.search = "n"
+        let selection = try XCTUnwrap(model.inboxSelection(initial.filter { $0.id != "unmatched" }))
+        XCTAssertEqual(selection.ids.count, 75)
+        let lock = NSLock()
+        var deleted: Set<String> = []
+        let incoming = try page(initial + [item("incoming", milliseconds: 5000)])
+        DeletionProtocol.install { request in
+            if request.httpMethod != "DELETE" {
+                return (200, request.url!.path.hasSuffix("/counts") ? Data(#"{"unread":77,"pending":0}"#.utf8) : incoming)
+            }
+            let id = request.url!.lastPathComponent
+            lock.withLock { _ = deleted.insert(id) }
+            if id == "n2" { return (503, Data(#"{"error":{"code":"unavailable","message":"retry"}}"#.utf8)) }
+            if id == "n3" { return (404, Data(#"{"error":{"code":"not_found","message":"expired"}}"#.utf8)) }
+            return (204, Data())
+        }
+        await model.refresh() // arrives after the selection was frozen
+        await model.deleteNotifications(selection)
+        XCTAssertEqual(lock.withLock { deleted }, selection.ids)
+        XCTAssertEqual(Set(model.savedNotifications.map(\.id)), ["n2", "unmatched", "incoming"])
+        XCTAssertNotNil(model.alert)
+        let saved = try await store.load(scope: scope)
+        XCTAssertEqual(Set(saved?.map(\.id) ?? []), ["n2", "unmatched", "incoming"])
+        XCTAssertEqual(model.counts.unread, 3)
+        DeletionProtocol.install { _ in (204, Data()) }
+        await model.deleteNotifications(selection)
+        XCTAssertEqual(Set(model.savedNotifications.map(\.id)), ["unmatched", "incoming"])
+    }
+
+    func testSelectedDeletionRejectsForeignScopeAndUnsupportedEndpoint() async throws {
+        let model = try await model([item("one")])
+        let selection = try XCTUnwrap(model.inboxSelection(model.savedNotifications))
+        let calls = NSLock()
+        var count = 0
+        DeletionProtocol.install { _ in
+            calls.withLock { count += 1 }
+            return (404, Data("{}".utf8))
+        }
+        await model.deleteNotifications(.init(scope: "another-registration", ids: selection.ids))
+        XCTAssertEqual(calls.withLock { count }, 0)
+        await model.deleteNotifications(selection)
+        XCTAssertEqual(calls.withLock { count }, 1)
+        XCTAssertNotNil(model.notification(id: "one"))
+        XCTAssertNotNil(model.alert)
+    }
+
+    func testSelectedDeletionIsBoundedDeduplicatedAndStopsAfterServerSwitch() async throws {
+        let model = try await model((0..<20).map { item("n\($0)") })
+        let selection = try XCTUnwrap(model.inboxSelection(model.savedNotifications))
+        let started = expectation(description: "four deletes in flight"); started.expectedFulfillmentCount = 4
+        let release = DispatchSemaphore(value: 0)
+        let lock = NSLock()
+        var count = 0
+        DeletionProtocol.install { _ in
+            lock.withLock { count += 1 }
+            started.fulfill()
+            _ = release.wait(timeout: .now() + 10)
+            return (204, Data())
+        }
+        let deleting = Task { await model.deleteNotifications(selection) }
+        await fulfillment(of: [started], timeout: 5)
+        XCTAssertTrue(model.isDeletingNotifications)
+        await model.deleteNotifications(selection)
+        XCTAssertEqual(lock.withLock { count }, 4)
+        let switched = await model.reset(server: URL(string: "https://other.invalid")!)
+        for _ in 0..<4 { release.signal() }
+        await deleting.value
+        XCTAssertTrue(switched)
+        XCTAssertEqual(lock.withLock { count }, 4)
+        XCTAssertFalse(model.isDeletingNotifications)
+        XCTAssertNil(model.alert)
+        XCTAssertTrue(model.savedNotifications.isEmpty)
+    }
+
     func testStaleCountsCannotRestoreUnreadBadgeAfterDeletion() async throws {
         let model = try await model([item("one")])
         let gate = DeletionGate()

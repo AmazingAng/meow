@@ -74,6 +74,75 @@ final class InboxGroupingModelTests: XCTestCase {
         XCTAssertEqual(calls.value, 0)
     }
 
+    func testReadSelectionIncludesUndisplayedMatchesButNeverOtherScopesOrNewArrivals() async throws {
+        let items = (0..<75).map { item("n\($0)", body: $0 == 74 ? "unmatched" : "needle") }
+        try await store.save(items, scope: scope)
+        let model = model(); await model.refresh(); model.inboxMode = .sessions
+        model.search = "needle"; await model.waitForInboxGrouping()
+        let selection = try XCTUnwrap(model.inboxSelection(try XCTUnwrap(model.matchingInboxGroups.first).matches))
+        XCTAssertEqual(selection.ids.count, 74)
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.keyEncodingStrategy = .convertToSnakeCase
+        let page = try encoder.encode(InboxPage(notifications: items + [item("incoming", body: "needle")]))
+        let calls = Counter()
+        GroupingProtocol.install { request in
+            if request.httpMethod == "POST" { calls.increment(); return (200, Data("{}".utf8)) }
+            return (200, request.url!.path.hasSuffix("/counts") ? Data(#"{"unread":76,"pending":0}"#.utf8) : page)
+        }
+        await model.refresh()
+        await model.markInboxRead(.init(scope: "other-registration", ids: selection.ids))
+        XCTAssertEqual(calls.value, 0)
+        await model.markInboxRead(selection)
+        XCTAssertEqual(calls.value, 74)
+        XCTAssertEqual(Set(model.savedNotifications.filter(\.isUnread).map(\.id)), ["n74", "incoming"])
+    }
+
+    func testThousandsOfReadTargetsPersistTogetherBeforeNetworkFinishes() async throws {
+        let items = (0..<3000).map { item("n\($0)") }
+        try await store.save(items, scope: scope)
+        let model = model(); await model.refresh()
+        let selection = try XCTUnwrap(model.unreadInboxSelection)
+        XCTAssertEqual(selection.ids.count, 3000)
+        let started = expectation(description: "four held reads"); started.expectedFulfillmentCount = 4
+        let release = DispatchSemaphore(value: 0), calls = Counter()
+        GroupingProtocol.install { _ in
+            let count = calls.incrementAndGet()
+            if count <= 4 { started.fulfill(); _ = release.wait(timeout: .now() + 10) }
+            return (200, Data("{}".utf8))
+        }
+        let reading = Task { await model.markInboxRead(selection) }
+        await fulfillment(of: [started], timeout: 5)
+        XCTAssertEqual(calls.value, 4)
+        XCTAssertTrue(model.savedNotifications.allSatisfy { !$0.isUnread })
+        XCTAssertEqual(model.counts.unread, 0)
+        let saved = try await store.load(scope: scope)
+        XCTAssertEqual(saved?.count, 3000)
+        XCTAssertTrue(saved?.allSatisfy { !$0.isUnread } == true, "the complete optimistic snapshot must reach SQLite before the network finishes")
+        for _ in 0..<4 { release.signal() }
+        await reading.value
+        XCTAssertEqual(calls.value, 3000)
+        XCTAssertNil(model.unreadInboxSelection)
+    }
+
+    func testAnotherGroupVisitWaitsForActiveReadWithoutLosingItsSnapshot() async throws {
+        try await store.save([item("a"), item("b")], scope: scope)
+        let model = model(); await model.refresh()
+        let started = expectation(description: "first read in flight")
+        let release = DispatchSemaphore(value: 0), calls = Counter()
+        GroupingProtocol.install { request in
+            calls.increment()
+            if request.url!.path.contains("/a/") { started.fulfill(); _ = release.wait(timeout: .now() + 10) }
+            return (200, Data("{}".utf8))
+        }
+        let first = Task { await model.markInboxRead(.init(scope: scope, ids: ["a"])) }
+        await fulfillment(of: [started], timeout: 5)
+        let second = Task { await model.markInboxRead(.init(scope: scope, ids: ["b"])) }
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertEqual(calls.value, 1)
+        release.signal(); await first.value; await second.value
+        XCTAssertEqual(calls.value, 2)
+        XCTAssertTrue(model.savedNotifications.allSatisfy { !$0.isUnread })
+    }
+
     func testMergeAgainUnmergeAndRestartRetainHistoryAndIndependentRules() async throws {
         try await store.save([item("a", session: "A"), item("b", session: "B"), item("c", session: "C")], scope: scope)
         let model = model(); await model.refresh(); model.inboxMode = .sessions; await model.waitForInboxGrouping()
@@ -237,4 +306,5 @@ private final class Counter: @unchecked Sendable {
     private var count = 0
     var value: Int { lock.withLock { count } }
     func increment() { lock.withLock { count += 1 } }
+    func incrementAndGet() -> Int { lock.withLock { count += 1; return count } }
 }

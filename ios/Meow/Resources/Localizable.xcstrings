@@ -31,6 +31,22 @@
         }
       }
     },
+    "%@ — matching messages: %lld. Permanently delete them from this server and this iPhone?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — matching messages: %lld. Permanently delete them from this server and this iPhone?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@：匹配消息共 %2$lld 条。要从服务器和此 iPhone 永久删除吗？"
+          }
+        }
+      }
+    },
     "%@: All messages in this time range will be permanently deleted from this server and this iPhone, including messages hidden by search or filters.": {
       "localizations": {
         "zh-Hans": {
@@ -703,6 +719,22 @@
         }
       }
     },
+    "Couldn't delete %lld messages. Try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't delete %lld messages. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 %lld 条消息未能删除，请重试。"
+          }
+        }
+      }
+    },
     "Couldn't delete messages. %@": {
       "localizations": {
         "zh-Hans": {
@@ -719,6 +751,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "有 %lld 条消息未能标为已读，请从分组菜单重试。"
+          }
+        }
+      }
+    },
+    "Couldn't mark %lld messages as read. Try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't mark %lld messages as read. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 %lld 条消息未能标为已读，请重试。"
           }
         }
       }
@@ -866,6 +914,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "删除"
+          }
+        }
+      }
+    },
+    "Delete group messages?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete group messages?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除分组消息？"
           }
         }
       }
@@ -1414,10 +1478,16 @@
     },
     "Mark all as read": {
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark all as read"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "全部标为已读"
+            "value": "全部已读"
           }
         }
       }
@@ -1428,6 +1498,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "全部消息标记为已读"
+          }
+        }
+      }
+    },
+    "Mark as read": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark as read"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标为已读"
           }
         }
       }

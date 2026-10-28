@@ -6,6 +6,8 @@ struct InboxView: View {
     @State private var isSearching = false
     @State private var deletion: DeletionConfirmation?
     @State private var confirmsDeletion = false
+    @State private var groupDeletion: GroupDeletionConfirmation?
+    @State private var confirmsGroupDeletion = false
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -37,6 +39,16 @@ struct InboxView: View {
             .toolbar {
                 inboxTitleToolbar
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    if let selection = model.unreadInboxSelection {
+                        Button { Task { await model.markInboxRead(selection) } } label: {
+                            Label {
+                                if model.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { Text("Mark all as read") }
+                                else { Text("Mark matching messages as read") }
+                            } icon: { Image(systemName: "checkmark.circle") }
+                        }
+                        .disabled(model.isMarkingGroupRead || model.isMarkingAllRead || model.isDeletingNotifications)
+                        .accessibilityIdentifier("inbox.markRead")
+                    }
                     InboxBrowseMenu()
                     deletionMenu
                     if isSearching || !model.search.isEmpty {
@@ -62,16 +74,24 @@ struct InboxView: View {
             } message: { selection in
                 Text("\(selection.range.title): All messages in this time range will be permanently deleted from this server and this iPhone, including messages hidden by search or filters.")
             }
+            .alert("Delete group messages?", isPresented: $confirmsGroupDeletion, presenting: groupDeletion) { deletion in
+                Button("Delete", role: .destructive) { Task { await model.deleteNotifications(deletion.selection) } }
+                Button("Cancel", role: .cancel) {}
+            } message: { deletion in
+                Text("\(deletion.title) — matching messages: \(deletion.selection.ids.count). Permanently delete them from this server and this iPhone?")
+            }
             .navigationDestination(for: String.self) { id in
                 if id.hasPrefix("inbox-group:") {
                     let key = String(id.dropFirst("inbox-group:".count))
-                    InboxGroupView(id: key, initial: model.inboxGroup(key))
+                    InboxGroupView(id: key, initial: model.inboxGroup(key), scope: model.inboxGroupingScope)
                 } else {
                     DetailView(id: id)
                 }
             }
             .onChange(of: model.inboxGroupingScope) {
                 isSearching = false; searchFocused = false
+                confirmsDeletion = false; confirmsGroupDeletion = false
+                deletion = nil; groupDeletion = nil
             }
             .task {
                 if !model.hasLoaded { await model.refresh() }
@@ -114,6 +134,11 @@ struct InboxView: View {
     private struct DeletionConfirmation {
         let range: InboxDeleteRange
         let interval: InboxDeletionInterval
+    }
+
+    private struct GroupDeletionConfirmation {
+        let title: String
+        let selection: InboxMessageSelection
     }
 
     private var deletionMenu: some View {
@@ -172,6 +197,25 @@ struct InboxView: View {
                     InboxGroupRow(group: group, isSearching: !model.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .accessibilityIdentifier("inbox.group.\(group.id)")
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button {
+                        if let selection = model.inboxSelection(group.matches) {
+                            groupDeletion = GroupDeletionConfirmation(title: group.title, selection: selection)
+                            confirmsGroupDeletion = true
+                        }
+                    } label: { Label("Delete", systemImage: "trash") }
+                    .tint(.red)
+                    .disabled(model.isDeletingNotifications || model.isMarkingGroupRead || model.isMarkingAllRead || model.isGroupingInbox)
+                    if group.unreadCount > 0 {
+                        Button {
+                            if let selection = model.inboxSelection(group.matches) {
+                                Task { await model.markInboxRead(selection) }
+                            }
+                        } label: { Label("Mark as read", systemImage: "envelope.open") }
+                        .tint(.blue)
+                        .disabled(model.isDeletingNotifications || model.isMarkingGroupRead || model.isMarkingAllRead || model.isGroupingInbox)
+                    }
+                }
             }
             if model.hasMoreInboxGroups {
                 ProgressView().frame(maxWidth: .infinity)
@@ -187,12 +231,7 @@ struct InboxView: View {
             }
             .accessibilityIdentifier("notification.\(notification.id)")
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                Button(role: .destructive) {
-                    Task { await model.deleteNotification(notification.id) }
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .disabled(model.isDeletingNotifications)
+                InboxMessageSwipeActions(notification: notification)
             }
         }
     }
@@ -216,6 +255,34 @@ struct InboxView: View {
             } else {
                 MascotEmptyState(filter: model.filter)
             }
+        }
+    }
+}
+
+struct InboxMessageSwipeActions: View {
+    @Environment(AppModel.self) private var model
+    let notification: MeowNotification
+
+    var body: some View {
+        Button {
+            if let selection = model.inboxSelection([notification]) {
+                Task { await model.deleteNotifications(selection) }
+            }
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+        .tint(.red)
+        .disabled(model.isDeletingNotifications || model.isMarkingGroupRead || model.isMarkingAllRead)
+        if notification.isUnread {
+            Button {
+                if let selection = model.inboxSelection([notification]) {
+                    Task { await model.markInboxRead(selection) }
+                }
+            } label: {
+                Label("Mark as read", systemImage: "envelope.open")
+            }
+            .tint(.blue)
+            .disabled(model.isDeletingNotifications || model.isMarkingGroupRead || model.isMarkingAllRead)
         }
     }
 }

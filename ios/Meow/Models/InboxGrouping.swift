@@ -1,6 +1,12 @@
 import Foundation
 import CryptoKit
 
+/// A user's operation is bound to the registration and IDs selected at the tap.
+struct InboxMessageSelection: Sendable {
+    let scope: String
+    let ids: Set<String>
+}
+
 enum InboxGroupingMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case messages, sessions, workspaces, sources
     var id: String { rawValue }

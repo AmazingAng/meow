@@ -1,0 +1,21 @@
+# Inbox read and swipe actions
+
+Spec approval: not obtained (autonomous run). The user authorized entering a group to mark its messages read and left-swiping groups/messages to read or delete. Work in `/tmp/meow-inbox-actions-20261028` because the primary checkout contains unrelated untracked `web/` work. The app-managed worktree tool cannot attach this nested repository, so use an ordinary disposable Git worktree. No new dependencies, server/CLI changes, production requests, release or TestFlight upload.
+
+## Acceptance and failure model
+
+- A group marks its complete matching message snapshot read once on entry. Returning from a detail page, changing search, refreshing or receiving new messages while remaining on that page does not repeat this automatic action. Returning to the inbox and entering again is a new visit.
+- Left swipe reveals blue read and red delete actions for a group or message. Disable full-swipe deletion. Read acts on unread messages only and does not delete history. Already-read rows have no read action.
+- Group read/delete selects the complete matching local ID set, including undisplayed pages and merged-group members, at the user's tap. Search excludes nonmatching messages. Never approximate a group with a global time range. A confirmation names the group and count before deleting from server and phone; Cancel sends no DELETE. New messages after selection survive.
+- The inbox has a compact header read action outside the four-option view menu; it marks all local matches read (all local messages when not searching) without a confirmation. Keep the current left-aligned title and relative order of view/delete/search controls. Provide accessible labels and English/Chinese strings.
+- Bind saved selections to server/device scope. A stale confirmation, server change or late response cannot act on another registration. Existing single-message and time-range deletion semantics remain.
+- Keep only successful deletions locally; failures remain and are reported for retry. A typed 404/not_found counts as already absent, but an unsupported endpoint's untyped 404 is an error. Limit network concurrency to four; prevent duplicate batch operations.
+- Thousands of read targets update/persist local state as a batch rather than serializing the full inbox once per message. Read failures roll back only the failed optimistic states, preserve successful reads and report the number; old cached history returning typed 404 becomes locally read. New arrivals are not added to a running operation.
+
+## Verification
+
+Extend `InboxGroupingModelTests.swift`, `InboxDeletionTests.swift` and `UIOptimizationTests.swift`; use the existing disposable HTTP fixture/simulator runner. Observe red behavior first with minimal stubs, then run the full unit suite and relevant UI cases including Chinese/large type and dark/small screens. Retain screenshots and source hashes. Add a focused reproducible verifier with coverage enforcement/negative control and 3–5 behavioral manual mutations, restoring source before the final suite. Record any changed old UI assertions required by the new product behavior, and any limits or unperformed layers.
+
+Server API and local SQLite storage are reused. No migration or transactional network/local outbox is added: interruption after a remote delete but before local commit remains a declared limit. Verification uses fake keys and isolated databases/simulators, not actual user messages. Preserve the existing key-reset feature and unrelated working files. After integration, remove this worktree and temporary build/result bundles while retaining compact evidence.
+
+Refinement after inspecting the actual server limiter: read/delete batches must respect HTTP 429 `Retry-After`. Each idempotent target gets at most three total attempts; a persistent rate limit remains a reported failure with the local item retained/rolled back. New regression tests must first reproduce the missing retry and then verify the delay and retry cap. This uses the existing response parser, without a server deployment. Isolate final UI cases per simulator/origin because resetting only remote fixture state conflicts with durable local read state. Pull-to-refresh testing uses a held drag past the native refresh threshold; the expected new-message and unread assertions remain unchanged.

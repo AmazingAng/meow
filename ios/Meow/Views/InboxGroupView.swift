@@ -61,7 +61,13 @@ struct InboxGroupView: View {
     @Environment(\.dismiss) private var dismiss
     var id: String
     @State private var fallback: InboxGroup?
-    init(id: String, initial: InboxGroup?) { self.id = id; _fallback = State(initialValue: initial) }
+    @State private var entrySelection: InboxMessageSelection?
+    @State private var didMarkEntryRead = false
+    init(id: String, initial: InboxGroup?, scope: String?) {
+        self.id = id
+        _fallback = State(initialValue: initial)
+        _entrySelection = State(initialValue: scope.map { InboxMessageSelection(scope: $0, ids: Set(initial?.matches.map(\.id) ?? [])) })
+    }
     @State private var displayLimit = 50
     @State private var isSearching = false
     @State private var showsMembers = false
@@ -84,9 +90,7 @@ struct InboxGroupView: View {
                 NavigationLink(value: n.id) { NotificationRow(notification: n, now: .now) }
                     .accessibilityIdentifier("notification.\(n.id)")
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) { Task { await model.deleteNotification(n.id) } } label: {
-                            Label("Delete", systemImage: "trash")
-                        }.disabled(model.isDeletingNotifications)
+                        InboxMessageSwipeActions(notification: n)
                     }
             }
             if matches.count > displayLimit {
@@ -164,6 +168,11 @@ struct InboxGroupView: View {
         }
         .onChange(of: model.search) { displayLimit = 50 }
         .onChange(of: model.filter) { displayLimit = 50 }
+        .onAppear {
+            guard !didMarkEntryRead else { return }
+            didMarkEntryRead = true
+            if let entrySelection { Task { await model.markInboxRead(entrySelection) } }
+        }
         .sheet(isPresented: $showsMembers) {
             NavigationStack {
                 List {
