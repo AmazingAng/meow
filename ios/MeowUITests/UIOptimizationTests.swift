@@ -245,7 +245,7 @@ final class UIOptimizationTests: XCTestCase {
         reveal(server, in: app); server.tap()
         XCTAssertTrue(app.textFields["server.address"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
-        XCTAssertFalse(app.buttons["settings.rotateKey"].exists)
+        XCTAssertTrue(app.buttons["settings.rotateKey"].exists)
         XCTAssertFalse(app.buttons["Create new Device Key…"].exists)
         XCTAssertFalse(app.alerts.firstMatch.exists)
     }
@@ -269,6 +269,97 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].exists)
     }
 
+    func testSettingsDeviceKeyResetConfirmationAndRecovery() {
+        scenario("key-reset")
+        let app = open()
+        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Settings"].tap()
+        let reset = app.buttons["settings.rotateKey"]
+        reveal(reset, in: app)
+        XCTAssertTrue(reset.label.contains("Reset Device Key"))
+        capture("settings-reset-key-row", app)
+        reset.tap()
+        let confirm = app.alerts["Reset Device Key?"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3))
+        XCTAssertTrue(confirm.staticTexts["Your old Device Key will stop working. Sign in to Meow again on your computer with the new key. Your messages will be kept."].exists)
+        capture("settings-reset-key-confirmation", app)
+        confirm.buttons["Cancel"].tap()
+        assertKeyRequests(attempts: 0, revocations: 0)
+        reset.tap()
+        confirm.buttons["Reset key"].tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.alerts.firstMatch.staticTexts["Try creating the key again."].exists)
+        capture("settings-reset-key-failure", app)
+        app.alerts.firstMatch.buttons["OK"].tap()
+        sendKeyResetTest(in: app)
+        assertSenderKeyUse(old: 1, new: 0)
+        reveal(reset, in: app); reset.tap()
+        confirm.buttons["Reset key"].tap()
+        let success = app.staticTexts["New Device Key created. Update it in your CLI."]
+        XCTAssertTrue(success.waitForExistence(timeout: 8))
+        assertKeyRequests(attempts: 2, revocations: 1)
+        let toastGone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: success)
+        wait(for: [toastGone], timeout: 6)
+        sendKeyResetTest(in: app)
+        assertSenderKeyUse(old: 1, new: 1)
+        XCTAssertTrue(app.tabBars.buttons["Inbox"].exists, "reset must not restart onboarding")
+        app.terminate(); app.launch()
+        app.tabBars.buttons["Settings"].tap()
+        sendKeyResetTest(in: app)
+        assertSenderKeyUse(old: 1, new: 2)
+        capture("settings-reset-key-complete", app)
+    }
+
+    func testSettingsDeviceKeyResetChineseConfirmation() {
+        let app = open(large: true, chinese: true)
+        XCTAssertTrue(app.tabBars.buttons["设置"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["设置"].tap()
+        let reset = app.buttons["settings.rotateKey"]
+        reveal(reset, in: app)
+        capture("settings-reset-key-row-large-zh", app)
+        reset.tap()
+        let confirm = app.alerts["重置 Device Key？"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3))
+        XCTAssertTrue(confirm.staticTexts["旧 Device Key 将失效。请在电脑上使用新 Key 重新登录 Meow。消息历史会保留。"].exists)
+        XCTAssertTrue(confirm.buttons["重置密钥"].isHittable)
+        capture("settings-reset-key-confirmation-large-zh", app)
+        confirm.buttons["取消"].tap()
+        assertKeyRequests(attempts: 0, revocations: 0)
+    }
+
+    private func assertKeyRequests(attempts: Int, revocations: Int) {
+        let done = expectation(description: "key request counts")
+        URLSession.shared.dataTask(with: URL(string: server + "/fixture/stats")!) { data, _, error in
+            XCTAssertNil(error)
+            let stats = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Int] }
+            XCTAssertEqual(stats?["key_attempts"], attempts)
+            XCTAssertEqual(stats?["key_revocations"], revocations)
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 5)
+    }
+
+    private func sendKeyResetTest(in app: XCUIApplication) {
+        let button = app.buttons["Send a test notification"]
+        reveal(button, in: app); button.tap()
+        let sent = app.staticTexts["Sent. Notifications are off, so it's only in your inbox."]
+        XCTAssertTrue(sent.waitForExistence(timeout: 8))
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: sent)
+        wait(for: [gone], timeout: 6)
+    }
+
+    private func assertSenderKeyUse(old: Int, new: Int) {
+        let done = expectation(description: "sender key actually used by the app")
+        URLSession.shared.dataTask(with: URL(string: server + "/fixture/stats")!) { data, _, error in
+            XCTAssertNil(error)
+            let stats = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Int] }
+            XCTAssertEqual(stats?["sender_key_old"], old)
+            XCTAssertEqual(stats?["sender_key_new"], new)
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 5)
+    }
+
     func testSettingsLargeChineseNavigation() {
         var app = open(chinese: true)
         XCTAssertTrue(app.tabBars.buttons["设置"].waitForExistence(timeout: 10))
@@ -281,7 +372,7 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["设置"].waitForExistence(timeout: 10))
         app.tabBars.buttons["设置"].tap()
         capture("settings-home-large-zh", app)
-        for id in ["settings.focusHelp", "notifications.sound", "settings.server", "settings.deviceKey", "settings.shareSetup"] {
+        for id in ["settings.focusHelp", "notifications.sound", "settings.server", "settings.deviceKey", "settings.shareSetup", "settings.rotateKey"] {
             reveal(app.buttons[id], in: app)
         }
         capture("settings-connection-large-zh", app)

@@ -783,6 +783,22 @@
         }
       }
     },
+    "Couldn't save the new Device Key to the Keychain. Your current key has been kept.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't save the new Device Key to the Keychain. Your current key has been kept."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法将新 Device Key 保存到钥匙串。原密钥已保留。"
+          }
+        }
+      }
+    },
     "Couldn't save the reply failure. Your original answer is still saved. (%@)": {
       "localizations": {
         "zh-Hans": {
@@ -2200,6 +2216,54 @@
         }
       }
     },
+    "Reset Device Key?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset Device Key?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置 Device Key？"
+          }
+        }
+      }
+    },
+    "Reset Device Key…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset Device Key…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置 Device Key…"
+          }
+        }
+      }
+    },
+    "Reset key": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置密钥"
+          }
+        }
+      }
+    },
     "Retry failed reads": {
       "localizations": {
         "zh-Hans": {
@@ -2739,6 +2803,22 @@
         }
       }
     },
+    "The current Device Key's ID is unavailable. Your key has been kept.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current Device Key's ID is unavailable. Your key has been kept."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法获取当前 Device Key 的标识。原密钥已保留。"
+          }
+        }
+      }
+    },
     "The current key stops working right away. Agents and scripts that use it need the new key.": {
       "extractionState": "stale",
       "localizations": {
@@ -2766,6 +2846,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "密钥单独输入，不会包含在复制的命令或 shell 历史中。自动化脚本请从密钥管理工具加载 MEOW_KEY。"
+          }
+        }
+      }
+    },
+    "The new key is saved, but the old key could not be revoked. Tap Reset Device Key again to retry. (%@)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The new key is saved, but the old key could not be revoked. Tap Reset Device Key again to retry. (%@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新密钥已保存，但未能撤销旧密钥。请再次点击“重置 Device Key”重试。（%@）"
           }
         }
       }
@@ -2806,6 +2902,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "服务器地址不是 Device Key。连接后，Meow 会为你创建 Device Key。"
+          }
+        }
+      }
+    },
+    "The server did not return a usable Device Key. Your current key has been kept.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server did not return a usable Device Key. Your current key has been kept."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器未返回可用的 Device Key。原密钥已保留。"
           }
         }
       }
@@ -3330,6 +3442,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "电脑连接已验证。要接收 Codex 自动通知，请在 /hooks 中授权两个 Meow Hook，并确认这里能收到真实任务的结果。"
+          }
+        }
+      }
+    },
+    "Your old Device Key will stop working. Sign in to Meow again on your computer with the new key. Your messages will be kept.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your old Device Key will stop working. Sign in to Meow again on your computer with the new key. Your messages will be kept."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旧 Device Key 将失效。请在电脑上使用新 Key 重新登录 Meow。消息历史会保留。"
           }
         }
       }

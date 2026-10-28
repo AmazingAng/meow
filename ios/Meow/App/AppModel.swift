@@ -68,6 +68,7 @@ final class AppModel {
     private(set) var deviceKey = Keychain.get(Keys.deviceKey)
     private(set) var isRegistering = false
     private(set) var isChangingServer = false
+    private(set) var isRotatingKey = false
     private(set) var permission = UNAuthorizationStatus.notDetermined
     private(set) var timeSensitiveSetting = UNNotificationSetting.notSupported
     /// Notifications this iPhone sent to itself, which say nothing about the computer.
@@ -157,6 +158,7 @@ final class AppModel {
     @ObservationIgnored private let replies: ReplyQueue
     @ObservationIgnored private let pushSession: URLSession
     @ObservationIgnored private let inboxStore: InboxStore
+    @ObservationIgnored private let saveDeviceKey: (String) -> Bool
     @ObservationIgnored private var loadGeneration = 0
     @ObservationIgnored private var sessionGeneration = 0
     @ObservationIgnored private var hydrationTask: Task<[MeowNotification]?, Error>?
@@ -180,13 +182,16 @@ final class AppModel {
         static let deviceKey = "device_key"
         static let deviceKeyID = "device_key_id"
         static let sentTests = "onboarding_sent_tests"
+        static let pendingKeyRevocation = "key_pending_revocation"
     }
 
     init(replies: ReplyQueue = .shared, pushSession: URLSession = MeowTransport.gateway,
-         inboxStore: InboxStore = .shared, groupingStore: InboxGroupingStore = InboxGroupingStore()) {
+         inboxStore: InboxStore = .shared, groupingStore: InboxGroupingStore = InboxGroupingStore(),
+         saveDeviceKey: @escaping (String) -> Bool = { Keychain.set($0, for: "device_key") }) {
         self.replies = replies
         self.pushSession = pushSession
         self.inboxStore = inboxStore
+        self.saveDeviceKey = saveDeviceKey
         self.groupingStore = groupingStore
         self.inboxMode = groupingStore.mode
         if let scope = inboxScope,
@@ -421,28 +426,62 @@ final class AppModel {
 
     /// Creates a new Device Key and revokes the current one.
     func rotateKey() async {
+        guard !isRotatingKey, !isRegistering, !isChangingServer, let api, let token = api.token else { return }
         let generation = sessionGeneration
-        guard let api else { return }
+        let scope = InboxStore.scope(server: api.server, token: token)
+        isRotatingKey = true
+        defer { isRotatingKey = false }
+        alert = nil
+        toast = nil
         do {
-            let key = try await api.createKey(name: "Default", scopes: ["notify", "ask"])
-            guard generation == sessionGeneration else { return }
-            let old = MeowShared.defaults.string(forKey: Keys.deviceKeyID)
-            store(key: key)
+            let pending = MeowShared.defaults.dictionary(forKey: Keys.pendingKeyRevocation)
+            var old = pending?["scope"] as? String == scope ? pending?["id"] as? String : nil
+            if old == nil {
+                old = MeowShared.defaults.string(forKey: Keys.deviceKeyID)
+                guard deviceKey == nil || old != nil else {
+                    alert = String(localized: "The current Device Key's ID is unavailable. Your key has been kept.")
+                    return
+                }
+                let key = try await api.createKey(name: "Default", scopes: ["notify", "ask"])
+                guard keyRotationIsCurrent(generation, api: api) else { return }
+                guard let secret = key.secret, secret.hasPrefix("meow_"), !key.id.isEmpty else {
+                    alert = String(localized: "The server did not return a usable Device Key. Your current key has been kept.")
+                    return
+                }
+                guard saveDeviceKey(secret) else {
+                    // The unsaved replacement was never shared. Cleanup is best-effort;
+                    // never revoke the user's working key after a storage failure.
+                    try? await api.revokeKey(key.id)
+                    guard keyRotationIsCurrent(generation, api: api) else { return }
+                    alert = String(localized: "Couldn't save the new Device Key to the Keychain. Your current key has been kept.")
+                    return
+                }
+                if let old { MeowShared.defaults.set(["scope": scope, "id": old], forKey: Keys.pendingKeyRevocation) }
+                MeowShared.defaults.set(key.id, forKey: Keys.deviceKeyID)
+                deviceKey = secret
+            }
             if let old {
                 do {
                     try await api.revokeKey(old)
-                } catch {
-                    alert = String(localized: "The new key works, but the old key could not be revoked: \(Self.describe(error))")
-                    return
-                }
+                } catch let error as MeowAPIError where error.status == 404 { /* already absent */ }
             }
+            guard keyRotationIsCurrent(generation, api: api) else { return }
+            MeowShared.defaults.removeObject(forKey: Keys.pendingKeyRevocation)
             // During onboarding the computer isn't connected yet, so there is nothing to update.
             toast = Toast(message: hasFinishedOnboarding
                 ? String(localized: "New Device Key created. Update it in your CLI.")
                 : String(localized: "New Device Key created."))
         } catch {
-            alert = Self.describe(error)
+            guard keyRotationIsCurrent(generation, api: api) else { return }
+            let pending = MeowShared.defaults.dictionary(forKey: Keys.pendingKeyRevocation)
+            alert = pending?["scope"] as? String == scope
+                ? String(localized: "The new key is saved, but the old key could not be revoked. Tap Reset Device Key again to retry. (\(Self.describe(error)))")
+                : Self.describe(error)
         }
+    }
+
+    private func keyRotationIsCurrent(_ generation: Int, api: MeowAPI) -> Bool {
+        generation == sessionGeneration && server == api.server && MeowShared.deviceToken == api.token
     }
 
     /// The command onboarding recommends. The CLI prompts for the Device Key,

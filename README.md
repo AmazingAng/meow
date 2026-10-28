@@ -108,6 +108,8 @@ The iPhone app suggests the official server, `https://api.meow.blue`, on first l
 
 Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `MEOW_SERVER` and `MEOW_SOURCE` override it. No server address is assumed: setup/login use the address supplied by the app or your existing configuration.
 
+**Settings → Reset Device Key…** is a separate red row with a confirmation alert. It saves a replacement key and revokes the previous key without changing the iPhone's registration or message history. Copy the new key and run `meow login` on each sender. If old-key revocation fails, the app explains the failure; tapping reset again retries that revocation without creating another key.
+
 ## Local inbox and search
 
 The iOS app saves synchronized messages in a local SQLite database. Search, grouping and display pagination use those saved messages

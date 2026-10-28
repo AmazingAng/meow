@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var showFocusHelp = false
     @State private var showServer = false
     @State private var showReregister = false
+    @State private var confirmResetKey = false
     @State private var showSavedReplies = false
     @State private var soundPlayer: AVAudioPlayer?
     @AppStorage(MeowShared.notificationSoundKey, store: MeowShared.defaults)
@@ -110,6 +111,14 @@ struct SettingsView: View {
                         Text("Share setup command")
                     }
                     .accessibilityIdentifier("settings.shareSetup")
+                    Button(role: .destructive) { confirmResetKey = true } label: {
+                        HStack {
+                            Text("Reset Device Key…")
+                            if model.isRotatingKey { Spacer(); ProgressView() }
+                        }
+                    }
+                    .disabled(!model.isRegistered || model.isChangingServer || model.isRotatingKey)
+                    .accessibilityIdentifier("settings.rotateKey")
                 } header: {
                     Text("Connection")
                 } footer: {
@@ -141,6 +150,12 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .onDisappear { soundPlayer?.stop() }
+            .alert("Reset Device Key?", isPresented: $confirmResetKey) {
+                Button("Cancel", role: .cancel) {}
+                Button("Reset key", role: .destructive) { Task { await model.rotateKey() } }
+            } message: {
+                Text("Your old Device Key will stop working. Sign in to Meow again on your computer with the new key. Your messages will be kept.")
+            }
             .alert("During Focus", isPresented: $showFocusHelp) {
                 Button("Open notification settings", action: openSystemNotificationSettings)
                 Button("Cancel", role: .cancel) {}

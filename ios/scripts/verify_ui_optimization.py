@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import threading
+import uuid
 from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,6 +27,12 @@ class Fixture(BaseHTTPRequestHandler):
     response_count = 0
     missing_key = False
     key_attempts = 0
+    key_revocations = 0
+    sender_key_old = 0
+    sender_key_new = 0
+    active_sender_keys = set()
+    key_reset_check = False
+    reset_sender_secret = None
     connection_error = False
     lock = threading.RLock()
 
@@ -36,6 +43,12 @@ class Fixture(BaseHTTPRequestHandler):
         cls.response_count = 0
         cls.missing_key = False
         cls.key_attempts = 0
+        cls.key_revocations = 0
+        cls.sender_key_old = 0
+        cls.sender_key_new = 0
+        cls.active_sender_keys = {'meow_disposable_ui_fixture', 'meow_recovered_ui_fixture'}
+        cls.key_reset_check = False
+        cls.reset_sender_secret = None
         cls.connection_error = False
         for ident, title, choices, expiry, read in [
             ('info', 'Build completed', False, 0, False),
@@ -69,7 +82,9 @@ class Fixture(BaseHTTPRequestHandler):
     def get(self):
         url = urlsplit(self.path)
         if url.path == '/fixture/stats':
-            return self.send_json({'responses': type(self).response_count, 'unread': sum(n['read_at'] is None for n in self.items)})
+            return self.send_json({'responses': type(self).response_count, 'unread': sum(n['read_at'] is None for n in self.items),
+                                   'key_attempts': type(self).key_attempts, 'key_revocations': type(self).key_revocations,
+                                   'sender_key_old': type(self).sender_key_old, 'sender_key_new': type(self).sender_key_new})
         if url.path == '/fixture/reset':
             self.reset()
             return self.send_json({})
@@ -77,7 +92,9 @@ class Fixture(BaseHTTPRequestHandler):
             self.reset()
             scenario = parse_qs(url.query)['name'][0]
             info, later, soon = self.items
-            if scenario == 'pagination':
+            if scenario == 'key-reset':
+                type(self).key_reset_check = True
+            elif scenario == 'pagination':
                 soon['question']['expires_at'] = timestamp(datetime.now(timezone.utc) + timedelta(seconds=120))
                 self.items[:] = [later] + [dict(info, id=f'ntf_info_{i}') for i in range(49)] + [soon]
             elif scenario == 'onboarding-missing-key':
@@ -187,7 +204,9 @@ class Fixture(BaseHTTPRequestHandler):
         return self.send_json({}, 404)
 
     def do_DELETE(self):
-        if self.path == '/v1/keys/key_ui':
+        if self.path in ('/v1/keys/key_ui', '/v1/keys/key_recovered'):
+            type(self).key_revocations += 1
+            type(self).active_sender_keys.discard('meow_disposable_ui_fixture' if self.path.endswith('key_ui') else 'meow_recovered_ui_fixture')
             return self.send_json({})
         return self.send_json({}, 404)
 
@@ -209,10 +228,20 @@ class Fixture(BaseHTTPRequestHandler):
             type(self).key_attempts += 1
             if self.key_attempts == 1:
                 return self.send_json({'error': {'code': 'unavailable', 'message': 'Try creating the key again.'}}, 503)
-            return self.send_json({'id': 'key_recovered', 'name': 'Default', 'hint': 'fixture',
+            secret = 'meow_ui_reset_' + uuid.uuid4().hex if self.key_reset_check else 'meow_recovered_ui_fixture'
+            type(self).reset_sender_secret = secret
+            type(self).active_sender_keys.add(secret)
+            return self.send_json({'id': 'key_reset' if self.key_reset_check else 'key_recovered', 'name': 'Default', 'hint': 'fixture',
                                    'scopes': ['notify', 'ask'], 'created_at': now,
-                                   'secret': 'meow_recovered_ui_fixture'}, 201)
+                                   'secret': secret}, 201)
         if self.path == '/v1/notifications':
+            secret = self.headers.get('Authorization', '').removeprefix('Bearer ')
+            if self.key_reset_check and secret not in self.active_sender_keys:
+                return self.send_json({'error': {'code': 'unauthorized', 'message': 'Invalid test sender key'}}, 401)
+            if secret == self.reset_sender_secret:
+                type(self).sender_key_new += 1
+            else:
+                type(self).sender_key_old += 1
             return self.send_json(dict(self.items[0], id='ntf_phone_test', title=body.get('title', 'Test')), 201)
         for n in self.items:
             if self.path == '/v1/notifications/' + n['id'] + '/read' or self.path == '/v1/inbox/read':
@@ -240,6 +269,7 @@ def main():
     parser.add_argument('--ui-only', action='store_true', help='Skip already verified unit tests when checking another screen size.')
     parser.add_argument('--test-case', action='append', help='Run a UIOptimizationTests method; repeat for a focused group.')
     parser.add_argument('--appearance', choices=['light', 'dark'], help='Set the disposable simulator appearance before testing.')
+    parser.add_argument('--coverage', action='store_true', help='Collect code coverage in the result bundle.')
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -262,6 +292,8 @@ def main():
                    '-derivedDataPath', str(output.parent / 'DerivedData'), '-resultBundlePath', str(bundle),
                    '-parallel-testing-enabled', 'NO',
                    'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_ALLOWED=YES']
+        if args.coverage:
+            command += ['-enableCodeCoverage', 'YES']
         command += ['-only-testing:MeowUITests/UIOptimizationTests' + ('/' + name if name else '')
                     for name in (args.test_case or [''])]
         if not args.ui_only:
