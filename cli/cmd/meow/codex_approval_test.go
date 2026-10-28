@@ -67,6 +67,52 @@ func codexApprovalInput(t *testing.T, path, tool string) []byte {
 	return b
 }
 
+func TestCodexSubagentApprovalMetadata(t *testing.T) {
+	header := func(id string, source any) string {
+		data, err := json.Marshal(map[string]any{"type": "session_meta", "payload": map[string]any{"id": id, "source": source}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data) + "\n"
+	}
+	childSource := func(parent string) any {
+		return map[string]any{"subagent": map[string]any{"thread_spawn": map[string]any{"parent_thread_id": parent, "depth": 1}}}
+	}
+	parentHeader := header("s", "vscode")
+	childHeader := header("child", childSource("s"))
+	auto := `{"type":"turn_context","payload":{"turn_id":"t","root_turn_id":"parent-turn","approvals_reviewer":"auto_review"}}` + "\n"
+	human := strings.Replace(auto, "auto_review", "user", 1)
+	for _, tc := range []struct {
+		name, data string
+		wantSend   bool
+	}{
+		{"parent-scoped hook with child transcript", childHeader + auto, false},
+		{"forked parent history before child context", childHeader + parentHeader + human + auto, false},
+		{"child switches to human review", childHeader + parentHeader + auto + human, true},
+		{"other parent", header("child", childSource("unrelated")) + auto, true},
+		{"no explicit parent", header("child", "vscode") + auto, true},
+		{"empty child identity", header("", childSource("s")) + auto, true},
+		{"unknown subagent source", header("child", map[string]any{"subagent": map[string]any{"other": "guardian"}}) + auto, true},
+		{"copied parent header does not establish relationship", header("child", childSource("unrelated")) + parentHeader + auto, true},
+		{"other child turn", childHeader + strings.Replace(auto, `"turn_id":"t"`, `"turn_id":"other"`, 1), true},
+		{"matching root turn is not matching child turn", childHeader + strings.Replace(strings.Replace(auto, `"turn_id":"t"`, `"turn_id":"other"`, 1), `"root_turn_id":"parent-turn"`, `"root_turn_id":"t"`, 1), true},
+		{"missing child context", childHeader + parentHeader, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "child.jsonl")
+			if err := os.WriteFile(path, []byte(tc.data), 0600); err != nil {
+				t.Fatal(err)
+			}
+			for _, summary := range []bool{true, false} {
+				_, _, send, err := buildHookNotification("codex-permission", codexApprovalInput(t, path, "Bash"), summary)
+				if err != nil || send != tc.wantSend {
+					t.Fatalf("summary=%v send=%v want=%v err=%v", summary, send, tc.wantSend, err)
+				}
+			}
+		})
+	}
+}
+
 func TestCodexApprovalMetadataFailsOpen(t *testing.T) {
 	header := `{"type":"session_meta","payload":{"id":"s"}}` + "\n"
 	auto := `{"type":"turn_context","payload":{"turn_id":"t","approvals_reviewer":"auto_review"}}` + "\n"
@@ -219,53 +265,56 @@ func TestCodexGoalMCPPermissionsDoNotReachServer(t *testing.T) {
 	t.Setenv("MEOW_HOOK_DISABLED", "")
 	path := filepath.Join(dir, "rollout.jsonl")
 	header := `{"type":"session_meta","payload":{"id":"s"}}` + "\n"
-	for _, reviewer := range []string{"auto_review", "user"} {
-		data := header + `{"type":"turn_context","payload":{"turn_id":"t","approvals_reviewer":"` + reviewer + `"}}` + "\n" +
-			`{"type":"response_item","payload":{"text":"` + strings.Repeat("x", 6<<20) + `"}}` + "\n"
-		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
-			t.Fatal(err)
-		}
-		for _, summary := range []bool{true, false} {
-			for _, tool := range []string{"mcp__cua_repl__js", "mcp__service__run"} {
-				for _, reason := range []string{"", "Please confirm this operation"} {
-					input, err := json.Marshal(map[string]any{
-						"hook_event_name": "PermissionRequest", "session_id": "s", "turn_id": "t",
-						"transcript_path": path, "tool_name": tool,
-						"tool_input": map[string]any{"code": "PRIVATE_TOOL_INPUT", "description": reason},
-					})
-					if err != nil {
-						t.Fatal(err)
-					}
-					args := []string{"codex-permission"}
-					if !summary {
-						args = append(args, "--no-summary")
-					}
-					out := captureOutput(t, string(input), func() {
-						if cmdHook(args) != 0 {
-							t.Error("hook changed agent exit status")
+	childHeader := `{"type":"session_meta","payload":{"id":"child","source":{"subagent":{"thread_spawn":{"parent_thread_id":"s","depth":1}}}}}` + "\n"
+	for _, sessionHeader := range []string{header, childHeader + header} {
+		for _, reviewer := range []string{"auto_review", "user"} {
+			data := sessionHeader + `{"type":"turn_context","payload":{"turn_id":"t","approvals_reviewer":"` + reviewer + `"}}` + "\n" +
+				`{"type":"response_item","payload":{"text":"` + strings.Repeat("x", 6<<20) + `"}}` + "\n"
+			if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+				t.Fatal(err)
+			}
+			for _, summary := range []bool{true, false} {
+				for _, tool := range []string{"mcp__cua_repl__js", "mcp__service__run"} {
+					for _, reason := range []string{"", "Please confirm this operation"} {
+						input, err := json.Marshal(map[string]any{
+							"hook_event_name": "PermissionRequest", "session_id": "s", "turn_id": "t",
+							"transcript_path": path, "tool_name": tool,
+							"tool_input": map[string]any{"code": "PRIVATE_TOOL_INPUT", "description": reason},
+						})
+						if err != nil {
+							t.Fatal(err)
 						}
-					})
-					if out != "" {
-						t.Fatalf("hook produced output: %q", out)
-					}
-					if reviewer == "auto_review" {
-						if len(notifications) != 0 {
-							t.Fatalf("automatic goal request reached server: %s summary=%v reason=%q", tool, summary, reason)
-						}
-					} else {
-						if len(notifications) != 1 {
-							t.Fatal("human permission reminder lost")
-						}
-						n := <-notifications
-						if n.Event != "attention" {
-							t.Fatalf("event=%q", n.Event)
-						}
-						wantBody := reason
+						args := []string{"codex-permission"}
 						if !summary {
-							wantBody = ""
+							args = append(args, "--no-summary")
 						}
-						if n.Body != wantBody {
-							t.Fatalf("body=%q want=%q", n.Body, wantBody)
+						out := captureOutput(t, string(input), func() {
+							if cmdHook(args) != 0 {
+								t.Error("hook changed agent exit status")
+							}
+						})
+						if out != "" {
+							t.Fatalf("hook produced output: %q", out)
+						}
+						if reviewer == "auto_review" {
+							if len(notifications) != 0 {
+								t.Fatalf("automatic goal request reached server: %s summary=%v reason=%q", tool, summary, reason)
+							}
+						} else {
+							if len(notifications) != 1 {
+								t.Fatal("human permission reminder lost")
+							}
+							n := <-notifications
+							if n.Event != "attention" {
+								t.Fatalf("event=%q", n.Event)
+							}
+							wantBody := reason
+							if !summary {
+								wantBody = ""
+							}
+							if n.Body != wantBody {
+								t.Fatalf("body=%q want=%q", n.Body, wantBody)
+							}
 						}
 					}
 				}

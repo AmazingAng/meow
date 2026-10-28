@@ -38,8 +38,11 @@ func codexSuppressesPermissionReminder(input []byte) bool {
 	if err != nil || !info.Mode().IsRegular() {
 		return false
 	}
-	// Verify the rollout identity independently of its filename. The header
-	// read is bounded; the context search below walks back through this turn.
+	// Verify the rollout identity independently of its filename. Subagent
+	// hooks use the parent's session_id but the child's transcript_path; accept
+	// that mismatch only when the first header explicitly names that parent.
+	// Forked history can contain copied parent headers, which are not evidence
+	// of the current transcript's identity. Never search those for a match.
 	header, err := io.ReadAll(io.NewSectionReader(f, 0, metadataTailLimit))
 	if err != nil {
 		return false
@@ -51,11 +54,25 @@ func codexSuppressesPermissionReminder(input []byte) bool {
 	var meta struct {
 		Type    string `json:"type"`
 		Payload struct {
-			ID string `json:"id"`
+			ID     string          `json:"id"`
+			Source json.RawMessage `json:"source"`
 		} `json:"payload"`
 	}
-	if json.Unmarshal(header[:end], &meta) != nil || meta.Type != "session_meta" || meta.Payload.ID != p.SessionID {
+	if json.Unmarshal(header[:end], &meta) != nil || meta.Type != "session_meta" || meta.Payload.ID == "" {
 		return false
+	}
+	if meta.Payload.ID != p.SessionID {
+		var source struct {
+			Subagent struct {
+				ThreadSpawn *struct {
+					ParentThreadID string `json:"parent_thread_id"`
+				} `json:"thread_spawn"`
+			} `json:"subagent"`
+		}
+		if json.Unmarshal(meta.Payload.Source, &source) != nil || source.Subagent.ThreadSpawn == nil ||
+			source.Subagent.ThreadSpawn.ParentThreadID != p.SessionID {
+			return false
+		}
 	}
 	// Search back to the latest context, regardless of how much output the
 	// active turn produced. Snapshot the size so appends cannot prolong this
