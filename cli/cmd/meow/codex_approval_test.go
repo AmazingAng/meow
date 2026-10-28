@@ -27,7 +27,13 @@ func TestCodexAutoReviewAttention(t *testing.T) {
 		{"unknown reviewer", "future", "Bash", "s", "t", true},
 		{"other session", "auto_review", "Bash", "other", "t", true},
 		{"other turn", "auto_review", "Bash", "s", "other", true},
-		{"MCP can require human", "auto_review", "mcp__computer__click", "s", "t", true},
+		{"auto MCP", "auto_review", "mcp__computer__click", "s", "t", false},
+		{"auto computer use", "auto_review", "mcp__cua_repl__js", "s", "t", false},
+		{"human MCP", "user", "mcp__computer__click", "s", "t", true},
+		{"MCP missing reviewer", "", "mcp__cua_repl__js", "s", "t", true},
+		{"MCP unknown reviewer", "future", "mcp__cua_repl__js", "s", "t", true},
+		{"MCP other session", "auto_review", "mcp__cua_repl__js", "other", "t", true},
+		{"MCP other turn", "auto_review", "mcp__cua_repl__js", "s", "other", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "rollout.jsonl")
@@ -187,6 +193,84 @@ func TestCodexAutoReviewDoesNotReachServer(t *testing.T) {
 	}
 	if len(events) != 1 || events[0] != "attention" {
 		t.Fatalf("events=%v", events)
+	}
+}
+
+// Goal continuations can ask for several tool permissions without stopping for
+// the person. A verified auto-review turn must not create one phone alert per
+// request, even when MCP inputs have no description/justification to display.
+func TestCodexGoalMCPPermissionsDoNotReachServer(t *testing.T) {
+	type receivedNotification struct{ Event, Body string }
+	notifications := make(chan receivedNotification, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var n receivedNotification
+		if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
+			t.Error(err)
+		}
+		notifications <- n
+		io.WriteString(w, `{"id":"ntf_goal_test"}`)
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	t.Setenv("MEOW_CONFIG", filepath.Join(dir, "meow.json"))
+	t.Setenv("CODEX_HOME", dir)
+	t.Setenv("MEOW_SERVER", server.URL)
+	t.Setenv("MEOW_KEY", "meow_test")
+	t.Setenv("MEOW_HOOK_DISABLED", "")
+	path := filepath.Join(dir, "rollout.jsonl")
+	header := `{"type":"session_meta","payload":{"id":"s"}}` + "\n"
+	for _, reviewer := range []string{"auto_review", "user"} {
+		data := header + `{"type":"turn_context","payload":{"turn_id":"t","approvals_reviewer":"` + reviewer + `"}}` + "\n" +
+			`{"type":"response_item","payload":{"text":"` + strings.Repeat("x", 6<<20) + `"}}` + "\n"
+		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		for _, summary := range []bool{true, false} {
+			for _, tool := range []string{"mcp__cua_repl__js", "mcp__service__run"} {
+				for _, reason := range []string{"", "Please confirm this operation"} {
+					input, err := json.Marshal(map[string]any{
+						"hook_event_name": "PermissionRequest", "session_id": "s", "turn_id": "t",
+						"transcript_path": path, "tool_name": tool,
+						"tool_input": map[string]any{"code": "PRIVATE_TOOL_INPUT", "description": reason},
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					args := []string{"codex-permission"}
+					if !summary {
+						args = append(args, "--no-summary")
+					}
+					out := captureOutput(t, string(input), func() {
+						if cmdHook(args) != 0 {
+							t.Error("hook changed agent exit status")
+						}
+					})
+					if out != "" {
+						t.Fatalf("hook produced output: %q", out)
+					}
+					if reviewer == "auto_review" {
+						if len(notifications) != 0 {
+							t.Fatalf("automatic goal request reached server: %s summary=%v reason=%q", tool, summary, reason)
+						}
+					} else {
+						if len(notifications) != 1 {
+							t.Fatal("human permission reminder lost")
+						}
+						n := <-notifications
+						if n.Event != "attention" {
+							t.Fatalf("event=%q", n.Event)
+						}
+						wantBody := reason
+						if !summary {
+							wantBody = ""
+						}
+						if n.Body != wantBody {
+							t.Fatalf("body=%q want=%q", n.Body, wantBody)
+						}
+					}
+				}
+			}
+		}
 	}
 }
 

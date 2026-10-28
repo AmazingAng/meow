@@ -9,21 +9,16 @@ import (
 	"meow.blue/meow/adapters"
 )
 
-// PermissionRequest runs BEFORE reviewer routing, even for Approve for me.
-// Its wire input has no reviewer. Read only explicit, matching turn metadata
-// from the supplied rollout; never infer the mode from global config, time
-// spent waiting, tool arguments or conversation text. Rollouts are not a stable
-// API: missing/changed metadata must preserve the notification.
-func codexAutomaticallyReviewed(input []byte) bool {
+// PermissionRequest is not evidence that a person is waiting: it also fires
+// before automatic review. In a verified auto-review turn, do not mirror tool
+// permission requests to the phone, including MCP requests. This is a Meow
+// notification policy, not a claim about the final reviewer for every tool;
+// app-level approvals (e.g. Computer Use) remain on the computer.
+// Read only matching turn metadata, never global defaults, elapsed time or
+// tool arguments. Missing/changed rollout metadata preserves the reminder.
+func codexSuppressesPermissionReminder(input []byte) bool {
 	var p adapters.CodexHookInput
 	if json.Unmarshal(input, &p) != nil || p.Event != "PermissionRequest" || p.SessionID == "" || p.TurnID == "" {
-		return false
-	}
-	// MCP approvals can override the turn's reviewer (e.g. Computer Use).
-	// Only these built-in tools inherit it without a per-tool override.
-	switch p.ToolName {
-	case "Bash", "apply_patch", "Edit", "Write", "write_stdin", "request_permissions":
-	default:
 		return false
 	}
 	var path string
