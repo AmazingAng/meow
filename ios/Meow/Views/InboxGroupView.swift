@@ -36,11 +36,9 @@ struct InboxGroupRow: View {
                 }
                 if let latest = group.latest {
                     if let preview = NotificationBody(latest.body).listPreview {
-                        HStack(alignment: .top, spacing: 5) {
-                            Image(systemName: latest.event?.symbol ?? "bubble.left").accessibilityHidden(true)
-                            Text(preview).lineLimit(2)
-                        }
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        Text(preview)
+                            .lineLimit(2)
+                            .font(.subheadline).foregroundStyle(.secondary)
                     }
                     RelativeTime(date: latest.createdAt).font(.caption).foregroundStyle(.secondary)
                 }
