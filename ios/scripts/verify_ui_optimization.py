@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sqlite3
 import threading
 import uuid
 from urllib.parse import parse_qs, urlsplit
@@ -23,6 +24,9 @@ def timestamp(date):
 
 
 class Fixture(BaseHTTPRequestHandler):
+    device_id = None
+    local_database = None
+    read_requests = 0
     items = []
     response_count = 0
     missing_key = False
@@ -41,6 +45,8 @@ class Fixture(BaseHTTPRequestHandler):
         now = datetime.now(timezone.utc)
         cls.items = []
         cls.response_count = 0
+        cls.read_requests = 0
+        cls.local_database = None
         cls.missing_key = False
         cls.key_attempts = 0
         cls.key_revocations = 0
@@ -65,6 +71,26 @@ class Fixture(BaseHTTPRequestHandler):
                                         expires_at=timestamp(now + timedelta(seconds=expiry)), answer=None)
             cls.items.append(item)
 
+    @classmethod
+    def local_unread(cls):
+        # Read the actual disposable iPhone's DB; the HTTP fixture must not
+        # pretend its own cache is the phone's authoritative unread state.
+        if cls.device_id is None:
+            return None
+        try:
+            if cls.local_database is None:
+                group = subprocess.check_output(['xcrun', 'simctl', 'get_app_container', cls.device_id,
+                                                'blue.meow.app', 'group.blue.meow.app'], text=True,
+                                               stderr=subprocess.DEVNULL).strip()
+                cls.local_database = Path(group) / 'Inbox/inbox.sqlite'
+            with sqlite3.connect(cls.local_database.as_uri() + '?mode=ro', uri=True, timeout=0.1) as db:
+                row = db.execute("SELECT value FROM inbox_meta WHERE key='active_scope'").fetchone()
+                if row is None:
+                    return None
+                return db.execute('SELECT count(*) FROM inbox_messages WHERE scope=? AND read_at IS NULL', row).fetchone()[0]
+        except (OSError, subprocess.CalledProcessError, sqlite3.Error):
+            return None
+
     def log_message(self, *args):
         pass
 
@@ -82,7 +108,7 @@ class Fixture(BaseHTTPRequestHandler):
     def get(self):
         url = urlsplit(self.path)
         if url.path == '/fixture/stats':
-            return self.send_json({'responses': type(self).response_count, 'unread': sum(n['read_at'] is None for n in self.items), 'total': len(self.items),
+            return self.send_json({'responses': type(self).response_count, 'unread': self.local_unread(), 'server_unread': sum(n['read_at'] is None for n in self.items), 'read_requests': type(self).read_requests, 'total': len(self.items),
                                    'key_attempts': type(self).key_attempts, 'key_revocations': type(self).key_revocations,
                                    'sender_key_old': type(self).sender_key_old, 'sender_key_new': type(self).sender_key_new})
         if url.path == '/fixture/reset':
@@ -256,6 +282,8 @@ class Fixture(BaseHTTPRequestHandler):
             else:
                 type(self).sender_key_old += 1
             return self.send_json(dict(self.items[0], id='ntf_phone_test', title=body.get('title', 'Test')), 201)
+        if self.path == '/v1/inbox/read-selected' or self.path == '/v1/inbox/read' or self.path.endswith('/read'):
+            type(self).read_requests += 1
         if self.path == '/v1/inbox/read-selected':
             selected = set(body.get('ids', []))
             marked = 0
@@ -301,6 +329,7 @@ def main():
     try:
         run(['xcodegen', 'generate', '--spec', 'ios/project.yml'])
         device = run(['xcrun', 'simctl', 'create', 'Meow UI Polish Temporary', args.device_type, args.runtime]).strip()
+        Fixture.device_id = device
         if args.appearance:
             run(['xcrun', 'simctl', 'boot', device])
             run(['xcrun', 'simctl', 'bootstatus', device, '-b'])

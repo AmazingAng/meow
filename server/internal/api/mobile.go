@@ -227,7 +227,8 @@ func (s *Server) getNotification(w http.ResponseWriter, r *http.Request, p princ
 	}
 }
 
-// counts returns the unread and pending totals shown as tab and app icon badges.
+// counts returns server-cache unread/pending totals for legacy clients.
+// Current iOS clients keep read state and badges in their shared local inbox.
 func (s *Server) counts(w http.ResponseWriter, r *http.Request, p principal) {
 	unread, pending, err := s.st.InboxCounts(r.Context(), p.device.ID)
 	if err != nil {

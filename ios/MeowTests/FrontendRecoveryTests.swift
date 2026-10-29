@@ -73,24 +73,17 @@ final class FrontendRecoveryTests: XCTestCase {
         XCTAssertTrue(model.alert != nil || model.toast != nil, "the user must learn that the saved answer was refused")
     }
 
-    func testFailedReadRollsBackAndExplainsFailure() async throws {
-        let attempted = expectation(description: "read attempted")
+    func testOfflineReadSucceedsWithoutCallingReadEndpoint() async throws {
         let json = notificationJSON
         RecoveryURLProtocol.install { request in
-            if request.url!.path.hasSuffix("/read") {
-                attempted.fulfill()
-                throw URLError(.notConnectedToInternet)
-            }
+            XCTAssertFalse(request.url!.path.hasSuffix("/read"))
             return (200, json)
         }
         let model = AppModel()
-        let loaded = await model.loadDetail("ntf_recovery")
-        XCTAssertTrue(loaded)
-        await model.markRead("ntf_recovery")
-        await fulfillment(of: [attempted], timeout: 3)
-        try await Task.sleep(for: .milliseconds(100))
-        XCTAssertTrue(try XCTUnwrap(model.notification(id: "ntf_recovery")).isUnread)
-        XCTAssertNotNil(model.toast)
+        let loaded = await model.loadDetail("ntf_recovery"); XCTAssertTrue(loaded)
+        let read = await model.markRead("ntf_recovery"); XCTAssertTrue(read)
+        XCTAssertFalse(try XCTUnwrap(model.notification(id: "ntf_recovery")).isUnread)
+        XCTAssertNil(model.toast)
     }
 
     func testLegacyQueueRefusalsSurviveRestartWithoutResending() async throws {
@@ -249,87 +242,60 @@ final class FrontendRecoveryTests: XCTestCase {
         }
     }
 
-    func testReadRollbackRestoresCountAndCoalescesDuplicateTaps() async {
-        let started = expectation(description: "read requested once")
-        started.assertForOverFulfill = true
-        let gate = DispatchSemaphore(value: 0)
-        installInbox { _ in
-            started.fulfill(); _ = gate.wait(timeout: .now() + 5)
-            return (503, Data())
-        }
-        let model = AppModel()
-        await model.refresh()
-        XCTAssertEqual(model.counts.unread, 2)
-        let first = Task { await model.markRead("ntf_recovery") }
-        await fulfillment(of: [started], timeout: 3)
+    func testDuplicateLocalReadTapsAreIdempotentWithoutHTTP() async throws {
+        installInbox { _ in XCTFail("local reads must not call HTTP"); return (503, Data()) }
+        let model = AppModel(); await model.refresh()
         XCTAssertEqual(model.counts.unread, 1)
-        await model.markRead("ntf_recovery")
-        gate.signal(); await first.value
-        XCTAssertEqual(model.counts.unread, 2)
-        XCTAssertEqual(model.notification(id: "ntf_recovery")?.isUnread, true)
-        XCTAssertNotNil(model.toast)
-        installInbox { _ in (204, Data()) }
-        model.toast = nil
-        await model.markRead("ntf_recovery")
-        XCTAssertEqual(model.counts.unread, 1)
-        XCTAssertEqual(model.notification(id: "ntf_recovery")?.isUnread, false)
+        async let first = model.markRead("ntf_recovery")
+        async let second = model.markRead("ntf_recovery")
+        let results = await (first, second)
+        XCTAssertTrue(results.0 || results.1)
+        XCTAssertEqual(model.counts.unread, 0)
+        XCTAssertFalse(try XCTUnwrap(model.notification(id: "ntf_recovery")).isUnread)
         XCTAssertNil(model.toast)
     }
 
-    func testReadFailureCannotUndoMarkAllRead() async {
-        let started = expectation(description: "read requested")
-        let gate = DispatchSemaphore(value: 0)
-        installInbox { _ in started.fulfill(); _ = gate.wait(timeout: .now() + 5); throw URLError(.timedOut) }
+    func testOfflineSingleAndMarkAllReadSurviveOlderServerRefresh() async throws {
+        installInbox { _ in XCTFail("no read API required"); throw URLError(.timedOut) }
         let model = AppModel(); await model.refresh()
-        let reading = Task { await model.markRead("ntf_recovery") }
-        await fulfillment(of: [started], timeout: 3)
-        await model.markAllRead()
-        gate.signal(); await reading.value
+        _ = await model.markRead("ntf_recovery")
+        await model.markAllRead(); await model.refresh()
         XCTAssertEqual(model.counts.unread, 0)
         XCTAssertEqual(model.notification(id: "ntf_recovery")?.isUnread, false)
         XCTAssertNil(model.toast)
     }
 
-    func testReadFailureCannotChangeNewSession() async {
-        let started = expectation(description: "read requested")
-        let gate = DispatchSemaphore(value: 0)
-        installInbox { _ in started.fulfill(); _ = gate.wait(timeout: .now() + 5); throw URLError(.timedOut) }
+    func testConcurrentLocalReadCannotChangeNewRegistration() async throws {
+        installInbox { _ in XCTFail("local read attempted HTTP"); throw URLError(.timedOut) }
         let queue = ReplyQueue(fileURL: file) { _ in throw URLError(.badURL) }
         let model = AppModel(replies: queue); await model.refresh()
         let reading = Task { await model.markRead("ntf_recovery") }
-        await fulfillment(of: [started], timeout: 3)
         let reset = await model.reset(server: URL(string: "https://other.invalid")!)
+        _ = await reading.value
         XCTAssertTrue(reset)
-        gate.signal(); await reading.value
         XCTAssertTrue(model.notifications.isEmpty)
         XCTAssertEqual(model.counts.unread, 0)
         XCTAssertNil(model.toast)
     }
 
-    func testReadFailureReconcilesNewerServerCountWithOptimisticRead() async {
-        let started = expectation(description: "read requested")
-        let gate = DispatchSemaphore(value: 0)
-        installInbox { _ in started.fulfill(); _ = gate.wait(timeout: .now() + 5); throw URLError(.timedOut) }
+    func testLocalCountIgnoresConflictingServerUnreadCount() async throws {
+        installInbox(read: { _ in XCTFail("local read attempted HTTP"); return (503, Data()) }, unread: 9999)
         let model = AppModel(); await model.refresh()
-        let reading = Task { await model.markRead("ntf_recovery") }
-        await fulfillment(of: [started], timeout: 3)
+        XCTAssertEqual(model.counts.unread, 1)
+        let read = await model.markRead("ntf_recovery"); XCTAssertTrue(read)
         await model.refreshCounts()
-        XCTAssertEqual(model.counts.unread, 1, "the pending local read survives the refreshed server snapshot")
-        gate.signal(); await reading.value
-        XCTAssertEqual(model.counts.unread, 2, "the server snapshot already includes the unread notification")
-        XCTAssertEqual(model.notification(id: "ntf_recovery")?.isUnread, true)
+        XCTAssertEqual(model.counts.unread, 0)
+        XCTAssertEqual(model.notification(id: "ntf_recovery")?.isUnread, false)
     }
 
-    func testReadFailureCannotUndoAcceptedAnswer() async {
-        let started = expectation(description: "read requested")
-        let gate = DispatchSemaphore(value: 0)
+    func testLocalReadAndAcceptedLegacyAnswerPreserveReadState() async {
         let n = MeowNotification(id: "ntf_recovery", type: .question, title: "Question", body: "Body", source: "Agent",
             priority: "normal", pushStatus: "accepted", createdAt: .now,
             question: .init(id: "qst_recovery", status: .pending, choices: nil, expiresAt: .now.addingTimeInterval(60)))
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
         let data = try! encoder.encode(n)
         RecoveryURLProtocol.install { request in
-            if request.url!.path.hasSuffix("/read") { started.fulfill(); _ = gate.wait(timeout: .now() + 5); throw URLError(.timedOut) }
+            XCTAssertFalse(request.url!.path.hasSuffix("/read"))
             if request.url!.path.hasSuffix("/counts") { return (200, Data(#"{"unread":0,"pending":0}"#.utf8)) }
             if request.url!.path == "/v1/inbox" {
                 return (200, Data("{\"notifications\":[\(String(decoding: data, as: UTF8.self))],\"next_cursor\":null}".utf8))
@@ -343,10 +309,10 @@ final class FrontendRecoveryTests: XCTestCase {
         await model.refresh()
         XCTAssertEqual(model.notifications.first?.question?.status, .pending)
         let reading = Task { await model.markRead("ntf_recovery") }
-        await fulfillment(of: [started], timeout: 3)
+        _ = await reading.value
         let answered = await model.answer("qst_recovery", with: "approve")
         XCTAssertEqual(answered, .sent)
-        gate.signal(); await reading.value
+
         XCTAssertEqual(model.notification(id: "ntf_recovery")?.isUnread, false)
         XCTAssertEqual(model.notification(id: "ntf_recovery")?.question?.status, .answered)
         XCTAssertNil(model.toast)

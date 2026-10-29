@@ -49,6 +49,22 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(element.isHittable)
     }
 
+    func test31LocalUnreadBadgeDoesNotDependOnServerReads() {
+        scenario("grouping")
+        let app = open()
+        browse("sessions", in: app)
+        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "inbox.group.", "Deploy")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertEqual(row.value as? String, "2 matching unread messages")
+        row.tap()
+        XCTAssertTrue(app.buttons["group.search"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let read = expectation(for: NSPredicate(format: "value == %@", "0 matching unread messages"), evaluatedWith: row)
+        wait(for: [read], timeout: 5)
+        assertInboxStats(unread: 3, total: 5)
+        capture("local-unread-authority", app)
+    }
+
     func test01GuidedSetupAndBackNavigation() throws {
         scenario("onboarding-missing-key")
         let app = XCUIApplication()
@@ -914,6 +930,7 @@ final class UIOptimizationTests: XCTestCase {
             }
             XCTAssertEqual(last?["unread"], unread)
             XCTAssertEqual(last?["total"], total)
+            XCTAssertEqual(last?["read_requests"], 0, "new app read actions must never call server read endpoints")
             done.fulfill()
         }
         wait(for: [done], timeout: 10)

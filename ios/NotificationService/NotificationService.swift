@@ -13,8 +13,12 @@ final class NotificationService: UNNotificationServiceExtension {
             try await Self.api(identity).notification(id, timeout: 12)
         }, report: { id, identity in
             try await Self.api(identity).markDelivered(id, timeout: 3)
+        }, record: { item, identity in
+            let scope = InboxStore.scope(server: identity.server, token: identity.token)
+            try await InboxStore.notificationStore.receiveVerified(item, scope: scope) { NotificationIdentity.current == identity }
         }, counts: { identity in
-            try await Self.api(identity).counts(timeout: 3).unread
+            let scope = InboxStore.scope(server: identity.server, token: identity.token)
+            return try await InboxStore.notificationStore.unreadCount(scope: scope)
         }, handler: contentHandler)
         self.delivery = delivery
         delivery.start()

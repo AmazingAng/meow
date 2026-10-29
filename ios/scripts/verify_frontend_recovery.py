@@ -39,7 +39,7 @@ def package(output):
     model = model.replace('UNUserNotificationCenter.current()', 'RecoveryNotificationCenter.current()')
     model = model.replace('UNAuthorizationStatus', 'RecoveryAuthorizationStatus')
     (path / 'Sources/AppModel.swift').write_text(model)
-    shutil.copy2(ROOT / 'ios/Meow/App/InboxStore.swift', path / 'Sources/InboxStore.swift')
+    shutil.copy2(ROOT / 'ios/Shared/InboxStore.swift', path / 'Sources/InboxStore.swift')
     cache = path / 'Sources/InboxStore.swift'
     cache.write_text(cache.read_text().replace(
         'FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]',

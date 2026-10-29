@@ -225,7 +225,7 @@ extension GatewayContentTests {
 }
 
 extension GatewayContentTests {
-    func testDirectNotificationReportsReceiptWithoutFetching() async throws {
+    func testDirectNotificationFetchesFullOriginBeforeReceipt() async throws {
         let finished = expectation(description: "direct delivery")
         let reported = expectation(description: "receipt")
         let c = UNMutableNotificationContent()
@@ -234,8 +234,7 @@ extension GatewayContentTests {
         c.userInfo = ["meow": ["id": "ntf_direct", "device_id": "dev_1"]]
         let capture = DeliveryCapture(identity: identity)
         let delivery = NotificationDelivery(original: c, currentIdentity: { capture.current() }, fetch: { _, _ in
-            XCTFail("direct pushes already contain their message")
-            throw URLError(.badServerResponse)
+            return MeowNotification(id: "ntf_direct", type: .info, title: "Full origin", body: "complete body", source: "fixture", priority: "normal", pushStatus: "accepted", createdAt: .now)
         }, report: { id, snapshot in
             XCTAssertEqual(id, "ntf_direct")
             XCTAssertEqual(snapshot.token, "mdt_test")
@@ -243,8 +242,8 @@ extension GatewayContentTests {
         }, handler: { capture.append($0); finished.fulfill() })
         delivery.start()
         await fulfillment(of: [reported, finished], timeout: 3)
-        XCTAssertEqual(capture.values.first?.title, "Existing direct alert")
-        XCTAssertEqual(capture.values.first?.categoryIdentifier, NotificationCategory.approval)
+        XCTAssertEqual(capture.values.first?.title, "Full origin")
+        XCTAssertEqual(capture.values.first?.categoryIdentifier, NotificationCategory.info)
     }
 
     func testOrdinaryRelayHasNoReplyAndTruncatesLongBody() throws {

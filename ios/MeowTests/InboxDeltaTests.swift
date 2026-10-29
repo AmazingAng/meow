@@ -57,13 +57,14 @@ final class InboxDeltaTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: folder) }
         let store = InboxStore(fileURL: folder.appendingPathComponent("inbox.sqlite"))
         var expected: [String: MeowNotification] = [:]
+        var tombstones: Set<String> = []
         try await store.save([item("foreign")], scope: "other")
         for round in 0..<60 {
             let id = "消息-\(round % 17)"
             let value = item(id, body: "round \(round) 😺")
             let deleted: Set<String> = round % 3 == 0 ? ["消息-\((round + 1) % 17)"] : []
-            expected[id] = value
-            for id in deleted { expected[id] = nil }
+            if !tombstones.contains(id) { expected[id] = value }
+            for id in deleted { expected[id] = nil }; tombstones.formUnion(deleted)
             try await store.applyChanges([value], deleting: deleted, scope: "local")
             try await store.applyChanges([value], deleting: deleted, scope: "local")
             let actual = try await store.load(scope: "local")
@@ -94,15 +95,15 @@ final class InboxDeltaTests: XCTestCase {
         let fullStart = Date()
         try await store.save(items, scope: "benchmark")
         let full = Date().timeIntervalSince(fullStart)
-        items[0].readAt = .now
+        items[1].readAt = .now
         let deltaStart = Date()
-        try await store.applyChanges([items[0]], scope: "benchmark")
+        try await store.applyChanges([items[1]], scope: "benchmark")
         let delta = Date().timeIntervalSince(deltaStart)
         print("PERFORMANCE storage full_ms=\(full * 1000) delta_ms=\(delta * 1000) records=10000")
         XCTAssertLessThan(delta, full)
         let restored = try await store.load(scope: "benchmark")
         XCTAssertEqual(restored?.count, 10000)
-        XCTAssertEqual(restored?.first(where: { $0.id == "0" })?.readAt, items[0].readAt)
+        XCTAssertEqual(restored?.first(where: { $0.id == "1" })?.readAt, items[1].readAt)
     }
 
 }

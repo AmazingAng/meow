@@ -170,13 +170,13 @@ final class LocalInboxModelTests: XCTestCase {
         XCTAssertNotNil(model.loadError)
     }
 
-    func testLocalMatchesAppearWhileNetworkCountsAreStillPending() async throws {
+    func testLocalMatchesAppearWhileHistorySyncIsStillPending() async throws {
         try await store.save([localItem("saved")], scope: scope)
         let started = expectation(description: "counts waiting")
         let gate = DispatchSemaphore(value: 0)
         let data = try page([localItem("saved")])
         LocalInboxProtocol.install { request in
-            if request.url!.path.hasSuffix("/counts") {
+            if request.url!.path == "/v1/inbox" {
                 started.fulfill(); _ = gate.wait(timeout: .now() + 5)
                 return (200, Data(#"{"unread":1,"pending":0}"#.utf8))
             }
@@ -368,6 +368,27 @@ extension LocalInboxModelTests {
         XCTAssertNotNil(model.notification(id: "new"), "online content remains usable while the cache failure is reported")
     }
 
+    func testReadingUnsavedOnlineContentCommitsThePayloadAndReadFlagTogether() async throws {
+        let initial = try page([localItem("existing")])
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.keyEncodingStrategy = .convertToSnakeCase
+        let fresh = try encoder.encode(localItem("new"))
+        LocalInboxProtocol.install { request in
+            XCTAssertFalse(request.url!.path.hasSuffix("/read"))
+            return (200, request.url!.path.contains("/notifications/") ? fresh : initial)
+        }
+        let model = AppModel(inboxStore: store); await model.refresh()
+        _ = try await store.load(scope: scope)
+        try executeSQLite("CREATE TRIGGER fail_new BEFORE INSERT ON inbox_messages WHEN NEW.id='new' BEGIN SELECT RAISE(ABORT,'disk write failed'); END")
+        let loaded = await model.loadDetail("new"); XCTAssertTrue(loaded)
+        XCTAssertNotNil(model.inboxStorageError)
+        try executeSQLite("DROP TRIGGER fail_new")
+        let read = await model.markRead("new"); XCTAssertTrue(read)
+        XCTAssertFalse(try XCTUnwrap(model.notification(id: "new")).isUnread)
+        let durable = try await store.load(scope: scope)
+        XCTAssertFalse(try XCTUnwrap(durable?.first(where: { $0.id == "new" })).isUnread)
+        XCTAssertNil(model.inboxStorageError)
+    }
+
     func testCacheDeletionFailureKeepsCurrentServerAndMessages() async throws {
         try await store.save([localItem("saved")], scope: scope)
         try executeSQLite("CREATE TRIGGER fail_delete BEFORE DELETE ON inbox_messages BEGIN SELECT RAISE(ABORT,'disk delete failed'); END")
@@ -391,55 +412,39 @@ extension LocalInboxModelTests {
         XCTAssertEqual(model.notification(id: "saved")?.title, "测试通知")
     }
 
-    func testSlowCountResponseCannotUndoAnOptimisticLocalRead() async throws {
+    func testOlderInflightHistoryCannotUndoCommittedLocalRead() async throws {
         let item = localItem("read-during-sync")
         try await store.save([item], scope: scope)
         let data = try page([item])
-        let countsStarted = expectation(description: "count held"), readStarted = expectation(description: "read held")
-        let countsGate = DispatchSemaphore(value: 0), readGate = DispatchSemaphore(value: 0)
-        defer { countsGate.signal(); readGate.signal() }
-        LocalInboxProtocol.install { request in
-            if request.url!.path.hasSuffix("/counts") {
-                countsStarted.fulfill(); _ = countsGate.wait(timeout: .now() + 5)
-                return (200, Data(#"{"unread":1,"pending":0}"#.utf8))
-            }
-            if request.url!.path.hasSuffix("/read") {
-                readStarted.fulfill(); _ = readGate.wait(timeout: .now() + 5)
-                return (204, Data())
-            }
-            return (200, data)
-        }
-        let model = AppModel(inboxStore: store)
-        let sync = Task { await model.refresh() }
-        await fulfillment(of: [countsStarted], timeout: 3)
-        let reading = Task { await model.markRead(item.id) }
-        await fulfillment(of: [readStarted], timeout: 3)
-        countsGate.signal(); await sync.value
-        XCTAssertEqual(model.counts.unread, 0, "the older server count cannot undo the local optimistic read")
-        readGate.signal(); await reading.value
-    }
-
-    func testNewMessagesRenderBeforeSlowCountRequestCompletes() async throws {
-        let data = try page([localItem("fresh")])
-        let countsStarted = expectation(description: "count held"), gate = DispatchSemaphore(value: 0)
+        let started = expectation(description: "history held"), gate = DispatchSemaphore(value: 0)
         defer { gate.signal() }
         LocalInboxProtocol.install { request in
-            if request.url!.path.hasSuffix("/counts") {
-                countsStarted.fulfill(); _ = gate.wait(timeout: .now() + 5)
-                return (200, Data(#"{"unread":1,"pending":0}"#.utf8))
-            }
+            XCTAssertEqual(request.url!.path, "/v1/inbox")
+            started.fulfill(); _ = gate.wait(timeout: .now() + 5)
             return (200, data)
         }
         let model = AppModel(inboxStore: store)
         let sync = Task { await model.refresh() }
-        await fulfillment(of: [countsStarted], timeout: 3)
-        let deadline = Date.now.addingTimeInterval(3)
-        while model.notification(id: "fresh") == nil && Date.now < deadline {
-            try await Task.sleep(for: .milliseconds(5))
-        }
-        XCTAssertEqual(model.notifications.map(\.id), ["fresh"])
-        XCTAssertTrue(model.isLoading, "the slow count request should still be outstanding")
+        await fulfillment(of: [started], timeout: 3)
+        let read = await model.markRead(item.id); XCTAssertTrue(read)
         gate.signal(); await sync.value
+        XCTAssertEqual(model.counts.unread, 0)
+        XCTAssertFalse(try XCTUnwrap(model.notification(id: item.id)).isUnread)
+    }
+
+    func testNewMessagesAndCountsRenderWithoutAnyCountRequest() async throws {
+        let data = try page([localItem("fresh")])
+        let calls = LocalCallCounter()
+        LocalInboxProtocol.install { request in
+            calls.increment(); XCTAssertEqual(request.url!.path, "/v1/inbox")
+            return (200, data)
+        }
+        let model = AppModel(inboxStore: store)
+        await model.refresh()
+        XCTAssertEqual(model.notifications.map(\.id), ["fresh"])
+        XCTAssertEqual(model.counts.unread, 1)
+        XCTAssertFalse(model.isLoading)
+        XCTAssertEqual(calls.value, 1)
     }
 
     func testAllPagesSyncIndependentlyOfSearchAndDisplayPaginationIsLocal() async throws {

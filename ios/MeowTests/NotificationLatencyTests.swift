@@ -49,7 +49,7 @@ final class NotificationLatencyTests: XCTestCase {
             priority: "normal", pushStatus: "accepted", createdAt: .now)
     }
 
-    func testVerifiedBodyDoesNotWaitForCancellationIgnoringAuxiliaries() async {
+    func testVerifiedBodyDoesNotWaitForCancellationIgnoringStorageAndReceipt() async {
         let counts = AuxiliaryGate()
         let report = AuxiliaryGate()
         let capture = LatencyCapture()
@@ -64,11 +64,11 @@ final class NotificationLatencyTests: XCTestCase {
                 reportStarted.fulfill()
                 await report.wait()
             },
-            counts: { _ in
+            record: { _, _ in
                 countsStarted.fulfill()
                 await counts.wait()
-                return 999
             },
+            counts: { _ in 999 },
             handler: {
                 capture.append($0)
                 shown.fulfill()

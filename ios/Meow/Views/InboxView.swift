@@ -88,7 +88,7 @@ struct InboxView: View {
                 deletion = nil; groupDeletion = nil
             }
             .task {
-                if !model.hasLoaded { await model.refresh() }
+                if !model.hasSyncedInbox { await model.refresh() }
             }
             .task(id: model.inboxMode == .messages ? model.notifications : []) {
                 guard model.inboxMode == .messages else { return }

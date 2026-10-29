@@ -89,6 +89,12 @@ CGO, an ORM, a queue service or another database for an unrelated change.
   expiry, omission or a detail `404` must not erase downloaded history.
   Search, filtering and grouping use all saved local messages before pagination.
   Preserve explicit deletion semantics and per-view, per-scope merge rules.
+- Shared App Group SQLite is the sole authority for iPhone read state and unread
+  counts. App/NSE writes coordinate through transactions. Reads are local and
+  must not require read/count HTTP; legacy server endpoints remain compatible.
+  Pushes must omit server badge values. Preserve local read state on upsert,
+  scoped deletion tombstones, registration fencing and transactional legacy import.
+  Background badge updates are best-effort; reconcile from SQLite on app entry.
 - The rollout retention default is `720h`. Do not silently shorten it: older
   clients replace their local inbox from the server list. Follow the build 17+
   migration guidance in [deploy/README.md](deploy/README.md). Explicit environment

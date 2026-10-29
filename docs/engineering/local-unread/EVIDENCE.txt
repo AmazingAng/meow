@@ -1,0 +1,154 @@
+Meow local unread authority — evidence, 2026-10-29
+
+Outcome
+The shared iPhone inbox owns read state, unread counts and badges. Local reads
+never call read/count HTTP routes. App and NSE share transactional SQLite;
+verified receipts preserve local reads, registration isolation and deletions.
+The server omits badge values and no longer counts unread rows per push.
+Legacy server endpoints remain compatible. CLI/gateway protocol/dependencies,
+Go schema v6 and retention defaults are unchanged.
+
+Rollout: update the iPhone app first, then deploy the server. Updated apps strip
+old-server badge values; old apps do not implement this local authority model.
+No archive, TestFlight upload, deployment, release or real-user push was made.
+
+Confidence / isolation
+- Tier 3: durable migration, multiple processes, deletion and registration races.
+- Spec approval: not obtained (autonomous run). User approved the architecture;
+  the detailed SPEC.txt was written before implementation, without separate approval.
+- Independent verification: not performed. These are builder-authored checks.
+- Branch feat/local-unread-authority from cb19d9a, no additional worktree.
+  Existing untracked web/ was excluded and preserved. Mutants use disposable
+  source copies; production credentials/data were not modified.
+- Exact per-file source hashes and tool versions are in the final report.
+  Source-set SHA256 (canonical sorted JSON of report.source_sha256):
+  74031ddd390949c12f0e1f2d394738a38a9374b04d13d5d7b09f702d83e3e78b
+  The source-set digest below covers ios/, server/, cli/, client/, message/,
+  adapters/, contracts/, go.mod/go.sum. Docs, AGENTS.md, ignored outputs and web/
+  are outside that scope. The verifier checks source stability at completion.
+- No tooling installed. Swift 6.3.3, Xcode 26.6 (17F113), Go 1.27.2,
+  Python 3.14.3. Disposable native packages adapt only OS/Keychain/App Group/
+  Bundle boundaries; storage/model/delivery logic uses the actual implementation.
+
+Reproduce (fresh output path)
+  python3 -B ios/scripts/verify_local_unread.py --output dist/local-unread/check-NEW --full
+Final fresh run: dist/local-unread/final-4/report.json.
+All figures below come from that run after the final implementation/test edit.
+The persisted entry point runs every layer, rejects missing/failed layers and
+actual skipped tests, restores mutated copies and reruns the native suite.
+Packages with no Go tests are distinguished from skipped individual tests.
+
+Acceptance / failure-model mapping
+1. Preserve all legacy history/read states; transactional import retries on
+   failure, preserves newer shared payloads, and cannot reimport deleted history:
+   LocalUnreadStoreTests.testLegacyMigrationPreservesReadStateAndDoesNotImportTwice;
+   testMigrationPreservesNewerTargetPayloadAndRetriesAfterFailure;
+   testMalformedLegacyDataRemainsIntactAndCanRetryAfterRepair;
+   testOldSchemaReadStateIsBackfilledWithoutChangingThePayload.
+   The original private database is retained as a logical migration backup,
+   not erased or treated as a secure-deletion guarantee.
+2. Duplicate receipts, stale remote reads and two independent SQLite connections:
+   testTwoConnectionsDeduplicateAndPreserveLocalReadOverRemoteUpdates;
+   actual two-OS-process probe in verify_local_unread.py.
+3. Deleted messages/old registrations cannot return; identity changes roll back:
+   testDeletedAndOldRegistrationReceiptsCannotResurrectMessages;
+   testReceiptIdentityChangeRollsBackAndInactiveScopeCannotWrite;
+   testResetDuringMigrationCannotReactivateOldRegistration;
+   testRegistrationActivatesLocalInboxBeforeReturning;
+   existing reset/delta/retention/deletion model tests.
+4. Offline single/group/bulk reads, frozen matching selections, atomic recovery
+   from unsaved online payloads, no unrelated row decode and no read/count HTTP:
+   testOfflineReadAndCountsNeverNeedHTTPAndSurviveRestart;
+   testReadTransactionFailureAndGeneratedReplayAreAtomic;
+   testReadCannotInsertPendingMessagesOutsideItsSelection;
+   testReadingUnsavedOnlineContentCommitsThePayloadAndReadFlagTogether;
+   testReadMutationDoesNotDecodeUnrelatedMessageBodies;
+   InboxGroupingModelTests and InboxPerformanceTests local-read regressions;
+   LocalInboxModelTests offline/older-snapshot/filter tests.
+   TEST-CONTRACT-CHANGES.json maps previous network-read contracts to their
+   intentionally changed local-only contracts. No read rollback on HTTP failure
+   is expected under the user-approved design; storage failure still prevents success.
+5. Both push paths save full verified origin records before local counts;
+   failed storage/fetch retains safe content; old badge is removed; timeout/
+   late callback/identity/expiry cannot update delivered content:
+   LocalUnreadDeliveryTests, NotificationLatencyTests, GatewayContentTests,
+   NotificationCallbackTests and GatewaySessionTests.
+   testBadgeIsReadAfterReceiptWorkRatherThanReusingAnOlderCount explicitly holds
+   receipt reporting while the user marks read, then requires the latest count.
+6. Server push contains no aps.badge and legacy authorization/API behavior stays:
+   TestDirectPushNeverOverridesPhoneUnreadBadge plus full Go race/shuffled suite.
+7. Actual simulator shared DB, first remote sync, local badge, full-history
+   matching, relaunch, swipe read/delete and Chinese large-type controls:
+   UI tests 31, 21, 27 and 30. The fixture reads the simulator's actual App Group
+   SQLite in read-only mode and asserts zero read HTTP requests; its server
+   cache count is separate. Exported local-unread, swipe and large-Chinese
+   screenshots were visually inspected. No new header button was added.
+
+Final gauntlet
+- Native Release: 237 tests pass, zero failures/skips; restored suite after
+  mutations: 237 pass. Generated deterministic read/receipt/delete/replay cases
+  exercise atomicity as well as expected final state; no property-test library added.
+- Actual two OS writer processes (PIDs 83064, 83065): 200 receipts, 100 unique
+  rows, exactly 50 unread. Opposite insertion order and concurrent replay preserve
+  committed reads. This exercises SQLite process coordination, not a mocked lock.
+- Real iOS simulator: 283 unit tests plus 4 focused UI tests pass; zero failures,
+  skips or expected failures. Each UI test uses a fresh installation; the first
+  run includes the complete iOS unit target. iPhone 17 Pro, iOS 26.5.
+- Full Go: 282 top-level test/fuzz targets, 594 cases including subtests/seeds,
+  pass with -race -shuffle=20261029 -count=1. No skipped individual tests.
+- go vet ./..., server build, installer 9 tests, gofmt and git diff --check pass.
+- Critical executable Swift line coverage: receiveVerified 17/17,
+  markLocalRead 29/29, unreadCount 10/10, writeRows 23/23.
+  Three checker controls pass: missing records, zero execution and defense-removed
+  control. This is not whole-migration/UI/branch coverage.
+- Eight manual mutants killed by executed failures: lost pending payload,
+  reset local read flag, deleted-row resurrection, identity rollback bypass,
+  repeat legacy import, stale storage-error feedback, old extension badge,
+  reintroduced server badge. Hashes/failing tests/logs are in report.json.
+  Mutants were checked against focused regression examples, not separately
+  against generated properties; no property-only mutation claim is made.
+- Native Mac release measurements, 10000 records with 3 KiB bodies:
+  full snapshot 143.714 ms, one-row delta 0.244 ms;
+  1000 cached getter pairs 4.161 ms. These are machine-specific measurements,
+  not an iPhone latency promise. Tests compare delta to snapshot and use the
+  existing broad getter budget. Reads avoid a full-history body reload.
+
+Failures encountered and resolved (not hidden passes)
+- Initial store stubs failed as expected, with some missing-temp-folder teardown
+  errors; those errors alone are not claimed as assertion RED evidence.
+- Direct push RED reproduced aps.badge=0. Initial native model fixture required
+  an explicit dictionary type; corrected only the fixture, then red-model-2
+  produced 8 behavioral assertion failures in 2 tests.
+- Adversarial regressions reproduced import overwriting a newer shared payload
+  and missing final direct-notification expiry checks; implementation corrected.
+- Legacy network-read/count assertions deliberately conflict with the new local
+  contract; replacements are recorded above. The audit also exposed actual
+  native Date precision loss and lost dirty online content; both were fixed.
+- A held receipt reproduced badge=1 after local read expected 0; count now runs
+  after auxiliary receipt/persistence work. An initial test actor-await typo was
+  corrected before this behavioral RED.
+- Additional RED cases caught retained storage-error feedback after recovery,
+  an inactive first-registration inbox, successful reads without durable pending
+  payloads, and unrelated-body decoding during read. Each received a regression
+  and implementation repair; read flags and pending bodies now commit together.
+- final-1 verifier initially mistook Go packages with no tests for skipped tests;
+  checker now rejects individual-test skips without rejecting empty packages.
+- final-2 was superseded and only its owned verifier child processes terminated.
+- final-3 passed native/Go/mutants and 282 iOS units, but UI31 caught a real empty
+  inbox: hydrated empty local state incorrectly suppressed initial remote sync.
+  hasSyncedInbox now distinguishes remote sync from local load. The same UI
+  assertions pass in final-4, with 283 units including the added regression.
+
+Limits
+- No physical phone/APNs, TestFlight, production network or iOS 17 runtime check.
+  No Swift TSAN, power-loss/hardware-corruption rehearsal or randomized XCTest
+  scheduling. SQLite rollback/failure/restart/migration/process cases do not prove
+  all OS termination timings or filesystem failures.
+- Background badges are best-effort: NSE execution/fetch/lock/deadline failure
+  can leave the old count until app entry reconciles it. No cross-device read sync.
+- Test-only temp SQLite teardown emits existing vnode-unlinked/file-descriptor
+  warnings; all final assertions pass. Build output also includes existing unused
+  result/AppIntents metadata warnings. No warning was relabeled as a test pass.
+- Source-specific earlier verifiers/evidence describe their own older contracts.
+  Use this entry point for the current local-read architecture. Build caches can
+  be regenerated; ignored final logs/reports/screenshots/xcresult remain local.

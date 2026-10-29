@@ -181,65 +181,62 @@ final class InboxPerformanceTests: XCTestCase {
         XCTAssertEqual(model.savedNotifications.count, 501)
     }
 
-    func testBatchReadSkipsLocalOnlyHistoryAndChunksSelectedIDs() async throws {
+    func testBulkReadOfRemoteAndLocalOnlyHistoryNeverSendsHTTP() async throws {
         let items = (0..<1000).map(performanceItem)
         try await store.save(items, scope: scope)
-        let model = model()
-        await model.refresh()
+        let model = model(); await model.refresh()
         let before = requests.count
         await model.markMatchingRead(Set(items.map(\.id)))
-        let sent = Array(requests.dropFirst(before))
-        XCTAssertEqual(sent.count, 3)
-        XCTAssertTrue(sent.allSatisfy { $0.url?.path == "/v1/inbox/read-selected" })
-        let ids = try sent.filter { $0.url?.path == "/v1/inbox/read-selected" }.flatMap { request -> [String] in
-            let json = try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]
-            let ids = json?["ids"] as? [String] ?? []
-            XCTAssertFalse(ids.isEmpty)
-            XCTAssertLessThanOrEqual(ids.count, 200)
-            return ids
-        }
-        XCTAssertEqual(Set(ids), Set((0..<500).map { "ntf_perf_\($0)" }))
+        XCTAssertEqual(requests.count, before)
         XCTAssertFalse(model.savedNotifications.contains(where: \.isUnread))
         XCTAssertTrue(model.failedGroupReadIDs.isEmpty)
     }
 
-    func testUnsupportedBatchFallsBackAndRollsBackOnlyFailures() async throws {
+    func testOldOrFailingServerCannotPreventLocalReads() async throws {
         InboxPerformanceProtocol.lock.withLock {
             InboxPerformanceProtocol.items = Array(InboxPerformanceProtocol.items.prefix(3))
-            InboxPerformanceProtocol.unsupported = true
-            InboxPerformanceProtocol.failingID = "ntf_perf_1"
+            InboxPerformanceProtocol.unsupported = true; InboxPerformanceProtocol.failingID = "ntf_perf_1"
         }
-        let model = model()
-        await model.refresh()
+        let model = model(); await model.refresh()
+        let before = requests.count
         await model.markMatchingRead(Set(model.savedNotifications.map(\.id)))
-        XCTAssertEqual(model.failedGroupReadIDs, ["ntf_perf_1"])
-        XCTAssertEqual(Set(model.savedNotifications.filter(\.isUnread).map(\.id)), ["ntf_perf_1"])
-        XCTAssertFalse(requests.contains { $0.url?.path == "/v1/inbox/read" })
+        XCTAssertTrue(model.failedGroupReadIDs.isEmpty)
+        XCTAssertFalse(model.savedNotifications.contains(where: \.isUnread))
+        XCTAssertEqual(requests.count, before)
     }
-    func testFailedDeltaIsRetriedWithTheNextChange() async throws {
-        let model = model()
-        await model.refresh()
+    func testFailedLocalReadTransactionCanRetryWithoutPretendingSuccess() async throws {
+        let model = model(); await model.refresh()
         var db: OpaquePointer?
         XCTAssertEqual(sqlite3_open(folder.appendingPathComponent("inbox.sqlite").path, &db), SQLITE_OK)
         defer { sqlite3_close(db) }
-        XCTAssertEqual(
-            sqlite3_exec(
-                db,
-                "CREATE TRIGGER fail_write BEFORE UPDATE ON inbox_messages BEGIN SELECT RAISE(ABORT,'injected'); END",
-                nil, nil, nil), SQLITE_OK)
-        let accepted = await model.markRead("ntf_perf_0")
-        XCTAssertTrue(accepted)
-        let until = Date().addingTimeInterval(3)
-        while model.inboxStorageError == nil && Date() < until { try await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertEqual(sqlite3_exec(db, "CREATE TRIGGER fail_write BEFORE UPDATE OF read_at ON inbox_messages BEGIN SELECT RAISE(ABORT,'injected'); END", nil, nil, nil), SQLITE_OK)
+        let before = requests.count
+        let failed = await model.markRead("ntf_perf_0"); XCTAssertFalse(failed)
         XCTAssertNotNil(model.inboxStorageError)
-        let before = try await store.load(scope: scope)
-        XCTAssertTrue(before?.first(where: { $0.id == "ntf_perf_0" })?.isUnread == true)
+        XCTAssertTrue(try XCTUnwrap(model.notification(id: "ntf_perf_0")).isUnread)
+        let durable = try await store.load(scope: scope)
+        XCTAssertTrue(try XCTUnwrap(durable?.first(where: { $0.id == "ntf_perf_0" })).isUnread)
         XCTAssertEqual(sqlite3_exec(db, "DROP TRIGGER fail_write", nil, nil, nil), SQLITE_OK)
-        let second = await model.markRead("ntf_perf_1")
-        XCTAssertTrue(second)
-        let after = try await store.load(scope: scope)
-        XCTAssertFalse(try XCTUnwrap(after?.first(where: { $0.id == "ntf_perf_0" })).isUnread)
-        XCTAssertFalse(try XCTUnwrap(after?.first(where: { $0.id == "ntf_perf_1" })).isUnread)
+        let retried = await model.markRead("ntf_perf_0"); XCTAssertTrue(retried)
+        XCTAssertNil(model.inboxStorageError, "a successful local write must clear its recovered error")
+        XCTAssertFalse(try XCTUnwrap(model.notification(id: "ntf_perf_0")).isUnread)
+        XCTAssertEqual(requests.count, before)
+    }
+
+    func testReadMutationDoesNotDecodeUnrelatedMessageBodies() async throws {
+        let model = model(); await model.refresh()
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(folder.appendingPathComponent("inbox.sqlite").path, &db), SQLITE_OK)
+        defer { sqlite3_close(db) }
+        // An unrelated opaque payload can be unreadable without blocking the
+        // indexed read-state transaction for an already-loaded healthy message.
+        XCTAssertEqual(sqlite3_exec(db, "UPDATE inbox_messages SET payload=x'00' WHERE id='ntf_perf_1'", nil, nil, nil), SQLITE_OK)
+        let before = requests.count
+        let read = await model.markRead("ntf_perf_0"); XCTAssertTrue(read)
+        XCTAssertFalse(try XCTUnwrap(model.notification(id: "ntf_perf_0")).isUnread)
+        XCTAssertNil(model.inboxStorageError, "read mutation must not decode unrelated bodies")
+        let unread = try await store.unreadCount(scope: scope); XCTAssertEqual(unread, 499)
+        XCTAssertEqual(requests.count, before)
     }
 
     func testCachedGettersAndGeneratedSearchAgreeWithCompleteLocalHistory() async throws {
@@ -275,31 +272,18 @@ final class InboxPerformanceTests: XCTestCase {
         XCTAssertTrue(model.notifications.isEmpty)
     }
 
-    func testSelectedReadHonorsRetryAfterAndRejectsInvalidAcknowledgement() async throws {
-        InboxPerformanceProtocol.lock.withLock { InboxPerformanceProtocol.items = [performanceItem(0)] }
-        let model = model()
-        await model.refresh()
-        InboxPerformanceProtocol.lock.withLock { InboxPerformanceProtocol.rateLimits = 1 }
+    func testLocalReadIgnoresServerRateLimitAndInvalidAcknowledgement() async throws {
+        InboxPerformanceProtocol.lock.withLock {
+            InboxPerformanceProtocol.items = [performanceItem(0)]
+            InboxPerformanceProtocol.rateLimits = 99
+            InboxPerformanceProtocol.invalidAcknowledgement = true
+        }
+        let model = model(); await model.refresh()
         let before = requests.count
-        let start = Date()
         await model.markMatchingRead(["ntf_perf_0"])
-        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(start), 1)
-        XCTAssertEqual(requests.count - before, 2)
+        XCTAssertEqual(requests.count, before)
         XCTAssertTrue(model.failedGroupReadIDs.isEmpty)
-        var item = performanceItem(1)
-        item.readAt = nil
-        try await store.applyChanges([item], scope: scope)
-        let restarted = self.model()
-        await restarted.refresh()
-        InboxPerformanceProtocol.lock.withLock { InboxPerformanceProtocol.invalidAcknowledgement = true }
-        // This record is still present remotely, so an invalid response must roll back.
-        await restarted.markMatchingRead(["ntf_perf_0"])
-        // Re-read state survived restart; use a fresh registered remote record.
-        InboxPerformanceProtocol.lock.withLock { InboxPerformanceProtocol.items = [performanceItem(2)] }
-        await restarted.refresh()
-        await restarted.markMatchingRead(["ntf_perf_2"])
-        XCTAssertEqual(restarted.failedGroupReadIDs, ["ntf_perf_2"])
-        XCTAssertTrue(try XCTUnwrap(restarted.notification(id: "ntf_perf_2")).isUnread)
+        XCTAssertFalse(try XCTUnwrap(model.notification(id: "ntf_perf_0")).isUnread)
     }
 
     func testProjectionExpiryAndCancelledWorkCannotPublishStaleMatches() async throws {
@@ -334,7 +318,7 @@ final class InboxPerformanceTests: XCTestCase {
         await syncing.value
         let beforeRead = requests.count
         await model.markMatchingRead(["ntf_perf_9999"])
-        XCTAssertEqual(Array(requests.dropFirst(beforeRead)).map { $0.url!.path }, ["/v1/inbox/read-selected"])
+        XCTAssertEqual(requests.count, beforeRead)
         XCTAssertFalse(try XCTUnwrap(model.notification(id: "ntf_perf_9999")).isUnread)
     }
 

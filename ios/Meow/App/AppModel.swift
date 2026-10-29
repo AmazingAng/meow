@@ -117,6 +117,7 @@ final class AppModel {
     private(set) var isLoading = false
     private(set) var isDeletingNotifications = false
     private(set) var hasLoaded = false
+    private(set) var hasSyncedInbox = false
     private(set) var loadError: String?
     private(set) var inboxStorageError: String?
     var filter = Filter.all {
@@ -174,7 +175,6 @@ final class AppModel {
         var revision: UInt64
     }
     @ObservationIgnored private var pendingInboxChanges: [String: PendingInboxChange] = [:]
-    @ObservationIgnored private var serverMembershipKnown = false
     @ObservationIgnored private var loadGeneration = 0
     @ObservationIgnored private var sessionGeneration = 0
     @ObservationIgnored private var hydrationTask: Task<[MeowNotification]?, Error>?
@@ -185,13 +185,7 @@ final class AppModel {
     @ObservationIgnored private var retryTask: Task<Void, Never>?
     @ObservationIgnored private var apnsToken: String?
     @ObservationIgnored private var readRequests: [String: UUID] = [:]
-    @ObservationIgnored private var countsRevision = 0
     @ObservationIgnored private var deletionRevision = 0
-    // Server cache membership is separate from the iPhone's durable history.
-    @ObservationIgnored private var serverNotificationIDs: Set<String> = []
-    @ObservationIgnored private var serverUnreadIDs: Set<String> = []
-    @ObservationIgnored private var serverPendingIDs: Set<String> = []
-    @ObservationIgnored private var serverCounts: InboxCounts?
 
     private enum Keys {
         static let onboarded = "onboarded"
@@ -300,6 +294,7 @@ final class AppModel {
             await replies.resume()
             isRegistered = true
             rebuildInboxGroups()
+            await hydrateInbox()
             if let apnsToken { sendAPNsToken(apnsToken) }
         } catch {
             alert = Self.describe(error)
@@ -347,7 +342,6 @@ final class AppModel {
         for entry in notificationFetches.values { entry.1.cancel() }
         notificationFetches = [:]
         pendingInboxChanges = [:]
-        serverMembershipKnown = false
         loadGeneration += 1
         hydrationTask?.cancel()
         hydrationTask = nil
@@ -377,10 +371,6 @@ final class AppModel {
         isMarkingAllRead = false
         failedGroupReadIDs = []
         savedNotifications = []
-        serverNotificationIDs = []
-        serverUnreadIDs = []
-        serverPendingIDs = []
-        serverCounts = nil
         details = [:]
         counts = InboxCounts()
         displayLimit = 50
@@ -390,6 +380,7 @@ final class AppModel {
         mutationRevision = 0
         itemRevisions = [:]
         hasLoaded = false
+        hasSyncedInbox = false
         loadError = nil
         inboxStorageError = nil
         inboxPath = []
@@ -399,7 +390,6 @@ final class AppModel {
         queuedReplies = [:]
         failedReplies = []
         readRequests = [:]
-        countsRevision += 1
         Task { try? await UNUserNotificationCenter.current().setBadgeCount(0) }
         return true
     }
@@ -720,7 +710,13 @@ final class AppModel {
         let generation = sessionGeneration
         if hydrationTask == nil {
             let store = inboxStore
-            hydrationTask = Task { try await store.load(scope: scope) }
+            hydrationTask = Task { [weak self] in
+                guard let self, generation == self.sessionGeneration, !self.isChangingServer else { throw CancellationError() }
+                try await store.prepareForApp()
+                guard generation == self.sessionGeneration, !self.isChangingServer else { throw CancellationError() }
+                try await store.activate(scope: scope)
+                return try await store.load(scope: scope)
+            }
         }
         guard let task = hydrationTask else { return }
         do {
@@ -774,10 +770,10 @@ final class AppModel {
         }
     }
 
-    private func changed(_ ids: [String]) {
+    private func changed(_ ids: [String], persist: Bool = true) {
         mutationRevision &+= 1
         for id in ids { itemRevisions[id] = mutationRevision }
-        persistInbox(Set(ids))
+        if persist { persistInbox(Set(ids)) }
     }
 
     func notification(id: String) -> MeowNotification? {
@@ -795,11 +791,9 @@ final class AppModel {
             let loaded = await loadDetail(id)
             guard loaded, generation == sessionGeneration, identity == NotificationIdentity.current, !isChangingServer
             else { return }
-            serverCounts = nil
-            counts = InboxCounts(
+                counts = InboxCounts(
                 unread: savedNotifications.filter(\.isUnread).count,
                 pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
-            countsRevision += 1
             updateBadge()
         }
         notificationFetches[id] = (request, task)
@@ -834,55 +828,33 @@ final class AppModel {
         isLoading = true
         defer { if generation == loadGeneration { isLoading = false } }
         await hydrateInbox()
+        await reloadSharedInbox()
         guard generation == loadGeneration, !isChangingServer else { return }
         let revision = mutationRevision
-        let countRevision = countsRevision
         do {
-            async let remoteCounts = try? await api.counts()
             let items = try await api.allInbox()
             guard generation == loadGeneration, !isChangingServer else { return }
             let current = Dictionary(savedNotifications.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             var merged = current
             for var item in items {
                 // Server omission/expiry is not a command to erase local history.
-                if item.readAt == nil { item.readAt = current[item.id]?.readAt }
+                item.readAt = current[item.id]?.readAt
                 if item.question?.status == .pending, let previous = current[item.id]?.question,
                    previous.status != .pending { item.question = previous }
                 merged[item.id] = item
             }
-            let knownRemoteIDs = serverNotificationIDs
-            serverNotificationIDs = Set(items.map(\.id))
-            serverUnreadIDs = Set(items.filter(\.isUnread).map(\.id))
-            serverPendingIDs = Set(items.filter { $0.question?.isOpen() == true }.map(\.id))
-            for (id, changedAt) in itemRevisions where changedAt > revision {
-                // nil also protects a server-confirmed deletion from an older snapshot.
-                merged[id] = current[id]
-                if let item = current[id], knownRemoteIDs.contains(id) {
-                    serverNotificationIDs.insert(id)
-                    if item.isUnread { serverUnreadIDs.insert(id) } else { serverUnreadIDs.remove(id) }
-                    if item.question?.isOpen() == true { serverPendingIDs.insert(id) } else { serverPendingIDs.remove(id) }
-                }
-            }
+            for (id, changedAt) in itemRevisions where changedAt > revision { merged[id] = current[id] }
             let changedIDs = Set(merged.compactMap { current[$0.key] == $0.value ? nil : $0.key })
             savedNotifications = ordered(Array(merged.values))
-            serverMembershipKnown = true
             let present = Set(savedNotifications.map(\.id))
             details = details.filter { present.contains($0.key) }
             hasLoaded = true
             loadError = nil
+            hasSyncedInbox = true
             // A failed local read must never turn a short server cache into a
             // complete local snapshot. Keep the disk history intact for retry.
             if hydratedScope == scope { persistInbox(changedIDs) }
-            let c = await remoteCounts
-            if generation == loadGeneration, countRevision == countsRevision {
-                serverCounts = c
-                if let c, mutationRevision == revision { counts = countsIncludingHistory(c) }
-                else {
-                    counts = InboxCounts(unread: savedNotifications.filter(\.isUnread).count,
-                        pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
-                }
-                countsRevision += 1
-            }
+            await reloadSharedInbox()
             guard generation == loadGeneration, !isChangingServer else { return }
             updateBadge()
         } catch {
@@ -992,7 +964,7 @@ final class AppModel {
             }
         }
         guard generation == sessionGeneration, !isChangingServer else { return }
-        if !removed.isEmpty { removeDeletedMessages(removed) }
+        if !removed.isEmpty { removeDeletedMessages(removed); await waitForInboxGrouping() }
         if !failed.isEmpty { alert = String(localized: "Couldn't delete \(failed.count) messages. Try again.") }
     }
 
@@ -1022,82 +994,54 @@ final class AppModel {
         rebuildInboxGroups()
     }
 
-    /// Freeze the complete matching ID set, including rows not yet displayed.
+    /// Read state belongs to this iPhone. Freeze IDs; commit once without HTTP.
     func markMatchingRead(_ ids: Set<String>) async {
-        guard !isMarkingGroupRead, !isMarkingAllRead, !isChangingServer, let api else { return }
-        let generation = sessionGeneration
-        let unread = Set(savedNotifications.filter(\.isUnread).map(\.id))
-            .union(details.values.filter(\.isUnread).map(\.id))
-        let targets = ids.intersection(unread).filter { readRequests[$0] == nil }.sorted()
-        guard !targets.isEmpty else { return }
-        let request = UUID(), readAt = Date.now
-        let revision = countsRevision
-        let unreadDelta = min(targets.count, counts.unread)
+        guard !isMarkingGroupRead, !isMarkingAllRead, !isChangingServer else { return }
         isMarkingGroupRead = true
-        failedGroupReadIDs = []
+        let generation = sessionGeneration
         defer { if generation == sessionGeneration { isMarkingGroupRead = false } }
+        _ = await readLocally(ids, reportFailure: true)
+    }
+
+    private func readLocally(_ ids: Set<String>, reportFailure: Bool) async -> Bool {
+        guard !Task.isCancelled, isRegistered, !isChangingServer, let scope = inboxScope else { return false }
+        await hydrateInbox()
+        guard hydratedScope == scope, !isChangingServer else { return false }
+        let targets = ids.intersection(Set((savedNotifications + Array(details.values)).filter(\.isUnread).map(\.id)))
+            .filter { readRequests[$0] == nil }
+        guard !targets.isEmpty else { return false }
+        let generation = sessionGeneration, request = UUID(), readAt = Date.now
         for id in targets { readRequests[id] = request }
-        setBatchRead(Set(targets), at: readAt)
-        counts.unread -= unreadDelta
-        updateBadge()
-        let remote = serverMembershipKnown ? targets.filter { serverNotificationIDs.contains($0) } : targets
-        let chunks = stride(from:0,to:remote.count,by:200).map { Array(remote[$0..<min($0+200,remote.count)]) }
-        var failed: Set<String> = []
-        for ids in chunks {
-            guard generation == sessionGeneration, !isChangingServer else { break }
-            failed.formUnion(await Self.markRemoteReads(ids, api: api))
-        }
-        guard generation == sessionGeneration, !isChangingServer else { return }
-        let rollback = failed.filter { readRequests[$0] == request && notification(id: $0)?.readAt == readAt }
-        if !rollback.isEmpty {
-            setBatchRead(rollback, at: nil)
-            if revision == countsRevision { counts.unread += min(rollback.count, unreadDelta) }
-            else if let serverCounts { counts = countsIncludingHistory(serverCounts) }
-            else { counts.unread = savedNotifications.filter(\.isUnread).count }
+        defer { for id in targets where readRequests[id] == request { readRequests[id] = nil } }
+        do {
+            let dirty = pendingInboxChanges.filter { targets.contains($0.key) && $0.value.item != nil }
+            try await inboxStore.markLocalRead(targets, scope: scope, at: readAt, pendingItems: dirty.values.compactMap(\.item))
+            guard generation == sessionGeneration, !isChangingServer else { return false }
+            for (id, change) in dirty where pendingInboxChanges[id]?.revision == change.revision { pendingInboxChanges[id] = nil }
+            if pendingInboxChanges.isEmpty { inboxStorageError = nil }
+            setBatchRead(targets, at: readAt)
+            failedGroupReadIDs = []
+            counts = InboxCounts(unread: savedNotifications.filter(\.isUnread).count,
+                                 pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
+            let revision = mutationRevision
+            if let unread = try? await inboxStore.unreadCount(scope: scope),
+               generation == sessionGeneration, revision == mutationRevision, !isChangingServer {
+                counts.unread = unread
+            }
+            guard generation == sessionGeneration, !isChangingServer else { return false }
             updateBadge()
+            await waitForInboxGrouping()
+            return true
+        } catch {
+            guard generation == sessionGeneration, !isChangingServer else { return false }
+            failedGroupReadIDs = targets
+            inboxStorageError = String(localized: "Couldn't save messages on this iPhone. (\(error.localizedDescription))")
+            if reportFailure { toast = Toast(message: String(localized: "Couldn't mark \(targets.count) messages as read. Try again.")) }
+            return false
         }
-        for id in targets where readRequests[id] == request { readRequests[id] = nil }
-        failedGroupReadIDs = rollback
-        if !rollback.isEmpty {
-            toast = Toast(message: String(localized: "Couldn't mark \(rollback.count) messages as read. Try again."))
-        }
-        await waitForInboxGrouping()
     }
 
-    private static func markRemoteReads(_ ids: [String], api: MeowAPI) async -> Set<String> {
-        for attempt in 0..<3 {
-            guard !Task.isCancelled else { return Set(ids) }
-            do { try await api.markRead(ids); return [] } catch let error as MeowAPIError
-                where error.status == 404 || error.status == 405
-            {
-                // No such batch route on an older server. Keep total fallback
-                // concurrency at four; chunks themselves are sent sequentially.
-                var failed: Set<String> = []
-                await withTaskGroup(of: (String, Bool).self) { group in
-                    var next = ids.makeIterator()
-                    for _ in 0..<4 {
-                        if let id = next.next() { group.addTask { (id, await markRemoteRead(id, api: api)) } }
-                    }
-                    while let (id, success) = await group.next() {
-                        if !success { failed.insert(id) }
-                        if let nextID = next.next() {
-                            group.addTask { (nextID, await markRemoteRead(nextID, api: api)) }
-                        }
-                    }
-                }
-                return failed
-            } catch let error as MeowAPIError where error.status == 429 && attempt < 2 {
-                do { try await Task.sleep(for: error.retryAfter ?? .seconds(1)) } catch { return Set(ids) }
-            } catch { return Set(ids) }
-        }
-        return Set(ids)
-    }
-
-    private static func markRemoteRead(_ id: String, api: MeowAPI) async -> Bool {
-        await performInboxMutation { try await api.markRead(id) }
-    }
-
-    /// Both operations are idempotent. Honor the server's rate limit without
+    /// Remote deletions are idempotent. Honor the server's rate limit without
     /// treating a missing cached record as an unsupported endpoint.
     private static func performInboxMutation(_ send: @Sendable () async throws -> Void) async -> Bool {
         for attempt in 0..<3 {
@@ -1118,7 +1062,7 @@ final class AppModel {
         for i in updated.indices where ids.contains(updated[i].id) { updated[i].readAt = date }
         savedNotifications = updated
         for (id, var item) in details where ids.contains(id) { item.readAt = date; details[id] = item }
-        changed(Array(ids))
+        changed(Array(ids), persist: false)
     }
 
     func loadMore() async {
@@ -1126,34 +1070,34 @@ final class AppModel {
         displayLimit += 50
     }
 
-    /// Counts alone cannot distinguish cache expiry from an unread local message.
+    /// Shared local history is the sole unread authority, including while offline.
     func refreshCounts() async {
-        if isLoading {
-            // An existing full sync will update server membership. Do not start a
-            // second snapshot that could overwrite a just-accepted local mutation.
-            counts = InboxCounts(unread: savedNotifications.filter(\.isUnread).count,
-                                 pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
-            countsRevision += 1
-            updateBadge()
-            return
-        }
-        await refresh()
+        await hydrateInbox()
+        await reloadSharedInbox()
+        updateBadge()
     }
 
-    private func countsIncludingHistory(_ remote: InboxCounts) -> InboxCounts {
-        var result = remote
-        for item in savedNotifications {
-            if !serverNotificationIDs.contains(item.id) {
-                if item.isUnread { result.unread += 1 }
-                if item.question?.isOpen() == true { result.pending += 1 }
-            } else {
-                if serverUnreadIDs.contains(item.id), !item.isUnread { result.unread -= 1 }
-                if serverPendingIDs.contains(item.id), item.question?.isOpen() != true { result.pending -= 1 }
-            }
+    private func reloadSharedInbox() async {
+        guard !isChangingServer, let scope = inboxScope, hydratedScope == scope else { return }
+        let generation = sessionGeneration, revision = mutationRevision
+        do {
+            let items = try await inboxStore.load(scope: scope) ?? []
+            guard generation == sessionGeneration, !isChangingServer else { return }
+            var merged = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            // Keep unsaved online content visible with its storage warning until
+            // the dirty patch succeeds. Tombstones remove older disk rows too.
+            for (id, change) in pendingInboxChanges { merged[id] = change.item }
+            for (id, changedAt) in itemRevisions where changedAt > revision { merged[id] = notification(id: id) }
+            savedNotifications = ordered(Array(merged.values))
+            let present = Set(savedNotifications.map(\.id))
+            details = details.filter { present.contains($0.key) }
+            counts = InboxCounts(unread: savedNotifications.filter(\.isUnread).count,
+                                 pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
+            await waitForInboxGrouping()
+        } catch {
+            guard generation == sessionGeneration else { return }
+            inboxStorageError = String(localized: "Couldn't read saved messages. (\(error.localizedDescription))")
         }
-        result.unread = max(0, result.unread)
-        result.pending = max(0, result.pending)
-        return result
     }
 
     /// Fetches one notification; returns whether it is available to show.
@@ -1167,12 +1111,11 @@ final class AppModel {
             var notification = try await api.notification(id)
             guard generation == sessionGeneration else { return false }
             guard revision == deletionRevision else { return self.notification(id: id) != nil }
-            if notification.readAt == nil { notification.readAt = self.notification(id: id)?.readAt }
+            notification.readAt = self.notification(id: id)?.readAt
             if notification.question?.status == .pending, let previous = self.notification(id: id)?.question,
                previous.status != .pending { notification.question = previous }
-            serverNotificationIDs.insert(id)
-            if notification.isUnread { serverUnreadIDs.insert(id) } else { serverUnreadIDs.remove(id) }
             upsert(notification)
+            await reloadSharedInbox()
             await waitForInboxGrouping()
             return true
         } catch let error as MeowAPIError where error.status == 404 {
@@ -1215,6 +1158,7 @@ final class AppModel {
             }
             let removed = Set((savedNotifications + Array(details.values)).filter(matches).map(\.id))
             removeDeletedMessages(removed)
+            await waitForInboxGrouping()
         } catch {
             guard generation == sessionGeneration, !isChangingServer, !Self.isCancellation(error) else { return }
             alert = String(localized: "Couldn't delete messages. \(Self.describe(error))")
@@ -1230,80 +1174,25 @@ final class AppModel {
         savedNotifications.removeAll { removed.contains($0.id) }
         details = details.filter { !removed.contains($0.key) }
         for id in removed { readRequests[id] = nil }
-        serverNotificationIDs.subtract(removed)
-        serverUnreadIDs.subtract(removed)
-        serverPendingIDs.subtract(removed)
-        serverCounts = nil
         inboxPath.removeAll { removed.contains($0) }
         changed(Array(removed))
         counts = InboxCounts(unread: savedNotifications.filter(\.isUnread).count,
                              pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
-        countsRevision += 1
         updateBadge()
     }
 
     @discardableResult
     func markRead(_ id: String, reportFailure: Bool = true) async -> Bool {
-        guard !Task.isCancelled, !isChangingServer, readRequests[id] == nil, var n = notification(id: id), n.isUnread, let api else { return false }
-        let generation = sessionGeneration
-        let revision = countsRevision
-        let request = UUID()
-        let readAt = Date.now
-        let unreadDelta = min(1, counts.unread)
-        readRequests[id] = request
-        n.readAt = readAt
-        upsert(n)
-        counts.unread -= unreadDelta
-        updateBadge()
-        defer { if readRequests[id] == request { readRequests[id] = nil } }
-        do {
-            try await api.markRead(id)
-        } catch let error as MeowAPIError where error.status == 404 && error.code == "not_found" {
-            // The saved message outlived its server cache. Its read state is local.
-        } catch {
-            guard generation == sessionGeneration, readRequests[id] == request else { return false }
-            if var current = notification(id: id), current.readAt == readAt {
-                current.readAt = nil
-                upsert(current)
-                if revision == countsRevision { counts.unread += unreadDelta }
-                else if let serverCounts { counts = countsIncludingHistory(serverCounts) }
-                updateBadge()
-            }
-            if reportFailure && !Self.isCancellation(error) {
-                toast = Toast(message: String(localized: "Couldn't mark as read. \(Self.describe(error))"))
-            }
-            await waitForInboxGrouping()
-            return false
-        }
-        await waitForInboxGrouping()
-        return generation == sessionGeneration && !isChangingServer
+        await readLocally([id], reportFailure: reportFailure)
     }
 
     func markAllRead() async {
-        guard !isChangingServer, !isMarkingAllRead, !isMarkingGroupRead, let api else { return }
-        let generation = sessionGeneration
+        guard !isChangingServer, !isMarkingAllRead, !isMarkingGroupRead else { return }
         isMarkingAllRead = true
+        let generation = sessionGeneration
         defer { if generation == sessionGeneration { isMarkingAllRead = false } }
-        do {
-            try await api.markAllRead()
-            guard generation == sessionGeneration, !isChangingServer else { return }
-            readRequests = [:]
-            var updated = savedNotifications
-            for i in updated.indices where updated[i].readAt == nil { updated[i].readAt = .now }
-            savedNotifications = updated
-            for (id, var n) in details where n.readAt == nil {
-                n.readAt = .now
-                details[id] = n
-            }
-            counts.unread = 0
-            countsRevision += 1
-            changed(savedNotifications.map(\.id))
-            await waitForInboxGrouping()
-            updateBadge()
-        } catch {
-            guard generation == sessionGeneration, !isChangingServer, !Self.isCancellation(error) else { return }
-            alert = Self.describe(error)
-        }
+        await hydrateInbox()
+        _ = await readLocally(Set(savedNotifications.map(\.id)), reportFailure: true)
     }
 
     /// Opens a notification, e.g. after the user taps a push.
@@ -1338,9 +1227,17 @@ final class AppModel {
         changed([q.notificationId])
     }
 
+    @ObservationIgnored private var badgeRevision = 0
     private func updateBadge() {
-        let unread = counts.unread
-        Task { try? await UNUserNotificationCenter.current().setBadgeCount(unread) }
+        guard let scope = inboxScope else { return }
+        let generation = sessionGeneration
+        badgeRevision += 1
+        let revision = badgeRevision
+        Task { [weak self] in
+            guard let self, let unread = try? await inboxStore.unreadCount(scope: scope),
+                  generation == sessionGeneration, revision == badgeRevision, !isChangingServer else { return }
+            try? await UNUserNotificationCenter.current().setBadgeCount(unread)
+        }
     }
 
     // MARK: Answers

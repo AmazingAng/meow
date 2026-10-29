@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('recovery', ROOT / 'ios/scripts/verify_frontend_recovery.py')
 recovery = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(recovery)
-SOURCE_FILES = ['ios/Meow/App/AppModel.swift', 'ios/Meow/App/InboxStore.swift', 'ios/Shared/MeowAPI.swift']
+SOURCE_FILES = ['ios/Meow/App/AppModel.swift', 'ios/Shared/InboxStore.swift', 'ios/Shared/MeowAPI.swift']
 
 
 def require(condition, message):

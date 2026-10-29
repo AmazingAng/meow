@@ -718,7 +718,6 @@ func (s *Store) markTime(ctx context.Context, col, deviceID, id string) error {
 type PushTarget struct {
 	Notification Notification
 	Device       Device
-	Badge        int // unread notifications, shown on the app icon
 }
 
 func (s *Store) PushTarget(ctx context.Context, notificationID string) (PushTarget, error) {
@@ -730,8 +729,7 @@ func (s *Store) PushTarget(ctx context.Context, notificationID string) (PushTarg
 	if err != nil {
 		return PushTarget{}, err
 	}
-	unread, _, err := s.InboxCounts(ctx, n.DeviceID)
-	return PushTarget{Notification: n, Device: d, Badge: unread}, err
+	return PushTarget{Notification: n, Device: d}, nil
 }
 
 func (s *Store) SetPushStatus(ctx context.Context, id, status, errMsg string) error {

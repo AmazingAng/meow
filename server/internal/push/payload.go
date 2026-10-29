@@ -76,7 +76,6 @@ func BuildMessage(t store.PushTarget) (Message, error) {
 	if n.Priority != "low" {
 		aps["sound"] = NotificationSound
 	}
-	aps["badge"] = t.Badge
 	if n.Source != "" {
 		aps["thread-id"] = n.Source
 	}

@@ -105,56 +105,36 @@ final class InboxGroupingModelTests: XCTestCase {
         await model.markInboxRead(.init(scope: "other-registration", ids: selection.ids))
         XCTAssertEqual(calls.value, 0)
         await model.markInboxRead(selection)
-        XCTAssertEqual(calls.value, 74)
+        XCTAssertEqual(calls.value, 0)
         XCTAssertEqual(Set(model.savedNotifications.filter(\.isUnread).map(\.id)), ["n74", "incoming"])
     }
 
-    func testThousandsOfReadTargetsPersistTogetherBeforeNetworkFinishes() async throws {
+    func testThousandsOfLocalReadTargetsCommitTogetherWithoutNetwork() async throws {
         let items = (0..<3000).map { item("n\($0)") }
         try await store.save(items, scope: scope)
-        try serve(items)
         let model = model(); await model.refresh()
         let selection = try XCTUnwrap(model.inboxSelection(model.savedNotifications))
         XCTAssertEqual(selection.ids.count, 3000)
-        let started = expectation(description: "four held reads"); started.expectedFulfillmentCount = 4
-        let release = DispatchSemaphore(value: 0), calls = Counter()
-        GroupingProtocol.install { _ in
-            let count = calls.incrementAndGet()
-            if count <= 4 { started.fulfill(); _ = release.wait(timeout: .now() + 10) }
-            return (200, Data("{}".utf8))
-        }
-        let reading = Task { await model.markInboxRead(selection) }
-        await fulfillment(of: [started], timeout: 5)
-        XCTAssertEqual(calls.value, 4)
+        let calls = Counter()
+        GroupingProtocol.install { _ in calls.increment(); throw URLError(.notConnectedToInternet) }
+        await model.markInboxRead(selection)
+        XCTAssertEqual(calls.value, 0)
         XCTAssertTrue(model.savedNotifications.allSatisfy { !$0.isUnread })
         XCTAssertEqual(model.counts.unread, 0)
         let saved = try await store.load(scope: scope)
         XCTAssertEqual(saved?.count, 3000)
-        XCTAssertTrue(saved?.allSatisfy { !$0.isUnread } == true, "the complete optimistic snapshot must reach SQLite before the network finishes")
-        for _ in 0..<4 { release.signal() }
-        await reading.value
-        XCTAssertEqual(calls.value, 3000)
-        XCTAssertTrue(model.savedNotifications.allSatisfy { !$0.isUnread })
+        XCTAssertTrue(saved?.allSatisfy { !$0.isUnread } == true)
     }
 
-    func testAnotherGroupVisitWaitsForActiveReadWithoutLosingItsSnapshot() async throws {
+    func testConcurrentGroupVisitsKeepBothLocalSelections() async throws {
         try await store.save([item("a"), item("b")], scope: scope)
-        try serve([item("a"), item("b")])
         let model = model(); await model.refresh()
-        let started = expectation(description: "first read in flight")
-        let release = DispatchSemaphore(value: 0), calls = Counter()
-        GroupingProtocol.install { request in
-            calls.increment()
-            if request.url!.path.contains("/a/") { started.fulfill(); _ = release.wait(timeout: .now() + 10) }
-            return (200, Data("{}".utf8))
-        }
-        let first = Task { await model.markInboxRead(.init(scope: scope, ids: ["a"])) }
-        await fulfillment(of: [started], timeout: 5)
-        let second = Task { await model.markInboxRead(.init(scope: scope, ids: ["b"])) }
-        for _ in 0..<5 { await Task.yield() }
-        XCTAssertEqual(calls.value, 1)
-        release.signal(); await first.value; await second.value
-        XCTAssertEqual(calls.value, 2)
+        let calls = Counter()
+        GroupingProtocol.install { _ in calls.increment(); throw URLError(.notConnectedToInternet) }
+        async let first: Void = model.markInboxRead(.init(scope: scope, ids: ["a"]))
+        async let second: Void = model.markInboxRead(.init(scope: scope, ids: ["b"]))
+        _ = await (first, second)
+        XCTAssertEqual(calls.value, 0)
         XCTAssertTrue(model.savedNotifications.allSatisfy { !$0.isUnread })
     }
 
@@ -177,75 +157,42 @@ final class InboxGroupingModelTests: XCTestCase {
         XCTAssertEqual(restarted.savedNotifications.count, 3)
     }
 
-    func testMatchingReadSnapshotsIncludeUndisplayedMessagesAndPartialFailuresRollBack() async throws {
+    func testMatchingLocalReadsIncludeUndisplayedRowsAndIgnoreRemoteFailure() async throws {
         let items = (0..<75).map { item("n\($0)", body: $0 == 74 ? "unmatched" : "needle") }
         try await store.save(items, scope: scope)
-        try serve(items)
         let model = model(); await model.refresh(); model.inboxMode = .sessions
         model.search = "needle"; await model.waitForInboxGrouping()
         let ids = Set(try XCTUnwrap(model.matchingInboxGroups.first).matches.map(\.id))
         XCTAssertEqual(ids.count, 74)
         let calls = Counter()
-        GroupingProtocol.install { request in
-            calls.increment()
-            if request.url!.path.contains("/n2/") { return (503, Data(#"{"error":{"code":"unavailable","message":"retry"}}"#.utf8)) }
-            if request.url!.path.contains("/n3/") { return (404, Data(#"{"error":{"code":"not_found","message":"expired cache"}}"#.utf8)) }
-            return (200, Data("{}".utf8))
-        }
+        GroupingProtocol.install { _ in calls.increment(); return (503, Data()) }
         await model.markMatchingRead(ids)
-        XCTAssertEqual(calls.value, 74)
-        XCTAssertEqual(model.savedNotifications.filter(\.isUnread).count, 2)
-        XCTAssertEqual(model.failedGroupReadIDs, ["n2"])
-        XCTAssertNotNil(model.toast)
-        XCTAssertFalse(try XCTUnwrap(model.notification(id: "n3")).isUnread)
-        XCTAssertTrue(try XCTUnwrap(model.notification(id: "n74")).isUnread)
-        GroupingProtocol.install { _ in (200, Data("{}".utf8)) }
-        await model.markMatchingRead(model.failedGroupReadIDs)
-        XCTAssertTrue(model.failedGroupReadIDs.isEmpty)
+        XCTAssertEqual(calls.value, 0)
         XCTAssertEqual(model.savedNotifications.filter(\.isUnread).map(\.id), ["n74"])
+        XCTAssertTrue(model.failedGroupReadIDs.isEmpty)
+        XCTAssertNil(model.toast)
     }
 
-    func testNewMessagesDuringMatchingReadRemainUnread() async throws {
+    func testNewSharedMessagesDuringMatchingReadRemainUnread() async throws {
         let initial = (0..<3).map { item("n\($0)") }
         try await store.save(initial, scope: scope)
-        try serve(initial)
         let model = model(); await model.refresh()
-        let started = expectation(description: "three reads in flight"); started.expectedFulfillmentCount = 3
-        let gate = DispatchSemaphore(value: 0), calls = Counter()
-        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.keyEncodingStrategy = .convertToSnakeCase
-        let page = try encoder.encode(InboxPage(notifications: initial + [item("incoming")]))
-        GroupingProtocol.install { request in
-            if request.url!.path.hasSuffix("/read") {
-                calls.increment(); started.fulfill(); _ = gate.wait(timeout: .now() + 10)
-                return (200, Data("{}".utf8))
-            }
-            return (200, request.url!.path.hasSuffix("/counts") ? Data(#"{"unread":4,"pending":0}"#.utf8) : page)
-        }
+        let calls = Counter()
+        GroupingProtocol.install { _ in calls.increment(); throw URLError(.notConnectedToInternet) }
         let operation = Task { await model.markMatchingRead(Set(initial.map(\.id))) }
-        await fulfillment(of: [started], timeout: 5)
-        await model.refresh()
-        for _ in 0..<3 { gate.signal() }
+        try await store.receiveVerified(item("incoming"), scope: scope)
         await operation.value
-        XCTAssertEqual(calls.value, 3)
+        await model.refreshCounts()
+        XCTAssertEqual(calls.value, 0)
         XCTAssertTrue(try XCTUnwrap(model.notification(id: "incoming")).isUnread)
         XCTAssertEqual(model.savedNotifications.filter(\.isUnread).map(\.id), ["incoming"])
     }
 
-    func testServerResetRejectsLateBatchReadFailures() async throws {
-        let initial = (0..<3).map { item("n\($0)") }
-        try await store.save(initial, scope: scope)
-        try serve(initial)
+    func testServerResetClearsLocalReadSelectionAndFeedback() async throws {
+        try await store.save((0..<3).map { item("n\($0)") }, scope: scope)
         let model = model(); await model.refresh()
-        let started = expectation(description: "three reads in flight"); started.expectedFulfillmentCount = 3
-        let gate = DispatchSemaphore(value: 0)
-        GroupingProtocol.install { _ in
-            started.fulfill(); _ = gate.wait(timeout: .now() + 10)
-            return (503, Data(#"{"error":{"code":"unavailable","message":"late failure"}}"#.utf8))
-        }
-        let operation = Task { await model.markMatchingRead(Set(initial.map(\.id))) }
-        await fulfillment(of: [started], timeout: 5)
+        let operation = Task { await model.markMatchingRead(["n0", "n1", "n2"]) }
         let reset = await model.reset(server: URL(string: "https://other.invalid")!)
-        for _ in 0..<3 { gate.signal() }
         await operation.value
         XCTAssertTrue(reset)
         XCTAssertTrue(model.savedNotifications.isEmpty)
@@ -294,24 +241,15 @@ final class InboxGroupingModelTests: XCTestCase {
         XCTAssertEqual(preferences.load(scope: scope), migrated)
     }
 
-    func testGlobalReadCannotBeSubmittedTwiceOrReportFailureInAnotherServer() async throws {
+    func testRepeatedLocalMarkAllAndResetNeedNoReadEndpoint() async throws {
         try await store.save([item("n")], scope: scope)
         let model = model(); await model.refresh()
-        let started = expectation(description: "global read in flight")
-        let gate = DispatchSemaphore(value: 0), calls = Counter()
-        GroupingProtocol.install { request in
-            XCTAssertEqual(request.url!.path, "/v1/inbox/read")
-            calls.increment(); started.fulfill(); _ = gate.wait(timeout: .now() + 10)
-            return (503, Data(#"{"error":{"code":"unavailable","message":"old server failure"}}"#.utf8))
-        }
-        let operation = Task { await model.markAllRead() }
-        await fulfillment(of: [started], timeout: 5)
-        XCTAssertTrue(model.isMarkingAllRead)
-        await model.markAllRead()
-        await model.markMatchingRead(["n"])
-        XCTAssertEqual(calls.value, 1)
+        let calls = Counter()
+        GroupingProtocol.install { _ in calls.increment(); return (503, Data()) }
+        await model.markAllRead(); await model.markAllRead(); await model.markMatchingRead(["n"])
+        XCTAssertEqual(calls.value, 0)
+        XCTAssertEqual(model.counts.unread, 0)
         let reset = await model.reset(server: URL(string: "https://other.invalid")!)
-        gate.signal(); await operation.value
         XCTAssertTrue(reset)
         XCTAssertFalse(model.isMarkingAllRead)
         XCTAssertNil(model.alert)

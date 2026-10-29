@@ -1,0 +1,80 @@
+Meow local unread authority — 2026-10-29; base cb19d9a.
+User approved local authority, shared SQLite, local reads independent of network,
+no server badge, safe fallback and coordinated rollout. Detailed spec approval:
+not obtained (autonomous run); independent verification not performed.
+Tier 3: durable migration, cross-process writes, registration/deletion races.
+Continue old-coder workflow; isolate on feat/local-unread-authority, preserve web/.
+No dependencies, releases, TestFlight upload, deployment or real-user pushes.
+
+Contract / acceptance
+- Shared InboxStore moves to ios/Shared. App and NSE use App Group SQLite with
+  WAL and short serialized transactions per connection. App imports the legacy
+  private DB once, in a transaction, keeps original files and retries failed
+  migration; existing target rows/read state survive import. A marker prevents
+  future resurrection from the retained legacy DB. Migration occurs only in app.
+- Separate indexed read_at column is authoritative; payload decoding overlays
+  that column. Existing local schema upgrades transactionally, preserving read
+  state. Remote read_at is ignored for new notifications; imported legacy state
+  is preserved. Upserts never reset local read state. Duplicate IDs count once.
+- App explicitly activates a registration in DB; extension cannot activate one.
+  Receipt transaction checks active scope/current identity. Erase invalidates
+  scope. Local deletion tombstones prevent stale sync/push resurrection.
+- Mark one/group/all currently selected local IDs read in one local transaction;
+  no HTTP read/count requests, no network-error rollback. Storage errors retain
+  prior durable state and expose feedback. Remote explicit deletion remains.
+- Main app reloads shared state on refresh; foreground receipts and list/detail
+  merges preserve newer reads/deletions. Counts/badge derive from saved local
+  history only; server cache expiry never changes them. Badge callbacks scope
+  checked. Extension receives full verified message before storing/counting.
+- Both direct and gateway paths fetch full origin records and use the same local
+  receipt/count mechanism. Direct origin failure retains its existing safe preview;
+  relay failure remains generic. Incoming server badge is stripped in extension.
+  Counts errors never hide verified text; auxiliary budget remains 250ms, late
+  callbacks cannot change content. No API count fetch in production extension.
+- Pushes omit aps.badge and server PushTarget no longer computes unread totals.
+  Existing server read/count endpoints remain compatible for old clients; new
+  app reads do not depend on them. No Go DB migration/retention/schema changes.
+- No new header controls, replies or approvals; English/Chinese storage feedback.
+
+Validation / intentional test contract updates
+RED migration, shared connections, receipt dedup/read preservation, deletion and
+scope races, offline bulk reads/no HTTP, counts remote disagreement, no aps.badge.
+Old network read rollback/Retry-After and remote count expectations are replaced
+with local storage failure/atomicity/no-network tests; this is the user-approved
+behavior change, not weaker assertions. Keep sender/API legacy scope tests.
+Native shared/model suite, iOS simulator units and separate UI installs; new
+cross-process SQLite executable test; full Go race/shuffle/vet/build/install.
+Scoped new logic coverage + negative controls, manual mutants and generated
+read/receipt/delete invariants. Repro entry point ios/scripts/verify_local_unread.py;
+logs/source hashes/report with explicit limitations and EVIDENCE here.
+
+Revisions / additional boundaries
+- Direct origin work is bounded by a 250ms preview deadline; it must not turn a
+  formerly immediate safe preview into a 12s network wait. Gateway hydration keeps
+  its existing bounded fetch timeout. Both paths save full verified origin data.
+- Badge count is read after receipt/persistence work completes, within the shared
+  auxiliary deadline. Reading earlier reproduced an old-count overwrite while a
+  user read the message during a pending receipt; regression added.
+- Independent UI assertions read the actual disposable simulator's shared SQLite
+  in read-only mode; HTTP fixture cache counts cannot impersonate phone state.
+- Migration overlap preserves newer target payloads. Read timestamps retain native
+  Date precision. Dirty failed upserts remain visible with storage feedback.
+- Hydration checks generation/reset state before and after migration, before
+  activation; an old hydration task cannot reactivate an erased scope.
+
+- Registration activates the shared local inbox before returning or publishing
+  APNs registration, including the first onboarding push before inbox refresh.
+
+- Reading unsaved online content after an earlier write failure must atomically
+  save selected pending payloads and their read flags. Nonselected pending rows
+  must not be inserted. A reproduced regression otherwise reported success while
+  the body/read state had never reached disk.
+
+- Read mutations update selected read columns and indexed counts only; they must
+  not decode unrelated payloads. Regression injects an unreadable unrelated blob
+  after the UI has loaded, then verifies the healthy message can be read without
+  a full-history load or network call. Explicit history reload still reports it.
+- Local cache loading and completed remote synchronization have separate states.
+  Registering/initializing an empty shared cache must not suppress the inbox's
+  first full sync. A real simulator test reproduced an empty inbox until this
+  distinction was added; no UI assertions were weakened.

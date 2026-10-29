@@ -155,7 +155,7 @@ enum NotificationContent {
     static func hydrate(_ n: MeowNotification, original: UNNotificationContent,
                         identity: NotificationIdentity, now: Date = .now) -> UNMutableNotificationContent? {
         guard let m = original.userInfo["meow"] as? [String: Any], identity.accepts(m),
-              m["relay"] as? Bool == true, m["id"] as? String == n.id else { return nil }
+              m["id"] as? String == n.id else { return nil }
         let content = fallback(original, identity: identity)
         content.title = n.compactHeadline
         content.subtitle = n.compactMetadata
@@ -175,7 +175,10 @@ enum NotificationContent {
             content.sound = .default
         }
         content.categoryIdentifier = NotificationCategory.info
-        var metadata: [String: Any] = ["id": n.id, "relay": true, "binding_id": identity.bindingID!, "hydrated": true]
+        var metadata: [String: Any] = ["id": n.id, "hydrated": true, "preview_format": "plain"]
+        if m["relay"] as? Bool == true {
+            metadata["relay"] = true; metadata["binding_id"] = identity.bindingID!
+        } else { metadata["device_id"] = identity.deviceID }
         if let q = n.question, q.isOpen(at: now) {
             metadata["question_id"] = q.id
             metadata["expires_at_epoch"] = q.expiresAt.timeIntervalSince1970
@@ -202,6 +205,8 @@ enum NotificationContent {
 
     private static func displayVerified(_ content: UNNotificationContent, identity: NotificationIdentity?, now: Date) -> UNNotificationContent {
         let updated = content.mutableCopy() as! UNMutableNotificationContent
+        // Server counts cannot override the local inbox, even on an old payload.
+        // Only a locally computed badge supplied by delivery may be displayed.
         // Older direct servers send raw Markdown. New servers mark their
         // already rendered preview, so literal asterisks aren't parsed twice.
         if let metadata = content.userInfo["meow"] as? [String: Any],
@@ -231,6 +236,8 @@ enum NotificationContent {
         if m["relay"] as? Bool == true {
             guard m["hydrated"] as? Bool == true,
                   let expiry = m["expires_at_epoch"] as? Double, expiry > now.timeIntervalSince1970 else { return false }
+        } else if let expiry = m["expires_at_epoch"] as? Double {
+            guard expiry > now.timeIntervalSince1970 else { return false }
         } else if let text = m["expires_at"] as? String {
             guard let expiry = MeowJSON.parseDate(text), expiry > now else { return false }
         }
