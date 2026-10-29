@@ -256,6 +256,14 @@ class Fixture(BaseHTTPRequestHandler):
             else:
                 type(self).sender_key_old += 1
             return self.send_json(dict(self.items[0], id='ntf_phone_test', title=body.get('title', 'Test')), 201)
+        if self.path == '/v1/inbox/read-selected':
+            selected = set(body.get('ids', []))
+            marked = 0
+            for item in self.items:
+                if item['id'] in selected and not item.get('read_at'):
+                    item['read_at'] = now
+                    marked += 1
+            return self.send_json({'marked': marked})
         for n in self.items:
             if self.path == '/v1/notifications/' + n['id'] + '/read' or self.path == '/v1/inbox/read':
                 n['read_at'] = now

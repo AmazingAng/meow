@@ -3587,6 +3587,22 @@
           }
         }
       }
+    },
+    "Loading saved messages…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading saved messages…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载已保存的消息…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

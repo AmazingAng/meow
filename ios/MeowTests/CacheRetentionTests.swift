@@ -82,6 +82,7 @@ final class CacheRetentionTests: XCTestCase {
         let restarted = AppModel(inboxStore: reopened)
         await restarted.refresh()
         restarted.search = "old"
+        await restarted.waitForInboxGrouping()
         XCTAssertEqual(restarted.notifications.map(\.id), ["old"])
         XCTAssertEqual(restarted.counts.unread, 2, "server zero must not hide unread local history")
         let disk = try await reopened.load(scope: scope)

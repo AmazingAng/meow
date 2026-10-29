@@ -1,0 +1,84 @@
+Meow iOS performance fixes — 2026-10-29
+Base 80c1668; Tier 3: concurrency, durable local state, additive mobile API.
+Spec approval: not obtained (autonomous run). Detailed spec not independently
+approved; user authorized fixing the five reviewed problems. Report confidence
+within the tested boundaries, not as independent verification.
+
+Setup: isolated branch fix/ios-performance, preserve untracked web/. No dependency
+or tool installs. Existing Swift/Xcode/iOS 17+, Go 1.27.2, Python standard library.
+Persist tests under ios/MeowTests and server/internal/{api,store}; reuse existing
+native-model and simulator fixture runners, adding ios/scripts/verify_ios_performance.py
+as a reproducible entry point. Add SPEC.txt and EVIDENCE.txt here. Commit/merge to
+main using the existing direct workflow after validation; no release or deploy.
+
+Acceptance / failure model
+1. Message projection: full local filtering/search/urgency projection runs off
+   MainActor once per revision/query/filter; getters only slice cached results.
+   Superseded work cancels and cannot publish stale/foreign-scope results.
+   Preserve local search fields, ordering, complete-history filtering before
+   pagination, legacy expiry and existing per-view merging. During projection
+   show progress, never a false no-results state or actionable stale rows.
+   Existing same-stack search assertions will await local projection completion;
+   retain all expected records and the no-network assertions (not a debounce or
+   server search). UI tests wait for visible results as before.
+2. Synchronization: overlapping refresh callers share a single sync task;
+   cancellation/registration switch invalidates and cancels it. A verified
+   foreground notification fetches its one record, not all history. Initial,
+   manual and foreground sync still reconcile the complete server cache with
+   independent phone history. Preserve mutation/deletion races and empty-cache
+   history. No notification omission may delete saved messages.
+3. Durable deltas: local changes encode/write only affected IDs and explicit
+   tombstones; unchanged full-sync rows are not reserialized. Retain serial
+   ordering, atomic patches, scoped erase, retryable dirty changes after failure,
+   and latest-version acknowledgements so a stale write callback cannot clear
+   newer pending state. Full snapshot save remains for explicit callers/tests.
+   Add a local scope/time/ID index without deleting old data.
+4. Selected reads: add POST /v1/inbox/read-selected with 1..200 notification IDs,
+   device-token auth, own-device scope only, duplicate-safe and idempotent;
+   return {marked: N}, treat absent/expired IDs as no-op. Never mark unselected
+   rows or disclose another device's records. No server schema migration.
+   App freezes selected unread IDs, applies/persists optimistic state once,
+   skips known local-only history, chunks remote IDs, respects Retry-After and
+   rolls back only failures. An unsupported 404/405 route falls back to existing
+   per-ID reads; never reuse the unrestricted mark-all endpoint for a selection.
+5. Extension: hydrate/validate origin first. Counts and delivery reporting run
+   concurrently within one 250ms auxiliary budget, then finish exactly once.
+   Timeout does not wait for cancellation-ignoring network closures. Ignore late
+   auxiliary results; always recheck registration at final display. Retain safe
+   fallback on hydration failure and OS expiry. Reports remain best-effort and
+   may be interrupted by extension termination. Test metadata concurrency,
+   deadline, cancellation, identity change and late completion.
+
+Verification: RED regressions before implementation per behavior; native model/
+SQLite/shared tests with only Keychain/UI/Bundle boundaries adapted; Release
+performance comparisons with 10000+ records; simulator unit and focused search,
+group/read/delete UI checks; Go race/shuffle/vet/installer checks; coverage gate
+for new pure projection/delta/batch logic with explicit scope; executed manual
+mutants and checker negative controls. Generated pagination/filter/selection
+properties. Isolated live API authorization/selection tests. Preserve source
+hashes and logs; no real credentials/pushes. Independent agent review not planned.
+
+Must not: delete phone history through cache expiry, change credential scopes,
+retention defaults or V1 notification-only behavior, add header buttons, change
+CLI/hooks or publish TestFlight without a separate user request. Keep English/
+Chinese progress labels aligned. Server update is required only for batching;
+the updated app remains compatible with older servers through per-ID fallback.
+
+Revisions (append-only)
+- Initial specification. The 250ms budget bounds auxiliary metadata waiting,
+  not origin fetch time; it does not claim a physical-device APNs latency SLA.
+
+- Regression fixture adaptation: local message tests await completed projections;
+  legacy per-ID write tests now populate real remote membership and explicitly
+  return unsupported for the new route. Their selection, rollback, persistence,
+  scope and legacy request-count assertions remain unchanged. Parallel NSE
+  reporting may begin before counts completes; its identity must match at start,
+  and final presentation must still discard old body/badge after a switch.
+- Batch chunks run sequentially; old-server per-ID fallback retains four workers.
+
+- Adversarial full-sync/foreground-arrival test reproduced lost remote membership.
+  Preserve membership and read/pending sets for verified newer local mutations
+  when an older snapshot arrives. The selected-read regression must send remotely.
+- Simulator cases use separate disposable installations. Reusing a registration
+  and identical fixture IDs across scenarios preserves phone read state by design;
+  resetting the HTTP fixture alone cannot reset it. Do not weaken UI expectations.

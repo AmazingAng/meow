@@ -257,7 +257,7 @@ extension InboxDeletionModelTests {
                 XCTAssertEqual(request.httpMethod, deleting ? "DELETE" : "POST")
                 let count = lock.withLock { times.append(.now); return times.count }
                 if count == 1 { return (429, Data(#"{"error":{"code":"rate_limited","message":"wait"}}"#.utf8)) }
-                return (204, Data())
+                return deleting ? (204, Data()) : (200, Data(#"{"marked":1}"#.utf8))
             }
             if deleting { await model.deleteNotifications(selection) }
             else { await model.markInboxRead(selection) }

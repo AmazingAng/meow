@@ -113,15 +113,14 @@ Configuration lives in `~/.config/meow/config.json` (mode 0600); `MEOW_KEY`, `ME
 ## Local inbox and search
 
 The iOS app saves synchronized messages in a local SQLite database. Search, grouping and display pagination use those saved messages
-without network requests, including history beyond the first visible page.
+without network requests, including history beyond the first visible page. Search is computed in a cancellable background projection; the app shows progress until the current query is ready.
 Saved history remains searchable after restarting the app while offline.
 
 Entering a session, project or Agent group marks the current matching snapshot read once. New arrivals remain unread. Swipe a message or group left to mark it read or delete it; group deletion confirms the matching message count and removes successful items from both server and iPhone. The header contains only view switching, deletion and search; read actions remain on groups and messages. Search and pagination never broaden these operations beyond the selected IDs.
 
 On foreground entry or pull-to-refresh, the app loads saved messages first and
 fetches every page of retained server history in the background. Only a complete
-snapshot reconciles deletions; a failed page preserves the previous cache. This
-uses the existing API and needs no server upgrade. The first synchronization can
+snapshot merges remote changes; omission never deletes local history, and a failed page preserves it. Overlapping refreshes share one download; verified foreground pushes fetch only their changed record. Local mutations persist small atomic SQLite patches rather than re-encoding the complete history. The first synchronization can
 take longer; empty results show progress while synchronization is outstanding.
 The notification extension does not open this database: background notifications
 enter the cache when the main app fetches them. Switching servers or re-registering
@@ -237,6 +236,7 @@ Only SHA-256 hashes of both are stored.
 | `POST /v1/devices` | none | register; returns the device token and the first Device Key once |
 | `GET/PATCH /v1/device`, `GET/POST /v1/keys`, `DELETE /v1/keys/{id}` | device token | |
 | `GET /v1/inbox`, `POST /v1/notifications/{id}/read`, `…/delivered` | device token | |
+| `POST /v1/inbox/read-selected` | device token | `{ids: [1..200 notification IDs]}` → `{marked: N}`; own device only; absent/already-read IDs are no-ops |
 | `DELETE /v1/notifications/{id}` | device token | permanently delete one message; `204`, or `404` if missing |
 | `DELETE /v1/inbox?from=…&before=…` | device token | delete this device's messages created in `[from, before)`; Unix milliseconds; returns `{deleted: N}` |
 

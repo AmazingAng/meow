@@ -13,7 +13,11 @@ private final class GroupingProtocol: URLProtocol, @unchecked Sendable {
         DispatchQueue.global().async {
             do {
                 guard let handler = Self.lock.withLock({ Self.handler }) else { throw URLError(.cancelled) }
-                let (status, data) = try handler(self.request)
+                // This fixture deliberately represents an older server. The separate
+                // performance fixture exercises the supported batch endpoint.
+                let (status, data) = self.request.url!.path.hasSuffix("/read-selected")
+                    ? (404, Data(#"{"error":{"code":"not_found","message":"unsupported route"}}"#.utf8))
+                    : try handler(self.request)
                 self.client?.urlProtocol(self, didReceive: HTTPURLResponse(url: self.request.url!, statusCode: status,
                     httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
                 self.client?.urlProtocol(self, didLoad: data)
@@ -59,6 +63,15 @@ final class InboxGroupingModelTests: XCTestCase {
                  inboxStore: store, groupingStore: preferences)
     }
 
+    private func serve(_ items: [MeowNotification]) throws {
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.keyEncodingStrategy = .convertToSnakeCase
+        let page = try encoder.encode(InboxPage(notifications: items))
+        GroupingProtocol.install { request in
+            (200, request.url!.path.hasSuffix("/counts")
+                ? Data("{\"unread\":\(items.count),\"pending\":0}".utf8) : page)
+        }
+    }
+
     func testGroupPagingSearchAndCountsCoverEntireLocalHistoryWithoutHTTP() async throws {
         try await store.save((0..<120).map { item("n\($0)", session: "Session \($0)") }, scope: scope)
         let model = model(); await model.refresh()
@@ -99,6 +112,7 @@ final class InboxGroupingModelTests: XCTestCase {
     func testThousandsOfReadTargetsPersistTogetherBeforeNetworkFinishes() async throws {
         let items = (0..<3000).map { item("n\($0)") }
         try await store.save(items, scope: scope)
+        try serve(items)
         let model = model(); await model.refresh()
         let selection = try XCTUnwrap(model.inboxSelection(model.savedNotifications))
         XCTAssertEqual(selection.ids.count, 3000)
@@ -125,6 +139,7 @@ final class InboxGroupingModelTests: XCTestCase {
 
     func testAnotherGroupVisitWaitsForActiveReadWithoutLosingItsSnapshot() async throws {
         try await store.save([item("a"), item("b")], scope: scope)
+        try serve([item("a"), item("b")])
         let model = model(); await model.refresh()
         let started = expectation(description: "first read in flight")
         let release = DispatchSemaphore(value: 0), calls = Counter()
@@ -165,6 +180,7 @@ final class InboxGroupingModelTests: XCTestCase {
     func testMatchingReadSnapshotsIncludeUndisplayedMessagesAndPartialFailuresRollBack() async throws {
         let items = (0..<75).map { item("n\($0)", body: $0 == 74 ? "unmatched" : "needle") }
         try await store.save(items, scope: scope)
+        try serve(items)
         let model = model(); await model.refresh(); model.inboxMode = .sessions
         model.search = "needle"; await model.waitForInboxGrouping()
         let ids = Set(try XCTUnwrap(model.matchingInboxGroups.first).matches.map(\.id))
@@ -192,6 +208,7 @@ final class InboxGroupingModelTests: XCTestCase {
     func testNewMessagesDuringMatchingReadRemainUnread() async throws {
         let initial = (0..<3).map { item("n\($0)") }
         try await store.save(initial, scope: scope)
+        try serve(initial)
         let model = model(); await model.refresh()
         let started = expectation(description: "three reads in flight"); started.expectedFulfillmentCount = 3
         let gate = DispatchSemaphore(value: 0), calls = Counter()
@@ -217,6 +234,7 @@ final class InboxGroupingModelTests: XCTestCase {
     func testServerResetRejectsLateBatchReadFailures() async throws {
         let initial = (0..<3).map { item("n\($0)") }
         try await store.save(initial, scope: scope)
+        try serve(initial)
         let model = model(); await model.refresh()
         let started = expectation(description: "three reads in flight"); started.expectedFulfillmentCount = 3
         let gate = DispatchSemaphore(value: 0)

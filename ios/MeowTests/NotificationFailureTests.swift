@@ -176,7 +176,9 @@ extension GatewayContentTests {
         let original = wake()
         original.threadIdentifier = "old-thread"
         let delivery = NotificationDelivery(original: original, currentIdentity: { capture.current() }, fetch: { _, _ in n },
-            report: { _, _ in XCTFail("must not start receipt after switching") }, counts: { _ in
+            report: { _, usedIdentity in
+                XCTAssertEqual(capture.current(), usedIdentity, "receipt must begin only in its original registration")
+            }, counts: { _ in
                 await gate.wait(); return 99
             }, handler: { capture.append($0); done.fulfill() })
         delivery.start()

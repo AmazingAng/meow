@@ -44,7 +44,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) {
         NotificationCallback.run { () -> UNNotificationPresentationOptions in
             // An unreachable API must not hold up the system presentation.
-            Task { await self.model.refresh() }
+            let metadata = notification.request.content.userInfo["meow"] as? [String: Any]
+            if let metadata, let identity = NotificationIdentity.current,
+               identity.accepts(metadata), let id = metadata["id"] as? String {
+                Task { await self.model.receiveNotification(id, identity: identity) }
+            }
             return [.banner, .list, .sound, .badge]
         } completion: { completionHandler($0) }
     }

@@ -92,19 +92,26 @@ final class AppModel {
 
     private(set) var savedNotifications: [MeowNotification] = [] { didSet { rebuildInboxGroups() } }
     private var displayLimit = 50
+    private var messageProjection = InboxProjection()
+    private(set) var isProjectingMessages = false
+    private var projectionMatchesQuery: Bool {
+        messageProjection.query == search.trimmingCharacters(in: .whitespacesAndNewlines)
+            && messageProjection.unreadOnly == (filter == .unread)
+            && messageProjection.pendingOnly == (filter == .pending)
+    }
     var notifications: [MeowNotification] {
-        let matches = matchingNotifications
-        if filter == .all, search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let groups = InboxPresentation(matches, now: .now)
-            return groups.pending + Array(groups.activity.prefix(displayLimit))
+        guard projectionMatchesQuery else { return [] }
+        if filter == .pending { return messageProjection.pending }
+        if filter == .all, messageProjection.query.isEmpty {
+            return messageProjection.pending + Array(messageProjection.activity.prefix(displayLimit))
         }
-        return filter == .pending ? InboxPresentation(matches, now: .now).pending : Array(matches.prefix(displayLimit))
+        return Array(messageProjection.matches.prefix(displayLimit))
     }
     private(set) var counts = InboxCounts()
     var nextCursor: String? {
-        let matches = matchingNotifications
-        let count = filter == .all && search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? InboxPresentation(matches, now: .now).activity.count : matches.count
+        guard projectionMatchesQuery else { return nil }
+        let count = filter == .all && messageProjection.query.isEmpty
+            ? messageProjection.activity.count : messageProjection.matches.count
         return filter != .pending && count > displayLimit ? "local-\(displayLimit)" : nil
     }
     private(set) var isLoading = false
@@ -159,6 +166,15 @@ final class AppModel {
     @ObservationIgnored private let pushSession: URLSession
     @ObservationIgnored private let inboxStore: InboxStore
     @ObservationIgnored private let saveDeviceKey: (String) -> Bool
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshTaskID: UUID?
+    @ObservationIgnored private var notificationFetches: [String: (UUID, Task<Void, Never>)] = [:]
+    private struct PendingInboxChange: Sendable {
+        var item: MeowNotification?
+        var revision: UInt64
+    }
+    @ObservationIgnored private var pendingInboxChanges: [String: PendingInboxChange] = [:]
+    @ObservationIgnored private var serverMembershipKnown = false
     @ObservationIgnored private var loadGeneration = 0
     @ObservationIgnored private var sessionGeneration = 0
     @ObservationIgnored private var hydrationTask: Task<[MeowNotification]?, Error>?
@@ -327,6 +343,11 @@ final class AppModel {
         isConfiguringPush = false
         if let previousGateway { Self.revokeGateway(previousGateway, session: pushSession) }
         sessionGeneration += 1
+        refreshTask?.cancel(); refreshTask = nil; refreshTaskID = nil
+        for entry in notificationFetches.values { entry.1.cancel() }
+        notificationFetches = [:]
+        pendingInboxChanges = [:]
+        serverMembershipKnown = false
         loadGeneration += 1
         hydrationTask?.cancel()
         hydrationTask = nil
@@ -350,6 +371,8 @@ final class AppModel {
         groupingRevision += 1
         allInboxGroups = []
         isGroupingInbox = false
+        isProjectingMessages = false
+        messageProjection = InboxProjection()
         isMarkingGroupRead = false
         isMarkingAllRead = false
         failedGroupReadIDs = []
@@ -688,22 +711,6 @@ final class AppModel {
         return InboxStore.scope(server: server, token: token)
     }
 
-    private var matchingNotifications: [MeowNotification] {
-        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        return savedNotifications.filter { notification in
-            let inFilter: Bool
-            switch filter {
-            case .all: inFilter = true
-            case .unread: inFilter = notification.isUnread
-            case .pending: inFilter = notification.question?.isOpen() == true
-            }
-            return inFilter && (query.isEmpty || notification.title.localizedCaseInsensitiveContains(query)
-                || notification.body.localizedCaseInsensitiveContains(query)
-                || notification.source.localizedCaseInsensitiveContains(query)
-                || notification.context?.searchText.localizedCaseInsensitiveContains(query) == true)
-        }
-    }
-
     private func ordered(_ items: [MeowNotification]) -> [MeowNotification] {
         items.sorted { $0.createdAt == $1.createdAt ? $0.id > $1.id : $0.createdAt > $1.createdAt }
     }
@@ -734,19 +741,34 @@ final class AppModel {
         }
     }
 
-    private func persistInbox() {
+    private func persistInbox(_ ids: Set<String> = []) {
         guard !isChangingServer, let scope = inboxScope, hydratedScope == scope else { return }
         let generation = sessionGeneration
         persistenceRevision &+= 1
         let revision = persistenceRevision
-        inboxStore.enqueueSave(savedNotifications, scope: scope) { [weak self] result in
+        var remaining = ids
+        for item in savedNotifications where ids.contains(item.id) {
+            pendingInboxChanges[item.id] = PendingInboxChange(item: item, revision: revision)
+            remaining.remove(item.id)
+        }
+        for id in remaining { pendingInboxChanges[id] = PendingInboxChange(item: details[id], revision: revision) }
+        let batch = pendingInboxChanges
+        let upserts = batch.values.compactMap(\.item)
+        let deleted = Set(batch.filter { $0.value.item == nil }.keys)
+        inboxStore.enqueueChanges(upserts, deleting: deleted, scope: scope) { [weak self] result in
             Task { @MainActor in
-                guard let self, generation == self.sessionGeneration, !self.isChangingServer,
-                      revision == self.persistenceRevision else { return }
+                guard let self, generation == self.sessionGeneration, !self.isChangingServer else { return }
+                if case .success = result {
+                    for (id, change) in batch where self.pendingInboxChanges[id]?.revision == change.revision {
+                        self.pendingInboxChanges[id] = nil
+                    }
+                }
+                guard revision == self.persistenceRevision else { return }
                 switch result {
                 case .success: self.inboxStorageError = nil
                 case .failure(let error):
-                    self.inboxStorageError = String(localized: "Couldn't save messages on this iPhone. (\(error.localizedDescription))")
+                    self.inboxStorageError = String(
+                        localized: "Couldn't save messages on this iPhone. (\(error.localizedDescription))")
                 }
             }
         }
@@ -755,14 +777,57 @@ final class AppModel {
     private func changed(_ ids: [String]) {
         mutationRevision &+= 1
         for id in ids { itemRevisions[id] = mutationRevision }
-        persistInbox()
+        persistInbox(Set(ids))
     }
 
     func notification(id: String) -> MeowNotification? {
         savedNotifications.first { $0.id == id } ?? details[id]
     }
 
+    /// A verified foreground wake already identifies the one changed record.
+    /// Do not redownload the entire server cache for every incoming push.
+    func receiveNotification(_ id: String, identity: NotificationIdentity) async {
+        guard isRegistered, !isChangingServer, identity == NotificationIdentity.current else { return }
+        if let existing = notificationFetches[id] { await existing.1.value; return }
+        let generation = sessionGeneration, request = UUID()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            let loaded = await loadDetail(id)
+            guard loaded, generation == sessionGeneration, identity == NotificationIdentity.current, !isChangingServer
+            else { return }
+            serverCounts = nil
+            counts = InboxCounts(
+                unread: savedNotifications.filter(\.isUnread).count,
+                pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
+            countsRevision += 1
+            updateBadge()
+        }
+        notificationFetches[id] = (request, task)
+        await task.value
+        if notificationFetches[id]?.0 == request { notificationFetches[id] = nil }
+        await waitForInboxGrouping()
+    }
+
     func refresh() async {
+        guard isRegistered, !isChangingServer else { return }
+        if let task = refreshTask {
+            await withTaskCancellationHandler(operation: { await task.value }, onCancel: { task.cancel() })
+            await waitForInboxGrouping()
+            return
+        }
+        let id = UUID()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await refreshSnapshot()
+        }
+        refreshTaskID = id
+        refreshTask = task
+        await withTaskCancellationHandler(operation: { await task.value }, onCancel: { task.cancel() })
+        if refreshTaskID == id { refreshTask = nil; refreshTaskID = nil }
+        await waitForInboxGrouping()
+    }
+
+    private func refreshSnapshot() async {
         guard isRegistered, !isChangingServer, let api, let scope = inboxScope else { return }
         loadGeneration += 1
         let generation = loadGeneration
@@ -785,21 +850,29 @@ final class AppModel {
                    previous.status != .pending { item.question = previous }
                 merged[item.id] = item
             }
+            let knownRemoteIDs = serverNotificationIDs
             serverNotificationIDs = Set(items.map(\.id))
             serverUnreadIDs = Set(items.filter(\.isUnread).map(\.id))
             serverPendingIDs = Set(items.filter { $0.question?.isOpen() == true }.map(\.id))
             for (id, changedAt) in itemRevisions where changedAt > revision {
                 // nil also protects a server-confirmed deletion from an older snapshot.
                 merged[id] = current[id]
+                if let item = current[id], knownRemoteIDs.contains(id) {
+                    serverNotificationIDs.insert(id)
+                    if item.isUnread { serverUnreadIDs.insert(id) } else { serverUnreadIDs.remove(id) }
+                    if item.question?.isOpen() == true { serverPendingIDs.insert(id) } else { serverPendingIDs.remove(id) }
+                }
             }
+            let changedIDs = Set(merged.compactMap { current[$0.key] == $0.value ? nil : $0.key })
             savedNotifications = ordered(Array(merged.values))
+            serverMembershipKnown = true
             let present = Set(savedNotifications.map(\.id))
             details = details.filter { present.contains($0.key) }
             hasLoaded = true
             loadError = nil
             // A failed local read must never turn a short server cache into a
             // complete local snapshot. Keep the disk history intact for retry.
-            if hydratedScope == scope { persistInbox() }
+            if hydratedScope == scope { persistInbox(changedIDs) }
             let c = await remoteCounts
             if generation == loadGeneration, countRevision == countsRevision {
                 serverCounts = c
@@ -825,26 +898,59 @@ final class AppModel {
         groupingRevision += 1
         let revision = groupingRevision
         groupingTask?.cancel()
-        guard inboxMode != .messages, !isChangingServer, let scope = inboxScope else {
+        guard !isChangingServer, let scope = inboxScope else {
             allInboxGroups = []; isGroupingInbox = false
+            messageProjection = InboxProjection(); isProjectingMessages = false
             return
         }
         let items = savedNotifications, mode = inboxMode, query = search
-        let unreadOnly = filter == .unread, rules = groupingStore.load(scope: scope)
-        isGroupingInbox = true
+        let unreadOnly = filter == .unread, pendingOnly = filter == .pending
+        let rules = groupingStore.load(scope: scope), now = Date.now
+        isGroupingInbox = mode != .messages
+        isProjectingMessages = mode == .messages
         groupingTask = Task {
-            let work = Task.detached(priority: .userInitiated) {
-                InboxGrouping.project(items, mode: mode, scope: scope, rules: rules, query: query, unreadOnly: unreadOnly)
+            if mode == .messages {
+                let work = Task.detached(priority: .userInitiated) {
+                    InboxProjection.build(
+                        items, query: query, unreadOnly: unreadOnly, pendingOnly: pendingOnly, now: now)
+                }
+                let result = await withTaskCancellationHandler(
+                    operation: { await work.value }, onCancel: { work.cancel() })
+                guard !Task.isCancelled, revision == groupingRevision, scope == inboxScope, !isChangingServer else {
+                    return
+                }
+                messageProjection = result
+                isProjectingMessages = false
+            } else {
+                let work = Task.detached(priority: .userInitiated) {
+                    InboxGrouping.project(
+                        items, mode: mode, scope: scope, rules: rules, query: query, unreadOnly: unreadOnly)
+                }
+                let result = await withTaskCancellationHandler(
+                    operation: { await work.value }, onCancel: { work.cancel() })
+                guard !Task.isCancelled, revision == groupingRevision, scope == inboxScope, !isChangingServer else {
+                    return
+                }
+                if result.rules != rules { groupingStore.save(result.rules, scope: scope) }
+                allInboxGroups = result.groups
+                isGroupingInbox = false
             }
-            let result = await withTaskCancellationHandler(operation: { await work.value }, onCancel: { work.cancel() })
-            guard !Task.isCancelled, revision == groupingRevision, scope == inboxScope, !isChangingServer else { return }
-            if result.rules != rules { groupingStore.save(result.rules, scope: scope) }
-            allInboxGroups = result.groups
-            isGroupingInbox = false
         }
     }
 
-    func waitForInboxGrouping() async { await groupingTask?.value }
+    func waitForInboxGrouping() async {
+        while let task = groupingTask {
+            let revision = groupingRevision
+            await task.value
+            if revision == groupingRevision { return }
+        }
+    }
+
+    func refreshInboxPresentation() async {
+        rebuildInboxGroups()
+        await waitForInboxGrouping()
+    }
+
     func loadMoreInboxGroups() { groupDisplayLimit += 50 }
     func inboxGroup(_ id: String) -> InboxGroup? { allInboxGroups.first { $0.id == id } }
 
@@ -934,17 +1040,12 @@ final class AppModel {
         setBatchRead(Set(targets), at: readAt)
         counts.unread -= unreadDelta
         updateBadge()
+        let remote = serverMembershipKnown ? targets.filter { serverNotificationIDs.contains($0) } : targets
+        let chunks = stride(from:0,to:remote.count,by:200).map { Array(remote[$0..<min($0+200,remote.count)]) }
         var failed: Set<String> = []
-        await withTaskGroup(of: (String, Bool).self) { group in
-            var next = targets.makeIterator()
-            for _ in 0..<4 {
-                if let id = next.next() { group.addTask { (id, await Self.markRemoteRead(id, api: api)) } }
-            }
-            while let (id, success) = await group.next() {
-                guard generation == sessionGeneration, !isChangingServer else { group.cancelAll(); break }
-                if !success { failed.insert(id) }
-                if let id = next.next() { group.addTask { (id, await Self.markRemoteRead(id, api: api)) } }
-            }
+        for ids in chunks {
+            guard generation == sessionGeneration, !isChangingServer else { break }
+            failed.formUnion(await Self.markRemoteReads(ids, api: api))
         }
         guard generation == sessionGeneration, !isChangingServer else { return }
         let rollback = failed.filter { readRequests[$0] == request && notification(id: $0)?.readAt == readAt }
@@ -960,6 +1061,36 @@ final class AppModel {
         if !rollback.isEmpty {
             toast = Toast(message: String(localized: "Couldn't mark \(rollback.count) messages as read. Try again."))
         }
+        await waitForInboxGrouping()
+    }
+
+    private static func markRemoteReads(_ ids: [String], api: MeowAPI) async -> Set<String> {
+        for attempt in 0..<3 {
+            guard !Task.isCancelled else { return Set(ids) }
+            do { try await api.markRead(ids); return [] } catch let error as MeowAPIError
+                where error.status == 404 || error.status == 405
+            {
+                // No such batch route on an older server. Keep total fallback
+                // concurrency at four; chunks themselves are sent sequentially.
+                var failed: Set<String> = []
+                await withTaskGroup(of: (String, Bool).self) { group in
+                    var next = ids.makeIterator()
+                    for _ in 0..<4 {
+                        if let id = next.next() { group.addTask { (id, await markRemoteRead(id, api: api)) } }
+                    }
+                    while let (id, success) = await group.next() {
+                        if !success { failed.insert(id) }
+                        if let nextID = next.next() {
+                            group.addTask { (nextID, await markRemoteRead(nextID, api: api)) }
+                        }
+                    }
+                }
+                return failed
+            } catch let error as MeowAPIError where error.status == 429 && attempt < 2 {
+                do { try await Task.sleep(for: error.retryAfter ?? .seconds(1)) } catch { return Set(ids) }
+            } catch { return Set(ids) }
+        }
+        return Set(ids)
     }
 
     private static func markRemoteRead(_ id: String, api: MeowAPI) async -> Bool {
@@ -1039,7 +1170,10 @@ final class AppModel {
             if notification.readAt == nil { notification.readAt = self.notification(id: id)?.readAt }
             if notification.question?.status == .pending, let previous = self.notification(id: id)?.question,
                previous.status != .pending { notification.question = previous }
+            serverNotificationIDs.insert(id)
+            if notification.isUnread { serverUnreadIDs.insert(id) } else { serverUnreadIDs.remove(id) }
             upsert(notification)
+            await waitForInboxGrouping()
             return true
         } catch let error as MeowAPIError where error.status == 404 {
             guard generation == sessionGeneration, !isChangingServer else { return false }
@@ -1090,6 +1224,7 @@ final class AppModel {
     private func removeDeletedMessages(_ removed: Set<String>) {
         // Reject in-flight pages/details even when none of their IDs was loaded yet.
         deletionRevision += 1
+        refreshTask?.cancel(); refreshTask = nil; refreshTaskID = nil
         loadGeneration += 1
         isLoading = false
         savedNotifications.removeAll { removed.contains($0.id) }
@@ -1137,8 +1272,10 @@ final class AppModel {
             if reportFailure && !Self.isCancellation(error) {
                 toast = Toast(message: String(localized: "Couldn't mark as read. \(Self.describe(error))"))
             }
+            await waitForInboxGrouping()
             return false
         }
+        await waitForInboxGrouping()
         return generation == sessionGeneration && !isChangingServer
     }
 
@@ -1161,6 +1298,7 @@ final class AppModel {
             counts.unread = 0
             countsRevision += 1
             changed(savedNotifications.map(\.id))
+            await waitForInboxGrouping()
             updateBadge()
         } catch {
             guard generation == sessionGeneration, !isChangingServer, !Self.isCancellation(error) else { return }

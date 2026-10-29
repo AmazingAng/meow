@@ -42,6 +42,7 @@ final class InboxStore: @unchecked Sendable {
             defer { sqlite3_finalize(statement) }
             try self.bind(scope, at: 1, to: statement)
             var items: [MeowNotification] = []
+            let decoder = JSONDecoder()
             while true {
                 let status = sqlite3_step(statement)
                 if status == SQLITE_DONE { break }
@@ -50,7 +51,7 @@ final class InboxStore: @unchecked Sendable {
                     throw Failure(message: "A saved message is unreadable.")
                 }
                 let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, 0)))
-                items.append(try JSONDecoder().decode(MeowNotification.self, from: data))
+                items.append(try decoder.decode(MeowNotification.self, from: data))
             }
             return items
         }
@@ -58,6 +59,17 @@ final class InboxStore: @unchecked Sendable {
 
     func save(_ items: [MeowNotification], scope: String) async throws {
         try await perform { try self.write(items, scope: scope) }
+    }
+
+    func applyChanges(_ items: [MeowNotification], deleting: Set<String> = [], scope: String) async throws {
+        try await perform { try self.writeChanges(items, deleting: deleting, scope: scope) }
+    }
+
+    /// Enqueue a small immutable patch in model order. Unmentioned history is
+    /// never encoded, scanned for pruning or removed by this operation.
+    func enqueueChanges(_ items: [MeowNotification], deleting: Set<String>, scope: String,
+                        completion: @escaping @Sendable (Result<Void, Error>) -> Void) {
+        queue.async { completion(Result { try self.writeChanges(items, deleting: deleting, scope: scope) }) }
     }
 
     func erase(scope: String) async throws {
@@ -111,8 +123,46 @@ final class InboxStore: @unchecked Sendable {
             try execute("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
             try execute("CREATE TABLE IF NOT EXISTS inbox_scopes(scope TEXT PRIMARY KEY);")
             try execute("CREATE TABLE IF NOT EXISTS inbox_messages(scope TEXT NOT NULL REFERENCES inbox_scopes(scope),id TEXT NOT NULL,created_at REAL NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(scope,id));")
+            try execute("CREATE INDEX IF NOT EXISTS inbox_messages_order ON inbox_messages(scope,created_at DESC,id DESC);")
         } catch {
             sqlite3_close_v2(handle); db = nil; throw error
+        }
+    }
+
+    private func writeChanges(_ items: [MeowNotification], deleting: Set<String>, scope: String) throws {
+        let ids = Set(items.map(\.id))
+        guard ids.count == items.count, ids.isDisjoint(with: deleting) else {
+            throw Failure(message: "Conflicting saved-message changes.")
+        }
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let encoded = try items.map { try encoder.encode($0) }
+        try open()
+        try transaction {
+            let known = try prepare("INSERT OR IGNORE INTO inbox_scopes(scope) VALUES(?)")
+            defer { sqlite3_finalize(known) }
+            try bind(scope, at: 1, to: known)
+            try require(sqlite3_step(known) == SQLITE_DONE)
+            let insert = try prepare(
+                "INSERT INTO inbox_messages(scope,id,created_at,payload) VALUES(?,?,?,?) ON CONFLICT(scope,id) DO UPDATE SET created_at=excluded.created_at,payload=excluded.payload WHERE inbox_messages.payload!=excluded.payload"
+            )
+            defer { sqlite3_finalize(insert) }
+            for (item, data) in zip(items, encoded) {
+                sqlite3_reset(insert); sqlite3_clear_bindings(insert)
+                try bind(scope, at: 1, to: insert); try bind(item.id, at: 2, to: insert)
+                try require(sqlite3_bind_double(insert, 3, item.createdAt.timeIntervalSince1970) == SQLITE_OK)
+                let status = data.withUnsafeBytes {
+                    sqlite3_bind_blob(insert, 4, $0.baseAddress, Int32($0.count), transient)
+                }
+                try require(status == SQLITE_OK)
+                try require(sqlite3_step(insert) == SQLITE_DONE)
+            }
+            let remove = try prepare("DELETE FROM inbox_messages WHERE scope=? AND id=?")
+            defer { sqlite3_finalize(remove) }
+            for id in deleting {
+                sqlite3_reset(remove); sqlite3_clear_bindings(remove)
+                try bind(scope, at: 1, to: remove); try bind(id, at: 2, to: remove)
+                try require(sqlite3_step(remove) == SQLITE_DONE)
+            }
         }
     }
 

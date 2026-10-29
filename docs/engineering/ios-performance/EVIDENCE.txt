@@ -1,0 +1,136 @@
+Meow iOS performance — evidence, 2026-10-29
+
+Outcome: the five reviewed performance problems are fixed. The additive selected-
+read route needs an updated origin server for batching; older servers safely use
+per-ID fallback. No CLI/gateway change, dependency change, release, TestFlight
+upload, production deployment, real user push or credential mutation was performed.
+
+Confidence / isolation
+- Spec approval: not obtained (autonomous run). User authorized repairs; detailed
+  SPEC.txt was written before implementation but not independently approved.
+- Independent verification: not performed. This is builder-authored evidence.
+- Branch fix/ios-performance from 80c1668; no extra worktree. Existing untracked
+  web/ was excluded and preserved. Mutants touched only disposable source copies.
+- Verified implementation/tests/tool source-set SHA256: 1134c14ef8e88bb5c03861649bded2885e4e57cbc44fa0c55cb9c1e33aa1ab68
+  Computed from canonical sorted JSON of report.json source_sha256. Its scope is
+  ios/, server/, cli/, client/, message/, adapters/, contracts/, go.mod/go.sum;
+  docs, ignored build artifacts and unrelated web/ are outside that hash scope.
+- No tool installation. Swift 6.3.3, Xcode 26.6 (17F113), Go 1.27.2, Python 3.14.
+  Exact tool output and per-file hashes are in the report and version-*.log.
+
+Reproduce (fresh output path required)
+  python3 -B ios/scripts/verify_ios_performance.py --output dist/ios-performance/check-NEW
+Final run: dist/ios-performance/final-2/report.json. The entry point performs all
+checks below, fails on a missing/failed layer, and verifies source stability.
+
+Acceptance mapping
+1. Background message search/projection, cached getters, full-history matching,
+   pagination, pending expiry and cancellation:
+   InboxPerformanceTests.testSearchUsesBackgroundProjectionWithoutNetworkOrStaleRows;
+   testCachedGettersAndGeneratedSearchAgreeWithCompleteLocalHistory;
+   testProjectionExpiryAndCancelledWorkCannotPublishStaleMatches;
+   existing LocalInboxModelTests search/filter/Unicode/no-network regressions.
+2. Shared full refresh, scoped cancellation, per-record foreground fetch and
+   preservation of newer arrivals:
+   testOverlappingRefreshesShareOneDownload (500 records, 3 pages for 3 callers);
+   testVerifiedForegroundNotificationFetchesOnlyItsRecord (one GET, no inbox/counts);
+   testForegroundArrivalDuringFullSyncRetainsItsRemoteMembership;
+   existing cancellation, older-snapshot, deletion and server-reset regressions.
+3. Atomic incremental persistence, no unmentioned history loss, scope isolation,
+   retryable dirty writes and rollback:
+   InboxDeltaTests (four tests, including 60 generated Unicode patch/replay rounds);
+   testFailedDeltaIsRetriedWithTheNextChange;
+   existing InboxStore/LocalInbox/CacheRetention persistence and race regressions.
+4. Selected read batches, auth/device isolation, replay, malformed/oversize input,
+   storage failure, local-only history, retry and old servers:
+   TestSelectedReadAuthorizationIsolationAndReplay;
+   TestSelectedReadRejectsInvalidBatch;
+   TestSelectedReadDatabaseFailureDoesNotPartiallyMark;
+   TestSelectedReadGeneratedSelectionAndReplay (20 generated selection rounds);
+   TestSelectedReadRejectsInvalidSizeAndClosedDatabase;
+   testBatchReadSkipsLocalOnlyHistoryAndChunksSelectedIDs (1000 selected, only
+   500 remotely retained, exactly 3 requests rather than 1000);
+   testUnsupportedBatchFallsBackAndRollsBackOnlyFailures;
+   testSelectedReadHonorsRetryAfterAndRejectsInvalidAcknowledgement;
+   existing grouping/deletion/Retry-After/scope regressions. The new route never
+   uses the unrestricted mark-all handler; unknown IDs are indistinguishable no-ops.
+5. Concurrent NSE auxiliary requests, 250ms shared budget, ignored late results,
+   exactly-once callback, final identity checks and safe fallback:
+   NotificationLatencyTests (blocked cancellation-ignoring boundaries and fast badge);
+   existing 23 GatewayContentTests and lifecycle/identity callback regressions.
+   The test permits 1s scheduling tolerance; 250ms is a configured auxiliary
+   budget, not an APNs or physical-device latency guarantee. Reports are best-effort.
+
+Final gauntlet results
+- Native Release: 218 tests pass; restored after mutants:
+  218 tests pass; no failures/skips.
+  Real model/store/shared code, adapting only UIKit/notification-center, Keychain,
+  App Group and Bundle metadata boundaries. These are not simulator/phone results.
+- Real iOS simulator build/tests: 264 unit tests + 4 focused UI tests pass, zero
+  failures/skips. iPhone 17 Pro, iOS 26.5. Each UI case uses a separate disposable
+  installation, while the first case also runs the complete iOS unit target.
+  Search/header, matching-only group read + relaunch, swipe read/delete, and large
+  Chinese read/delete controls were exercised. Exported screenshots were inspected.
+- Go: 281 top-level test/fuzz targets, 593 cases including
+  subtests/seeds pass with -race -shuffle=20261029 -count=1; zero skips.
+  Live httptest HTTP servers exercise authentication and actual SQLite updates.
+- go vet ./..., meow-server build and git diff --check: pass. Go edits were
+  formatted with gofmt before final verification.
+- Installer: 9 tests pass. No CLI/setup behavior was changed.
+- Coverage gate: 19/19 executable projection lines, 36/36 delta-writer lines,
+  15/15 API statements, 10/10 store statements. Three checker controls pass
+  (missing scope, zero execution, and defense-removed control). This is scoped
+  coverage; it does not claim complete AppModel/UI or Swift branch coverage.
+- Manual mutants: 7/7 killed through executed failing assertions:
+  snapshot history loss, dropped failed dirty writes, local-only network traffic,
+  delayed metadata, failed rollback, lost fast badge, reversed device isolation.
+  Mutated copies and hashes/logs identify each execution; repository sources were
+  never mutated. Restored native suite was rerun successfully.
+- Deterministic generated cases cover patch/replay/scope invariants and complete-
+  history query/filter/pagination equivalence; no property-test dependency added.
+- Suite health: native Release runs repeated before/after mutants; Go order is
+  shuffled. XCTest ordering was not randomized. No Swift TSAN run was performed.
+
+Release measurements (native Mac, not an iPhone benchmark)
+  10000 records, each benchmark body 3 KiB:
+  full snapshot write 140.237 ms; one-row delta write 0.209 ms.
+  1000 pairs of cached message/next-page getters: 4.227 ms.
+  Logs contain the measurements. The tests assert delta < full snapshot and a
+  broad 1s budget for 1000 cached reads, not these exact machine-specific values.
+
+Failures found and resolved during verification
+- Initial RED: 9 focused tests produced 14 behavioral failures, after repairing
+  a URLProtocol fixture that had force-unwrapped individual request bodies.
+  Body-stream normalization fixed that boundary; behavioral assertions were kept.
+- Shared refresh initially failed the existing rate-limit cancellation test:
+  cancellation must reach the shared task. Added a cancellation handler; the
+  original expected history/load/error assertions now pass.
+- An additional adversarial test reproduced newer foreground membership being
+  lost after an older full snapshot. The verified arrival now retains membership.
+- Search tests now await local projection rather than assume same-stack work;
+  expected IDs and no-HTTP assertions remain. Legacy write fixtures explicitly
+  simulate unsupported batches and populate remote membership. The receipt test
+  permits reporting before counts finishes while checking identity at report start.
+- First simulator run reused identical IDs/registration across UI cases; preserved
+  phone read state contaminated later cases. Fresh installations fix isolation;
+  UI assertions were not weakened. Selected-read success fixtures now return the
+  required JSON acknowledgement rather than the old empty per-ID response.
+- First coverage gate rejected an unexecuted store success statement: API package
+  coverage does not instrument imported store code. Added the generated direct
+  store selection/replay test; the threshold was not lowered.
+- Some XCTest temporary-database teardown logs report unlinked SQLite sidecars;
+  those paths belong to disposable test folders, not the app's persistent inbox.
+  Existing unused-result and AppIntents metadata warnings remain. All assertions
+  pass; no new production compile error was suppressed.
+
+Limits / rollout
+- No physical-device APNs, TestFlight distribution, minimum-iOS-17 device run or
+  production-network stress test. Simulator/native evidence cannot prove delivery.
+- No new dependency or capability requiring a supply-chain audit. Credentials and
+  notification bodies are absent from diagnostics; fixtures use disposable values.
+- SwiftUI/AppDelegate wiring is compiled and exercised in the simulator; scoped
+  native line coverage does not measure every UI branch. A failed SQLite write
+  retries dirty changes on the next persistence operation; it cannot promise
+  durable storage while the filesystem itself remains unavailable.
+- No retention, notification schema, CLI/hooks, header action layout, V1 interaction
+  scope or phone-history-expiry rule changed. Server batching adds no DB migration.

@@ -28,7 +28,11 @@ struct InboxView: View {
                 }
             }
             .listStyle(.plain)
-            .overlay { emptyState }
+            .overlay {
+                if model.isProjectingMessages && model.inboxMode == .messages {
+                    ProgressView("Loading saved messages…")
+                } else { emptyState }
+            }
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await model.refresh() }
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -97,6 +101,7 @@ struct InboxView: View {
                     do { try await Task.sleep(for: .seconds(max(0, expiry.timeIntervalSinceNow) + 0.1)) }
                     catch { return }
                     now = .now
+                    await model.refreshInboxPresentation()
                 }
             }
         }
@@ -219,6 +224,7 @@ struct InboxView: View {
             NavigationLink(value: notification.id) {
                 NotificationRow(notification: notification, now: now)
             }
+            .disabled(model.isProjectingMessages)
             .accessibilityIdentifier("notification.\(notification.id)")
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 InboxMessageSwipeActions(notification: notification)
@@ -262,7 +268,7 @@ struct InboxMessageSwipeActions: View {
             Label("Delete", systemImage: "trash")
         }
         .tint(.red)
-        .disabled(model.isDeletingNotifications || model.isMarkingGroupRead || model.isMarkingAllRead)
+        .disabled(model.isDeletingNotifications || model.isMarkingGroupRead || model.isMarkingAllRead || model.isProjectingMessages)
         if notification.isUnread {
             Button {
                 if let selection = model.inboxSelection([notification]) {
@@ -272,7 +278,7 @@ struct InboxMessageSwipeActions: View {
                 Label("Mark as read", systemImage: "envelope.open")
             }
             .tint(.blue)
-            .disabled(model.isDeletingNotifications || model.isMarkingGroupRead || model.isMarkingAllRead)
+            .disabled(model.isDeletingNotifications || model.isMarkingGroupRead || model.isMarkingAllRead || model.isProjectingMessages)
         }
     }
 }

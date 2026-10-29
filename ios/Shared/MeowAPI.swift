@@ -206,6 +206,14 @@ struct MeowAPI: Sendable {
         try await sendEmpty("POST", "/v1/notifications/\(id)/read")
     }
 
+    /// Dedicated route: older mark-all handlers must never receive selected IDs.
+    func markRead(_ ids: [String]) async throws {
+        guard !ids.isEmpty, ids.count <= 200 else { throw URLError(.badURL) }
+        struct Result: Decodable { var marked: Int }
+        let result: Result = try await send("POST", "/v1/inbox/read-selected", body: ["ids": ids])
+        guard result.marked >= 0, result.marked <= Set(ids).count else { throw URLError(.badServerResponse) }
+    }
+
     func markAllRead() async throws {
         try await sendEmpty("POST", "/v1/inbox/read")
     }

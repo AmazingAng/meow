@@ -90,6 +90,7 @@ func New(c Config) *Server {
 	m.HandleFunc("GET /v1/inbox", s.withDevice(s.inbox))
 	m.HandleFunc("GET /v1/inbox/counts", s.withDevice(s.counts))
 	m.HandleFunc("POST /v1/inbox/read", s.withDevice(s.markAllRead))
+	m.HandleFunc("POST /v1/inbox/read-selected", s.withDevice(s.markSelectedRead))
 	m.HandleFunc("GET /v1/notifications/{id}", s.withDevice(s.getNotification))
 	m.HandleFunc("POST /v1/notifications/{id}/read", s.withDevice(s.markRead))
 	m.HandleFunc("POST /v1/notifications/{id}/delivered", s.withDevice(s.markDelivered))

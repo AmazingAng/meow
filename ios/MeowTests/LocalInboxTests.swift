@@ -138,7 +138,7 @@ final class LocalInboxModelTests: XCTestCase {
         return try encoder.encode(InboxPage(notifications: items, nextCursor: cursor))
     }
 
-    func testSearchingAndFilteringSavedMessagesAreImmediateAndMakeNoHTTPRequests() async throws {
+    func testSearchingAndFilteringSavedMessagesUseLocalProjectionAndMakeNoHTTPRequests() async throws {
         let items = [localItem("alpha", title: "Build completed"), localItem("match")]
         let data = try page(items)
         let calls = LocalCallCounter()
@@ -150,8 +150,10 @@ final class LocalInboxModelTests: XCTestCase {
         await model.refresh()
         let baseline = calls.value
         model.search = "测试"
-        XCTAssertEqual(model.notifications.map(\.id), ["match"], "search must update before yielding to HTTP/debounce")
+        await model.waitForInboxGrouping()
+        XCTAssertEqual(model.notifications.map(\.id), ["match"], "search completes locally without HTTP/debounce")
         model.filter = .unread
+        await model.waitForInboxGrouping()
         try await Task.sleep(for: .milliseconds(400))
         XCTAssertEqual(calls.value, baseline, "local search and filters must never issue HTTP")
     }
@@ -163,6 +165,7 @@ final class LocalInboxModelTests: XCTestCase {
         let model = AppModel(inboxStore: store)
         await model.refresh()
         model.search = "历史测试"
+        await model.waitForInboxGrouping()
         XCTAssertEqual(model.notifications.map(\.id), ["ntf_229"])
         XCTAssertNotNil(model.loadError)
     }
@@ -183,6 +186,7 @@ final class LocalInboxModelTests: XCTestCase {
         let task = Task { await model.refresh() }
         await fulfillment(of: [started], timeout: 3)
         model.search = "测试"
+        await model.waitForInboxGrouping()
         XCTAssertEqual(model.notifications.map(\.id), ["saved"])
         gate.signal(); await task.value
     }
@@ -268,8 +272,10 @@ extension LocalInboxModelTests {
         let model = AppModel(inboxStore: store)
         await model.refresh()
         model.filter = .pending
+        await model.waitForInboxGrouping()
         XCTAssertEqual(model.notifications.map(\.id), ["open"])
         model.filter = .unread
+        await model.waitForInboxGrouping()
         XCTAssertEqual(model.notifications.map(\.id), ["expired"])
     }
 
@@ -450,10 +456,12 @@ extension LocalInboxModelTests {
         }
         let model = AppModel(inboxStore: store)
         model.search = "测试"
+        await model.waitForInboxGrouping()
         await model.refresh()
         XCTAssertEqual(model.notifications.map(\.id), ["target"])
         let baseline = calls.value
         model.search = ""
+        await model.waitForInboxGrouping()
         XCTAssertEqual(model.notifications.count, 50)
         XCTAssertNotNil(model.nextCursor)
         await model.loadMore()
@@ -484,6 +492,7 @@ extension LocalInboxModelTests {
         let model = AppModel(inboxStore: store)
         await model.refresh()
         model.filter = .unread
+        await model.waitForInboxGrouping()
         await model.markRead("one")
         XCTAssertEqual(model.notifications.map(\.id), ["two"])
         let oneRead = try await store.load(scope: scope)
@@ -494,8 +503,10 @@ extension LocalInboxModelTests {
         let restarted = AppModel(inboxStore: store)
         await restarted.refresh()
         restarted.filter = .unread
+        await restarted.waitForInboxGrouping()
         XCTAssertTrue(restarted.notifications.isEmpty)
         restarted.filter = .all
+        await restarted.waitForInboxGrouping()
         XCTAssertEqual(restarted.notifications.count, 2)
     }
 
@@ -510,6 +521,7 @@ extension LocalInboxModelTests {
         let before = calls.value
         for query in ["部署审查", "项目甲", "thread-123", "project-key"] {
             model.search = query
+            await model.waitForInboxGrouping()
             XCTAssertEqual(model.notifications.map(\.id), ["session-message"])
         }
         XCTAssertEqual(calls.value, before)
@@ -526,9 +538,11 @@ extension LocalInboxModelTests {
         await model.refresh()
         for query in ["测试", "café", "😺", "%_", "' OR 1=1 --"] {
             model.search = query
+            await model.waitForInboxGrouping()
             XCTAssertEqual(model.notifications.map(\.id), ["first"], "query: \(query)")
         }
         model.search = "Different"
+        await model.waitForInboxGrouping()
         XCTAssertEqual(model.notifications.map(\.id), ["second"])
     }
 
