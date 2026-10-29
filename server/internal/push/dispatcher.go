@@ -40,6 +40,11 @@ func (d *Dispatcher) Enqueue(id string) {
 		d.mu.Unlock()
 		return
 	}
+	if len(d.inflight) >= cap(d.queue) {
+		d.mu.Unlock()
+		d.log.Warn("push scheduling capacity full; deferring to sweep", "notification", id)
+		return
+	}
 	d.inflight[id] = true
 	d.mu.Unlock()
 	select {
@@ -58,32 +63,7 @@ func (d *Dispatcher) done(id string) {
 
 // Run processes the queue until ctx is cancelled.
 func (d *Dispatcher) Run(ctx context.Context, workers int) {
-	var wg sync.WaitGroup
-	for range workers {
-		wg.Go(func() {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case id := <-d.queue:
-					d.deliver(ctx, id)
-					d.done(id)
-				}
-			}
-		})
-	}
-	d.sweep(ctx, 0)
-	t := time.NewTicker(time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			wg.Wait()
-			return
-		case <-t.C:
-			d.sweep(ctx, 30*time.Second)
-		}
-	}
+	d.runScheduled(ctx, max(1, workers))
 }
 
 // sweep re-enqueues notifications from the last day that are still queued and at least minAge old.
@@ -99,86 +79,81 @@ func (d *Dispatcher) sweep(ctx context.Context, minAge time.Duration) {
 	}
 }
 
-func (d *Dispatcher) deliver(ctx context.Context, id string) {
-	for attempt := 0; ; attempt++ {
-		if ctx.Err() != nil {
-			return // leave queued for restart
+// attempt always reloads current state and returns without sleeping.
+func (d *Dispatcher) attempt(ctx context.Context, id string, attempt int) (time.Duration, bool) {
+	if ctx.Err() != nil {
+		return 0, false // leave queued for restart
+	}
+	t, err := d.store.PushTarget(ctx, id)
+	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			d.log.Error("load push target", "notification", id, "err", err)
 		}
-		t, err := d.store.PushTarget(ctx, id)
-		if err != nil {
-			if !errors.Is(err, store.ErrNotFound) {
-				d.log.Error("load push target", "notification", id, "err", err)
-			}
-			return
-		}
-		n := t.Notification
-		switch {
-		case n.PushStatus != store.PushQueued:
-			return
-		case t.Device.APNsToken == "" && !d.isGateway():
-			d.set(ctx, id, store.PushSkipped, "device has no APNs token")
-			return
-		case n.Question != nil && n.Question.Status != store.StatusPending:
-			d.set(ctx, id, store.PushSkipped, "question already "+n.Question.Status)
-			return
-		case n.Question != nil && !d.store.Now().Before(n.Question.ExpiresAt):
-			d.set(ctx, id, store.PushSkipped, "question already expired")
-			return
-		}
-		msg, err := d.message(ctx, t)
-		if err != nil {
-			if d.isGateway() {
-				if errors.Is(err, store.ErrNotFound) {
-					d.set(ctx, id, store.PushSkipped, "device has no gateway binding")
-				} else {
-					d.log.Error("load gateway binding", "notification", id, "err", err)
-				}
+		return 0, false
+	}
+	n := t.Notification
+	switch {
+	case n.PushStatus != store.PushQueued:
+		return 0, false
+	case t.Device.APNsToken == "" && !d.isGateway():
+		d.set(ctx, id, store.PushSkipped, "device has no APNs token")
+		return 0, false
+	case n.Question != nil && n.Question.Status != store.StatusPending:
+		d.set(ctx, id, store.PushSkipped, "question already "+n.Question.Status)
+		return 0, false
+	case n.Question != nil && !d.store.Now().Before(n.Question.ExpiresAt):
+		d.set(ctx, id, store.PushSkipped, "question already expired")
+		return 0, false
+	}
+	msg, err := d.message(ctx, t)
+	if err != nil {
+		if d.isGateway() {
+			if errors.Is(err, store.ErrNotFound) {
+				d.set(ctx, id, store.PushSkipped, "device has no gateway binding")
 			} else {
-				d.set(ctx, id, store.PushFailed, err.Error())
+				d.log.Error("load gateway binding", "notification", id, "err", err)
 			}
-			return
-		}
-		err = d.pusher.Push(ctx, msg)
-		if err == nil {
-			d.set(ctx, id, store.PushAccepted, "")
-			return
-		}
-		if errors.Is(err, ErrNotConfigured) {
-			d.set(ctx, id, store.PushSkipped, err.Error())
-			return
-		}
-		var ae *Error
-		if errors.As(err, &ae) {
-			if ae.InvalidToken() && !d.isGateway() {
-				if cerr := d.store.ClearAPNsToken(ctx, t.Device.ID, msg.Token); cerr != nil {
-					d.log.Error("clear apns token", "device", t.Device.ID, "err", cerr)
-				}
-				d.set(ctx, id, store.PushFailed, err.Error())
-				return
-			}
-			if !ae.Retryable() {
-				d.set(ctx, id, store.PushFailed, err.Error())
-				return
-			}
-		}
-		if ctx.Err() != nil {
-			return // stays queued; retried after restart
-		}
-		if attempt >= d.Retries {
-			d.log.Warn("push failed", "notification", id, "err", err)
+		} else {
 			d.set(ctx, id, store.PushFailed, err.Error())
-			return
 		}
-		delay := d.Backoff << attempt
-		if ae != nil {
-			delay = max(delay, ae.RetryAfter)
+		return 0, false
+	}
+	err = d.pusher.Push(ctx, msg)
+	if err == nil {
+		d.set(ctx, id, store.PushAccepted, "")
+		return 0, false
+	}
+	if errors.Is(err, ErrNotConfigured) {
+		d.set(ctx, id, store.PushSkipped, err.Error())
+		return 0, false
+	}
+	var ae *Error
+	if errors.As(err, &ae) {
+		if ae.InvalidToken() && !d.isGateway() {
+			if cerr := d.store.ClearAPNsToken(ctx, t.Device.ID, msg.Token); cerr != nil {
+				d.log.Error("clear apns token", "device", t.Device.ID, "err", cerr)
+			}
+			d.set(ctx, id, store.PushFailed, err.Error())
+			return 0, false
 		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(delay):
+		if !ae.Retryable() {
+			d.set(ctx, id, store.PushFailed, err.Error())
+			return 0, false
 		}
 	}
+	if ctx.Err() != nil {
+		return 0, false // stays queued; retried after restart
+	}
+	if attempt >= d.Retries {
+		d.log.Warn("push failed", "notification", id, "err", err)
+		d.set(ctx, id, store.PushFailed, err.Error())
+		return 0, false
+	}
+	delay := d.Backoff << attempt
+	if ae != nil {
+		delay = max(delay, ae.RetryAfter)
+	}
+	return delay, true
 }
 
 func (d *Dispatcher) set(ctx context.Context, id, status, msg string) {

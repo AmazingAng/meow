@@ -1,0 +1,128 @@
+Meow server performance fixes — evidence, 2026-10-29
+
+Tier 3. Spec: docs/engineering/server-performance/SPEC.txt.
+Spec approval: not obtained (autonomous run). The detailed spec was not reviewed
+independently before implementation; confidence is limited to the checks below.
+Independent agent verification: not performed; no independent-review claim.
+
+Reproduce from the repository:
+  python3 -B scripts/verify_server_performance.py
+The entry point creates a fresh output directory and runs all 11 named layers.
+Toolchain: go1.27.2 darwin/arm64, Apple M3 Max; Python standard library only.
+Base commit: f2d108f2733dbf51c0420c289283c86268c54f3e.
+Final source identities: source_state() in the entry point emits a SHA-256 map
+covering go.mod/go.sum, all CLI/client/message/adapter/contract/server files and
+the entry point. The map is recorded in each run's summary.json and checked
+unchanged after all layers. Unrelated untracked web/ is deliberately excluded
+and was preserved. Validation ran in the original checkout, including ignored
+build content; mutants ran separately without ignored build output.
+
+Final fresh run: dist/server-performance/run-5i7stulj/summary.json.
+This directory is ignored build output; the entry point and all test sources
+are committed so verification does not depend on retaining those artifacts.
+
+Scenario -> tests / evidence
+1. Indexed pagination: TestInboxCursorUsesIndexRangeWithoutSort examines the SQL
+   actually used by Inbox. TestInboxPaginationGenerated checks 20 seeded cases,
+   equal timestamps, device isolation, unread/all filters and page sizes 1..9.
+   Existing TestInboxFiltersAndCounts covers escaped search and legacy pending.
+2. Migration: TestPerformanceMigrationPreservesRecords verifies real v5 index
+   layout -> v6, body/credentials/quota/idempotency preservation and re-entry.
+   TestPerformanceMigrationFailureIsAtomic injects an index-name collision and
+   verifies both schema version and old index roll back. Existing migration
+   failure tests also pass. The live HTTP check creates an online snapshot.
+3. Cleanup: TestPruneUsesExpiryIndexes checks all four expiry SELECT plans.
+   TestPruneCommitsBoundedBatchesAndRollsBackFailingBatch commits 1000 rows,
+   fails the next batch, verifies its 500 rows remain, then resumes successfully.
+   Existing TestCacheCutoffAndAtomicCleanup verifies first-batch rollback.
+   Existing cache tests preserve pending questions, 24h quotas/idempotency and
+   cutoff boundaries. Cleanup's reference time is fixed for the call.
+4. Dispatch: TestRetryBackoffReleasesWorkersAndRecoversAfterRestart demonstrates
+   another device proceeds while 4 pushes wait, duplicate enqueue does not send
+   twice, and pending records survive shutdown and are swept after restart.
+   TestScheduledRetryHonorsRetryAfter verifies the real scheduler waits exactly
+   37 and 60 virtual seconds. TestDelayedJobsCountTowardSchedulingCapacity verifies
+   running/delayed/queued IDs share the bound. Heap order and existing retry,
+   cancellation, expiry, token/binding rotation and resolved-state tests pass.
+5. Limiting: TestLimiterHardCapacityAndRefill verifies the 100000 cap, positive
+   retry delay, existing identities, safe refill eviction and <=64 removals.
+   TestLimiterCapacityUnderConcurrentNewKeys attacks admission with 32 callers.
+   TestLimiterGeneratedTokenAccounting checks 100 seeds x 200 timed requests
+   against the expected token balance and verifies single-key heap/map size.
+
+Final results
+- Full suite, race detector, shuffled seed 20261029, cache disabled:
+  276 top-level test/fuzz targets passed; 582 including subtests; 0 failed.
+- Coverage gate: all 117 statements / 63 blocks in api/limit.go,
+  push/scheduler.go, Store.inboxQuery and Store.pruneBatch executed.
+  This is scoped coverage of the new performance logic, not 100% of all
+  server code or of every moved error-handling line. Index DDL/SQL behavior
+  additionally uses the scenario-to-test mapping above.
+- Coverage checker negative controls: rejects zero execution; disabling the
+  checker causes its negative control to fail with the expected reason.
+- go build ./...; go vet ./...; all server Go formatting: passed.
+- python3 -B scripts/test_install.py: 9 tests passed.
+- 7/7 executed manual mutants killed by the named failing tests: old OR cursor,
+  missing expiry index, unbounded deletion batch, immediate retry, missing retry
+  timer, ignored bucket
+  cap, and missing token consumption. The token-consumption mutant was killed
+  by the generated property test alone. The other properties do not claim to
+  catch performance-only index/query regressions. Every mutant was checked for
+  unique replacement, written to a temporary source copy, compiled/executed
+  with test cache disabled, and restored; compiler failures do not count as kills.
+- Real built server over loopback: 20 created records, all 20 paged without
+  loss/duplicates, mark-all-read leaves unread=0, both wrong-role accesses
+  return 403, online VACUUM INTO snapshot succeeds. No APNs key configured and
+  no real user/device contacted. Process shuts down normally.
+- Source SHA-256 map unchanged across the final run; all 11 layers completed.
+
+Local performance comparison (300000 rows / 11 devices, 512-character bodies,
+5 measured iterations per case; not production SLAs):
+- Deep page of 200 near item 29000: tuple 0.584ms; legacy OR 4.380ms.
+- Empty indexed cleanup: 0.110ms; legacy expiry scan 100.569ms.
+The OR comparison retains the new index; the expiry comparison forces the old
+question_id index and predicate. These isolate the expensive query patterns,
+not two complete historic server binaries. Scaling/index choice is also guarded
+by query-plan assertions, without hardware-specific timing gates.
+
+Adversarial pass
+Attempted capacity overflow, concurrent identity churn, deletion failure after a
+committed batch, index migration failure, duplicate enqueue, shutdown while
+retries wait, restart recovery, equal-time cursor boundaries, early retries and
+token over-issuance. The final state passes the corresponding tests/mutants.
+
+Capability / constraints
+No new dependency, external service, database engine or API schema. No CLI,
+iOS, payload, credential, phone-history or retention-default change. SQLite WAL
+and the serial writer remain. Only server/gateway binaries need deployment.
+Schema v6 needs a pre-upgrade online backup; an older binary rejects v6.
+
+Known limits / layers not performed
+- Independent review not performed (declared confidence downgrade).
+- staticcheck unavailable; go vet/compiler/race checks ran, not staticcheck.
+- No new parser surface; bounded deterministic testing/quick generators were
+  used for pagination/token accounting, without an extended fuzz campaign.
+- No APNs production test, Docker deployment, hardware load test or iPhone UI
+  test: no production delivery, deployment or UI behavior is claimed here.
+- Dependency audit N-A: dependency set unchanged. Manual capability/diff review
+  found no added external-network or credential access.
+- Retry deadlines/counts remain in memory, as previously. Process restart
+  starts a new cycle; it does not preserve upstream cooldown across restarts.
+  Provider acceptance interrupted before DB persistence can be attempted again.
+- At scheduling capacity, additional IDs remain queued until a later sweep;
+  this bound does not promise instantaneous delivery during sustained overload.
+- A later failed cleanup batch preserves earlier commits; it does not undo
+  previously successful batches. Deployment and architecture docs describe this.
+
+Honest notes
+All eight initially selected regressions failed before fixes. The first push
+test initially exercised a strict startup millisecond cutoff instead of worker
+blocking; explicit enqueue corrected setup and then reproduced the target bug.
+The first recovery check cancelled immediately at provider callback, before DB
+status persistence; it was corrected to wait for persisted acceptance. Neither
+the queued-work assertion nor the existing rollback assertions were weakened.
+No review finding was dismissed.
+
+The adversarial pass also found that a 60s retry coincides with the periodic
+sweep. The additional 37s case and missing-timer mutant ensure the scheduler
+timer is independently exercised; both remain in the final fresh run.

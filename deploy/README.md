@@ -100,3 +100,9 @@ Update iOS clients to the version that preserves independent local history **bef
 Upgrade the server, then the CLI/adapters, then iOS to show event icons. Old clients ignore the additive field; old messages keep their title and remain generic. New CLI/adapters explicitly emit `result`, `attention` or `failure`; custom integrations may omit `event`. Do not infer or backfill events from titles. Existing cache TTL and the App's independent local history are unchanged.
 
 Before the server upgrade, take the online backup described above using the currently running server binary. Schema v5 adds a constrained `event` column and preserves old rows with an empty value. An older server binary refuses v5 databases; rollback requires stopping the new server and restoring the pre-upgrade snapshot (new messages after that snapshot are not included). Keep the live upgraded database separately until the rollback has been checked.
+
+### Performance indexes (schema v6)
+
+This server automatically replaces the inbox index and adds expiry indexes in one migration transaction. Back up the live database before upgrading; index creation may make startup longer on a large database. Existing content, credentials, quotas and the `720h` retention default are preserved. The HTTP contract is unchanged, so this update needs only a server/gateway deployment, without a CLI or iPhone update. Older binaries reject schema v6: retain a pre-upgrade online snapshot for rollback, and preserve the upgraded database separately.
+
+Cleanup now commits bounded batches so normal writes can proceed between batches. If a later batch fails, already committed batches remain deleted; retrying cleanup safely resumes. Push retries release worker slots while waiting, and overflow remains in SQLite for the periodic sweep. Retry scheduling is in memory; a restart does not retain an upstream cooldown across processes.

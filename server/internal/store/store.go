@@ -30,7 +30,7 @@ var schemaSQL string
 //go:embed gateway.sql
 var gatewaySQL string
 
-const schemaVersion = 5
+const schemaVersion = 6
 
 var (
 	ErrNotFound            = errors.New("not found")
@@ -173,6 +173,11 @@ func (s *Store) migrate(ctx context.Context) error {
 		}
 		if v < 5 {
 			if _, err := tx.ExecContext(ctx, `ALTER TABLE notifications ADD COLUMN event TEXT NOT NULL DEFAULT '' CHECK(event IN ('','result','attention','failure'))`); err != nil {
+				return err
+			}
+		}
+		if v < 6 {
+			if _, err := tx.ExecContext(ctx, performanceIndexes); err != nil {
 				return err
 			}
 		}
@@ -627,14 +632,13 @@ func likePattern(s string) string {
 	return "%" + r.Replace(s) + "%"
 }
 
-// Inbox lists a device's notifications newest first, strictly after the cursor.
-func (s *Store) Inbox(ctx context.Context, deviceID string, iq InboxQuery) ([]Notification, error) {
+func (s *Store) inboxQuery(deviceID string, iq InboxQuery) (string, []any) {
 	at, id := int64(math.MaxInt64), ""
 	if !iq.After.At.IsZero() {
 		at, id = ms(iq.After.At), iq.After.ID
 	}
-	where := ` WHERE n.device_id = ? AND (n.created_at < ? OR (n.created_at = ? AND n.id < ?))`
-	args := []any{deviceID, at, at, id}
+	where := ` WHERE n.device_id = ? AND (n.created_at, n.id) < (?, ?)`
+	args := []any{deviceID, at, id}
 	if iq.Unread {
 		where += ` AND n.read_at IS NULL`
 	}
@@ -648,7 +652,13 @@ func (s *Store) Inbox(ctx context.Context, deviceID string, iq InboxQuery) ([]No
 		args = append(args, p, p, p)
 	}
 	args = append(args, iq.Limit)
-	rows, err := s.r.QueryContext(ctx, notificationSelect+where+` ORDER BY n.created_at DESC, n.id DESC LIMIT ?`, args...)
+	return notificationSelect + where + ` ORDER BY n.created_at DESC, n.id DESC LIMIT ?`, args
+}
+
+// Inbox lists a device's notifications newest first, strictly after the cursor.
+func (s *Store) Inbox(ctx context.Context, deviceID string, iq InboxQuery) ([]Notification, error) {
+	query, args := s.inboxQuery(deviceID, iq)
+	rows, err := s.r.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1023,20 +1033,32 @@ func (s *Store) PruneInactiveDevices(ctx context.Context, idle time.Duration) (i
 
 // Prune deletes resolved questions and notifications older than retention, and
 // content-free quota/idempotency metadata after 24h. Pending questions are always kept.
+// Each bounded batch is atomic; earlier batches remain committed if a later one fails.
 func (s *Store) Prune(ctx context.Context, retention time.Duration) (int64, error) {
 	now := s.now()
 	cutoff := ms(now.Add(-retention))
+	var total int64
+	for {
+		batch, err := s.pruneBatch(ctx, cutoff, ms(now.Add(-24*time.Hour)))
+		total += batch
+		if err != nil || batch == 0 {
+			return total, err
+		}
+	}
+}
+
+func (s *Store) pruneBatch(ctx context.Context, cutoff, metadataCutoff int64) (int64, error) {
 	var total int64
 	err := s.tx(ctx, func(tx *sql.Tx) error {
 		for _, stmt := range []struct {
 			sql string
 			arg int64
 		}{
-			{`DELETE FROM questions WHERE status != 'pending' AND created_at <= ?`, cutoff},
-			{`DELETE FROM notifications WHERE question_id IS NULL AND created_at <= ?`, cutoff},
+			{`DELETE FROM questions WHERE rowid IN (SELECT rowid FROM questions WHERE status != 'pending' AND created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, cutoff},
+			{`DELETE FROM notifications WHERE rowid IN (SELECT rowid FROM notifications WHERE question_id IS NULL AND created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, cutoff},
 			// Keep metadata for the full retry window even after content expires.
-			{`DELETE FROM idempotency WHERE created_at <= ?`, ms(now.Add(-24 * time.Hour))},
-			{`DELETE FROM notification_receipts WHERE created_at <= ?`, ms(now.Add(-24 * time.Hour))},
+			{`DELETE FROM idempotency WHERE rowid IN (SELECT rowid FROM idempotency WHERE created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, metadataCutoff},
+			{`DELETE FROM notification_receipts WHERE rowid IN (SELECT rowid FROM notification_receipts WHERE created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, metadataCutoff},
 		} {
 			res, err := tx.ExecContext(ctx, stmt.sql, stmt.arg)
 			if err != nil {
@@ -1047,5 +1069,8 @@ func (s *Store) Prune(ctx context.Context, retention time.Duration) (int64, erro
 		}
 		return nil
 	})
+	if err != nil {
+		return 0, err // the entire batch rolled back
+	}
 	return total, err
 }

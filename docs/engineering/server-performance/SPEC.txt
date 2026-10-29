@@ -1,0 +1,69 @@
+Meow server performance fixes — executable specification
+2026-10-29; base f2d108f; Tier 3 (concurrency, rate limiting, migration).
+Spec approval: not obtained (autonomous run). The user authorized fixing the
+four reviewed bugs; this detailed specification has not had independent approval.
+
+Setup: branch fix/server-performance, preserve untracked web/. No tool installs,
+dependencies, deployment, real pushes or changes to saved user credentials.
+Use Go 1.27.2 and Python standard library. Add focused tests under
+server/internal/{store,push,api}/performance_test.go, a reproducible entry point
+scripts/verify_server_performance.py, and docs/engineering/server-performance/
+SPEC.txt and EVIDENCE.txt (tracked, unlike ignored verification build output).
+Commit the finished, validated change using the existing direct-main workflow.
+
+Acceptance scenarios
+1. Pagination: tuple cursor and device/time/ID index seek to the requested page
+   without a prefix scan or temporary sort. Generated overlapping timestamps,
+   filters and multiple devices paginate without missing/duplicate/foreign rows.
+2. Migration: v5 -> v6 adds indexes atomically without altering data, quota,
+   credential or idempotency records; failed migration leaves v5 intact. Reopen
+   is idempotent. Newer-schema databases remain rejected by older binaries.
+3. Cleanup: expiry predicates use indexes. Delete at most 1000 roots per table
+   per transaction; repeat transactions until done, letting other writers in.
+   A failing batch rolls back completely; previous committed batches are counted.
+   Keep pending questions, current rows and the existing 24h quota/retry windows.
+4. Dispatch: 4 rate-limited pushes must not hold workers during Retry-After;
+   another device is attempted before those retries become due. Retry counts,
+   exponential backoff, upstream minimum delay, deduplication, latest target and
+   binding checks, terminal failures and cancellation retain their semantics.
+   Bound queued/running/delayed in-memory IDs to 1024; overflow stays queued in
+   SQLite for the existing sweep. One scheduler timer, no sleeping goroutine per
+   retry. Shutdown releases workers/timer; queued work can recover after restart.
+5. Limiting: at most 100000 buckets. At capacity, reject new identities with a
+   positive retry duration when no safe eviction exists. Existing identities
+   still use their own token balance. Evict only fully replenished buckets;
+   heap lookup/update is logarithmic and each request removes at most 64 buckets.
+   Concurrent requests cannot exceed capacity or issue excess tokens.
+
+Failure model / checks
+- Wrong cursor / schema drift: SQL query plans + generated pagination invariants,
+  fresh/v5/failure migration tests, same SQLite engine, existing API tests.
+- Partial deletes / quota reset: batch rollback, >one batch fixtures, existing
+  cache/deletion/idempotency tests; migration rollback rehearsal on a copied DB.
+- Duplicate/early/lost retries, leaks: virtual-clock scheduler tests, real local
+  fake-provider execution, bounded pending tests, cancellation/recovery, race.
+- Limiter exhaustion / unsafe eviction: generated token accounting, cap pressure,
+  refill and concurrent tests, bounded cleanup inspection.
+- Silent regression: full shuffled race suite, build, vet, installer checks,
+  coverage report + gate for new scheduler/limiter logic, SQL statement mapping,
+  4-5 executed manual mutants in temporary source copies, isolated live HTTP.
+
+Must not: change public HTTP schemas, APNs payloads, the 720h retention default,
+phone storage, CLI/hooks, credentials, dependencies or the serial-writer model.
+Performance measurements are synthetic local comparisons, not production SLAs.
+No independent agent verification is planned; explicitly report not performed.
+
+Revisions (append-only)
+- Initial specification. Atomicity is per bounded cleanup batch; a later batch
+  failure cannot roll back earlier committed batches. Preserve first-batch
+  rollback behavior covered by the existing cache failure regression.
+- Test setup correction before implementation: explicitly enqueue the four
+  limited pushes instead of relying on the startup sweep's strict millisecond
+  cutoff. The corrected test reproduced worker blocking before the fix.
+- The provider's acceptance callback precedes SQLite status persistence. The
+  restart test now waits for persisted acceptance before deliberately shutting
+  down; cancellation mid-write legitimately leaves work queued for recovery.
+  No acceptance/status assertion was removed.
+- Adversarial test extension: retain the 60-second scheduler case and also
+  require exactly 37 seconds, so the periodic one-minute sweep cannot hide a
+  missing retry timer. Explicitly mutate the timer subscription to verify this.
