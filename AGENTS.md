@@ -60,6 +60,8 @@ CGO, an ORM, a queue service or another database for an unrelated change.
   not an authentication identity.
 - Keep presentation consistent: session headline, then project and Agent, then
   body (with a separate date row in details). Use the existing shared helpers.
+  Inbox message/group rows have no leading avatars or category/type icons;
+  preserve trailing attention/failure indicators and unread dots/counts.
 - Ignore Claude Stop events with no nonblank original assistant reply. Apply
   this check before `--no-summary`, which must still notify for a real reply.
 - Hooks must exit successfully and remain silent even when delivery fails.

@@ -490,7 +490,7 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertLessThan(row.frame.height, 120, "standard text should fit the compact three-line row")
         XCTAssertTrue(app.staticTexts["Release preparation"].exists, "the session is the inbox headline")
         XCTAssertTrue(app.staticTexts["meow · Codex"].exists, "project precedes agent on the second line")
-        XCTAssertFalse(app.staticTexts["New result"].exists, "category text is represented by its icon")
+        XCTAssertFalse(app.staticTexts["New result"].exists, "routine category labels stay out of the visible row")
         XCTAssertFalse(app.staticTexts["Needs your attention"].exists)
         XCTAssertFalse(app.staticTexts["Build 19 is ready"].exists)
         capture("compact-categories", app)
@@ -748,7 +748,12 @@ final class UIOptimizationTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["meow"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts.matching(identifier: "meow").count, 1)
         capture("grouping-projects", app)
+        browse("sources", in: app)
+        XCTAssertTrue(app.staticTexts["Monitor"].firstMatch.waitForExistence(timeout: 5))
+        capture("grouping-agents", app)
         browse("messages", in: app)
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "notification.ntf_group_a1").firstMatch.waitForExistence(timeout: 5))
+        capture("grouping-messages", app)
     }
 
     func test21GroupSearchReadsOnlyMatchingMessagesAndModeSurvivesRestart() {

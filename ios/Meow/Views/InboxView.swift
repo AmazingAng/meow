@@ -355,52 +355,47 @@ struct NotificationRow: View {
     private func row(now: Date) -> some View {
         let n = notification
         let needsAnswer = n.question?.isOpen(at: now) == true
-        return HStack(alignment: .top, spacing: 12) {
-            if !typeSize.isAccessibilitySize {
-                SourceAvatar(source: n.source, size: 32, context: n.context)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(verbatim: n.compactHeadline)
+                    .font(.headline)
+                    .fontWeight(needsAnswer || n.isUnread ? .semibold : .regular)
+                    .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                statusIcon
+                    .font(.system(size: 18, weight: .medium))
+                if n.isUnread {
+                    Circle().fill(Color.accentColor).frame(width: 8, height: 8)
+                        .accessibilityHidden(true)
+                }
             }
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    categoryIcon
-                        .font(.system(size: 18, weight: .medium))
-                    Text(verbatim: n.compactHeadline)
-                        .font(.headline)
-                        .fontWeight(needsAnswer || n.isUnread ? .semibold : .regular)
-                        .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if n.isUnread {
-                        Circle().fill(Color.accentColor).frame(width: 8, height: 8)
-                            .accessibilityHidden(true)
-                    }
-                }
-                if typeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 4) { metadata }
-                } else {
-                    HStack(alignment: .firstTextBaseline) { metadata }
-                }
-                if let line = NotificationBody(n.body).listPreview {
-                    Text(line)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
-                }
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) { metadata }
+            } else {
+                HStack(alignment: .firstTextBaseline) { metadata }
+            }
+            if let line = NotificationBody(n.body).listPreview {
+                Text(line)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
             }
         }
         .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(needsAnswer ? Text("Needs attention") : (n.isUnread ? Text("Unread") : Text(verbatim: "")))
+        .accessibilityValue(categoryAccessibilityLabel + (n.isUnread ? Text(verbatim: ", ") + Text("Unread") : Text(verbatim: "")))
     }
 
     @ViewBuilder
-    private var categoryIcon: some View {
+    private var statusIcon: some View {
         if let question = notification.question {
             let look = QuestionAppearance(question, now: now)
             Image(systemName: look.icon)
                 .foregroundStyle(look.color)
                 .accessibilityLabel(Text(look.tag))
-        } else {
+        } else if notification.inboxCategory == .attention || notification.inboxCategory == .failure || notification.type == .alert {
             let category = notification.inboxCategory
-            Image(systemName: category?.symbol ?? (notification.type == .alert ? "exclamationmark.bubble" : "bubble.left"))
+            Image(systemName: category?.symbol ?? "exclamationmark.bubble")
                 .foregroundStyle(category == .failure ? Color.red :
                     (category == .attention || notification.type == .alert ? Color.orange : Color.accentColor))
                 .accessibilityLabel(categoryAccessibilityLabel)
@@ -408,11 +403,14 @@ struct NotificationRow: View {
     }
 
     private var categoryAccessibilityLabel: Text {
-        switch notification.inboxCategory {
+        if let question = notification.question {
+            return Text(QuestionAppearance(question, now: now).tag)
+        }
+        return switch notification.inboxCategory {
         case .result: Text("New result")
         case .attention: Text("Needs attention")
         case .failure: Text("Run failed")
-        case nil: Text(verbatim: "")
+        case nil: notification.type == .alert ? Text("Needs attention") : Text("Notification")
         }
     }
 

@@ -6,45 +6,35 @@ struct InboxGroupRow: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            if !typeSize.isAccessibilitySize {
-                let rgb = OriginColor(source: group.colorSource, context: group.colorContext)
-                RoundedRectangle(cornerRadius: 9)
-                    .fill(Color(red: rgb.red, green: rgb.green, blue: rgb.blue))
-                    .overlay(Image(systemName: group.mergeID == nil ? group.mode.symbol : "square.stack.3d.up")
-                        .foregroundStyle(.white).font(.system(size: 16, weight: .semibold)))
-                    .frame(width: 32, height: 32).accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(verbatim: group.title).font(.headline)
+                    .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if group.hasAttention {
+                    Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
+                        .accessibilityLabel("Unread attention or failure")
+                }
+                if group.unreadCount > 0 && !isSearching {
+                    Text(group.unreadCount.formatted()).font(.caption.bold()).monospacedDigit()
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Color.accentColor.opacity(0.12), in: Capsule())
+                }
             }
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(verbatim: group.title).font(.headline)
-                        .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if group.hasAttention {
-                        Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
-                            .accessibilityLabel("Unread attention or failure")
-                    }
-                    if group.unreadCount > 0 && !isSearching {
-                        Text(group.unreadCount.formatted()).font(.caption.bold()).monospacedDigit()
-                            .padding(.horizontal, 7).padding(.vertical, 3)
-                            .background(Color.accentColor.opacity(0.12), in: Capsule())
-                    }
+            if !group.subtitle.isEmpty {
+                Text(verbatim: group.subtitle).font(.caption).foregroundStyle(.secondary)
+                    .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+            }
+            if let latest = group.latest {
+                if let preview = NotificationBody(latest.body).listPreview {
+                    Text(preview)
+                        .lineLimit(2)
+                        .font(.subheadline).foregroundStyle(.secondary)
                 }
-                if !group.subtitle.isEmpty {
-                    Text(verbatim: group.subtitle).font(.caption).foregroundStyle(.secondary)
-                        .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
-                }
-                if let latest = group.latest {
-                    if let preview = NotificationBody(latest.body).listPreview {
-                        Text(preview)
-                            .lineLimit(2)
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    RelativeTime(date: latest.createdAt).font(.caption).foregroundStyle(.secondary)
-                }
-                if isSearching {
-                    Text("\(group.unreadCount) matching unread messages").font(.caption).foregroundStyle(.secondary)
-                }
+                RelativeTime(date: latest.createdAt).font(.caption).foregroundStyle(.secondary)
+            }
+            if isSearching {
+                Text("\(group.unreadCount) matching unread messages").font(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 8)
