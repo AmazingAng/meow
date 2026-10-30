@@ -324,3 +324,8 @@ git -C ../homebrew-tap push
 ### Self-hosting without Apple credentials
 
 The optional [wake gateway](docs/wake-gateway.md) keeps the APNs key on the gateway host. Set `MEOW_PUSH_GATEWAY_URL` on your server; the iOS app registers automatically and fetches message content directly from your server. No invitation, additional account or manual gateway setup is required. Direct APNs remains the default.
+
+## License
+
+Meow is licensed under the [MIT License](LICENSE). Third-party components retain
+their respective licenses. The separate private Meow website repository is not covered by this license.
