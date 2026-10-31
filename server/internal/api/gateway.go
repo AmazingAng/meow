@@ -13,21 +13,28 @@ import (
 )
 
 type GatewayConfig struct {
-	TrustProxy bool
-	Store      *store.Store
-	Push       push.Pusher
+	TrustProxy          bool
+	Store               *store.Store
+	Push                push.Pusher
+	MaxConcurrentPushes int // zero selects DefaultGatewayMaxConcurrentPushes
 }
 
 type gateway struct {
 	GatewayConfig
 	enrollLimit *limiter
+	ipLimit     *limiter
+	pushSlots   chan struct{}
 	mux         *http.ServeMux
 }
 
 // NewGateway is an APNs wake relay with automatic device registration. It never receives a
 // self-hosted server URL or message content and cannot call either server APIs.
 func NewGateway(c GatewayConfig) http.Handler {
-	g := &gateway{GatewayConfig: c, enrollLimit: newLimiter(1.0/360, 10), mux: http.NewServeMux()}
+	if c.MaxConcurrentPushes <= 0 {
+		c.MaxConcurrentPushes = DefaultGatewayMaxConcurrentPushes
+	}
+	g := &gateway{GatewayConfig: c, enrollLimit: newLimiter(1.0/360, 10),
+		ipLimit: newLimiter(20, 200), pushSlots: make(chan struct{}, c.MaxConcurrentPushes), mux: http.NewServeMux()}
 	g.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := g.Store.Ping(r.Context()); err != nil {
 			writeError(w, 503, "unavailable", "database unavailable")
@@ -40,6 +47,10 @@ func NewGateway(c GatewayConfig) http.Handler {
 	g.mux.HandleFunc("DELETE /v1/gateway/devices/{id}", g.revoke)
 	g.mux.HandleFunc("POST /v1/gateway/push", g.wake)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ok, retry := g.ipLimit.allow(gatewayClientIP(r, g.TrustProxy)); !ok {
+			tooManyRequests(w, retry)
+			return
+		}
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		g.mux.ServeHTTP(w, r)
 	})
@@ -78,7 +89,7 @@ func validGatewayDevice(w http.ResponseWriter, in gatewayDeviceInput) bool {
 }
 
 func (g *gateway) enroll(w http.ResponseWriter, r *http.Request) {
-	if ok, retry := g.enrollLimit.allow(clientIP(r, g.TrustProxy)); !ok {
+	if ok, retry := g.enrollLimit.allow(gatewayClientIP(r, g.TrustProxy)); !ok {
 		tooManyRequests(w, retry)
 		return
 	}
@@ -157,6 +168,10 @@ func (g *gateway) wake(w http.ResponseWriter, r *http.Request) {
 	if !checkEnum(w, "priority", in.Priority, "low", "normal", "high") {
 		return
 	}
+	if !g.admitPush(w, r) {
+		return
+	}
+	defer func() { <-g.pushSlots }()
 	if err := g.Store.TakeGatewayQuota(r.Context(), route.ID); err != nil {
 		gatewayStoreError(w, err)
 		return

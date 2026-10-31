@@ -78,6 +78,15 @@ limit of 10 registrations/hour (burst 10). Behind a trusted reverse proxy, set
 There is no installation-wide device count or global registration quota.
 Anonymous registration is not cryptographic proof of phone ownership.
 
+All gateway endpoints additionally share a per-client-IP request bucket: a burst
+of 200 requests, replenished at 20 requests/second. Invalid credentials, malformed
+requests and unknown paths consume the same allowance before database access.
+Changing routes does not create a fresh IP allowance. IPv4-mapped addresses are
+canonicalized; IPv6 addresses in the same /64 share allowance. Clients behind
+one NAT share a bucket. Only enable proxy trust behind an ingress that overwrites
+or appends the actual connecting client's address; do not expose that trusted
+listener directly to untrusted clients.
+
 After registration, management and wake operations require distinct,
 device-scoped credentials. `gwm_` manages one route and `gwp_` only wakes that
 route. Neither reads content or answers questions. The gateway stores only
@@ -104,6 +113,15 @@ resolution.
 
 - Wake rate limiting remains 60 attempts/minute per device route and survives
   restarts. Failed APNs attempts count toward that rate.
+- APNs delivery is capped at 32 concurrent requests across routes and clients.
+  Set `MEOW_GATEWAY_MAX_CONCURRENT_PUSHES` to a positive whole number to tune
+  capacity; invalid settings fail gateway startup. IP limits and this concurrent
+  cap apply per process, not across multiple gateway replicas.
+- IP exhaustion returns HTTP 429 `rate_limited` and a positive `Retry-After`.
+  Full APNs capacity returns the same error with `Retry-After: 1`, immediately,
+  without queuing another push or spending the route's durable quota. Existing
+  Meow API push retries already respect this delay. Health and management do not
+  need an APNs slot, though their own IP/authentication limits still apply.
 - The gateway sees APNs tokens, routing/event IDs, priority, expiry, network
   metadata and timing. Notification content and replies stay on the API path.
 - `accepted` means APNs accepted the push; extension receipt and `read_at` are

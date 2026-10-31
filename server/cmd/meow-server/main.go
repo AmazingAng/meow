@@ -11,6 +11,7 @@
 //	MEOW_MAX_DAILY_MESSAGES       notifications and questions per device per 24h (default 1000, 0 = unlimited)
 //	MEOW_INACTIVE_DEVICE_TTL      delete devices the app hasn't contacted for this long, e.g. 2160h (default off)
 //	MEOW_LOG_LEVEL      debug | info | warn | error (default info)
+//	MEOW_GATEWAY_MAX_CONCURRENT_PUSHES  simultaneous APNs requests in gateway mode (default 32)
 //	MEOW_PUSH_GATEWAY_URL  use a wake gateway instead of direct APNs
 //	MEOW_APNS_KEY_FILE  path to the APNs .p8 auth key; direct push is disabled when unset
 //	MEOW_APNS_KEY_ID    APNs key ID
@@ -108,6 +109,13 @@ func run(gatewayMode bool) error {
 	if err != nil {
 		return err
 	}
+	var maxConcurrentPushes int
+	if gatewayMode {
+		maxConcurrentPushes, err = gatewayConcurrencyFromEnv()
+		if err != nil {
+			return err
+		}
+	}
 	var pusher push.Pusher
 	if gatewayMode {
 		pusher, err = newAPNsPusher(log)
@@ -139,7 +147,9 @@ func run(gatewayMode bool) error {
 	var handler http.Handler
 	closeHandler := func() {}
 	if gatewayMode {
-		handler = api.NewGateway(api.GatewayConfig{Store: st, Push: pusher, TrustProxy: env("MEOW_TRUST_PROXY", "") == "true"})
+		handler = api.NewGateway(api.GatewayConfig{Store: st, Push: pusher,
+			TrustProxy: env("MEOW_TRUST_PROXY", "") == "true", MaxConcurrentPushes: maxConcurrentPushes})
+		log.Info("gateway limits", "requests_per_second_per_ip", 20, "request_burst", 200, "concurrent_pushes", maxConcurrentPushes)
 	} else {
 		dispatcher := push.NewDispatcher(st, pusher, log)
 		wg.Go(func() { dispatcher.Run(bg, 4) })
@@ -206,6 +216,14 @@ func retentionFromEnv() (time.Duration, error) {
 		return 0, fmt.Errorf("MEOW_RETENTION must be a duration of at least 1h, e.g. 12h; disabling the cache is not supported")
 	}
 	return retention, nil
+}
+
+func gatewayConcurrencyFromEnv() (int, error) {
+	n, err := strconv.Atoi(env("MEOW_GATEWAY_MAX_CONCURRENT_PUSHES", strconv.Itoa(api.DefaultGatewayMaxConcurrentPushes)))
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("MEOW_GATEWAY_MAX_CONCURRENT_PUSHES must be a positive whole number")
+	}
+	return n, nil
 }
 
 type cacheMaintenance interface {

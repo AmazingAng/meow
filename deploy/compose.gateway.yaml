@@ -5,3 +5,4 @@ services:
     command: ["gateway"]
     environment:
       MEOW_DB: /data/gateway.db
+      MEOW_GATEWAY_MAX_CONCURRENT_PUSHES: ${MEOW_GATEWAY_MAX_CONCURRENT_PUSHES:-32}

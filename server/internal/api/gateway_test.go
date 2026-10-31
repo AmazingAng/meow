@@ -66,13 +66,17 @@ func gatewayRequest(t *testing.T, base, method, path, token string, body any) (i
 	return res.StatusCode, data
 }
 func gatewayFixture(t *testing.T) (*store.Store, *gatewayPush, string) {
+	return gatewayFixtureWithPushLimit(t, 0)
+}
+
+func gatewayFixtureWithPushLimit(t *testing.T, concurrent int) (*store.Store, *gatewayPush, string) {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "gateway.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	p := &gatewayPush{}
-	ts := httptest.NewServer(api.NewGateway(api.GatewayConfig{Store: st, Push: p}))
+	ts := httptest.NewServer(api.NewGateway(api.GatewayConfig{Store: st, Push: p, MaxConcurrentPushes: concurrent}))
 	t.Cleanup(func() { ts.Close(); st.Close() })
 	return st, p, ts.URL
 }
@@ -229,7 +233,8 @@ func TestGatewayAPNsFailureNeverAccepted(t *testing.T) {
 }
 
 func TestGatewayConcurrentQuota(t *testing.T) {
-	_, p, base := gatewayFixture(t)
+	// Isolate the durable per-route quota from the separate global busy limit.
+	_, p, base := gatewayFixtureWithPushLimit(t, 80)
 	r := enroll(t, base, "bind_1")
 	var wg sync.WaitGroup
 	var mu sync.Mutex
