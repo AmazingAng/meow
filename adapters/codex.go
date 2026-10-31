@@ -67,6 +67,7 @@ type CodexHookInput struct {
 	Cwd                  string          `json:"cwd"`
 	LastAssistantMessage string          `json:"last_assistant_message"`
 	ToolName             string          `json:"tool_name"`
+	ToolUseID            string          `json:"tool_use_id"`
 	ToolInput            json.RawMessage `json:"tool_input"`
 }
 

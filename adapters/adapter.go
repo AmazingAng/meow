@@ -57,6 +57,8 @@ func Lookup(name string) (Adapter, error) {
 		return decoder(decodeCodexNotify), nil
 	case "codex-stop", "codex-permission":
 		return decoder(func(b []byte) (Event, bool, error) { return decodeCodexHook(name, b) }), nil
+	case "codex-input":
+		return decoder(decodeCodexInput), nil
 	case "cursor-stop":
 		return decoder(decodeCursorStop), nil
 	case "generic":

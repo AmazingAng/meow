@@ -67,6 +67,9 @@ CGO, an ORM, a queue service or another database for an unrelated change.
 - Hooks must exit successfully and remain silent even when delivery fails.
   Diagnostics must not contain credentials, private bodies or raw tool input.
   Preserve stable idempotency keys and payloads across retries.
+- Codex input reminders match only explicit user-input tool calls, independently
+  of permission auto-review suppression. Keep per-call deduplication and the
+  exact setup matcher; ordinary tools/prose/child creation must not notify.
 - Setup must preserve unrelated agent configuration and hooks, back up edited
   files, and remove only Meow-owned entries. The retired Meow Codex `notify`
   route must not resume sending alongside native hooks. Skills are distributed

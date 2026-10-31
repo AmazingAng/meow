@@ -91,7 +91,7 @@ meow setup claude --yes
 ```
 
 - Claude Code: async `Stop`, `StopFailure` and `Notification` hooks in `settings.json` (`$CLAUDE_CONFIG_DIR` or `~/.claude`). Running sessions pick them up.
-- Codex: async `Stop` and `PermissionRequest` in `hooks.json` (`$CODEX_HOME` or `~/.codex`). Setup cleans old Meow `notify` entries and restores any wrapped original handler while preserving foreign config. Start a new session, have the user authorize both hooks in `/hooks`, then finish a real task and confirm its result on the iPhone. No separate migration step is needed. Without authorized hooks, automatic Codex notifications are unavailable; manual `meow send` still works. `meow doctor` distinguishes configuration from observed execution, not current trust or phone delivery. The setup test verifies CLI delivery only. Use a Codex version supporting lifecycle hooks.
+- Codex: async `Stop`, `PermissionRequest` and an input-only `PreToolUse` in `hooks.json` (`$CODEX_HOME` or `~/.codex`). Setup cleans old Meow `notify` entries and restores any wrapped original handler while preserving foreign config. After upgrading to a CLI with the input hook, re-run `meow setup codex`, start a new session and have the user authorize all three hooks in `/hooks`. Both `request_user_input` and desktop `request_user_input_async` can then remind before an answer. Without authorized hooks, automatic Codex notifications are unavailable; manual `meow send` still works. `meow doctor` distinguishes configuration from observed execution, not current trust or phone delivery. The setup test verifies CLI delivery only. Use a Codex version supporting lifecycle hook coverage for those tools.
 - Cursor: `afterAgentResponse` and `stop` hooks in `~/.cursor/hooks.json`; Cursor reloads the file on save. A completed turn sends a result with the reply text, an error sends a failure, and an aborted turn sends nothing. If no reply was captured, the notification is a generic reminder. Meow installs no permission hook, because Cursor treats those as gates that block the action. Re-run `meow setup cursor` after upgrading the CLI.
 - Every edited file is backed up as `<file>.bak.<timestamp>`. Re-running is safe.
 - `--no-summary` leaves the agent's last message out of notifications. `--no-test` skips the test notification.
@@ -144,7 +144,7 @@ Ask the user whether the notification arrived. `sent <id>` only means the server
 
 ### When the user needs to decide
 
-Ask using the agent's normal computer interface, then send a notification with the question, options and context:
+For an input path without a verified automatic reminder, send the question, options and context **before** invoking the input tool or waiting for the answer. Sending after a blocking question returns is too late. Then ask using the agent's normal computer interface. An authorized Codex input hook already sends this reminder for `request_user_input` and `request_user_input_async`; do not duplicate it with a manual send.
 
 ```sh
 meow send --alert --priority high --event attention --source "Codex" --title "Needs your attention" \

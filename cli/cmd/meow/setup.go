@@ -24,7 +24,7 @@ const setupUsage = `meow setup — connect a coding agent to Meow
 Usage:
   meow setup [--server URL]    guided: check the server, log in, connect every agent found
   meow setup claude [flags]    Claude Code: Stop, StopFailure and Notification hooks
-  meow setup codex [flags]     Codex: Stop and PermissionRequest lifecycle hooks
+  meow setup codex [flags]     Codex: result, permission and user-input lifecycle hooks
   meow setup cursor [flags]    Cursor: stop hook in ~/.cursor/hooks.json
 
 You get a notification when the agent finishes a task or needs you. Reply in

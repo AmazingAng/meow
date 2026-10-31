@@ -13,13 +13,15 @@ import (
 	"meow.blue/meow/cli/internal/setup"
 )
 
+const codexInputMatcher = `^(functions\.)?request_user_input(_async)?$`
+
 func codexCommands(o setupOptions) map[string]string {
 	suffix := ""
 	if !o.summary {
 		suffix = " --no-summary"
 	}
 	base := setup.ShellQuote(o.exe) + " hook "
-	return map[string]string{"Stop": base + "codex-stop" + suffix, "PermissionRequest": base + "codex-permission" + suffix}
+	return map[string]string{"Stop": base + "codex-stop" + suffix, "PermissionRequest": base + "codex-permission" + suffix, "PreToolUse": base + "codex-input" + suffix}
 }
 
 func planCodex(o setupOptions) ([]fileChange, []string, error) {
@@ -33,7 +35,7 @@ func planCodex(o setupOptions) ([]fileChange, []string, error) {
 		return nil, nil, err
 	}
 	commands := codexCommands(o)
-	data, err := setup.LifecycleHooks(old, commands, o.install, []string{"codex-stop", "codex-permission"}, o.executables()...)
+	data, err := setup.LifecycleHooksMatching(old, commands, map[string]string{"PreToolUse": codexInputMatcher}, o.install, []string{"codex-stop", "codex-permission", "codex-input"}, o.executables()...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("hooks.json: %w", err)
 	}
@@ -45,7 +47,7 @@ func planCodex(o setupOptions) ([]fileChange, []string, error) {
 	// Write hooks before cleaning the old entry. Both edits are backed up and
 	// atomic; repeating setup completes an interrupted upgrade.
 	if !setup.EquivalentJSON(old, data) {
-		change := fileChange{path: path, data: data, exists: exists, lines: []string{"merge Meow Stop and PermissionRequest async hooks; preserve other handlers"}}
+		change := fileChange{path: path, data: data, exists: exists, lines: []string{"merge Meow Stop, PermissionRequest and user-input-only PreToolUse async hooks; preserve other handlers"}}
 		changes = append([]fileChange{change}, changes...)
 	}
 	var notes []string
@@ -54,7 +56,7 @@ func planCodex(o setupOptions) ([]fileChange, []string, error) {
 		if verified {
 			notes = append(notes, "A Stop hook run was previously observed. Check /hooks for current authorization and confirm a real task result arrives on your iPhone.")
 		} else {
-			notes = append(notes, "Next: open /hooks in Codex and authorize both Meow hooks, then finish a normal task and check its result on your iPhone.",
+			notes = append(notes, "Next: open /hooks in Codex and authorize all three Meow hooks, including the user-input hook, then finish a normal task and check its result on your iPhone.",
 				"Waiting for hook authorization or first execution. Automatic task notifications require authorized hooks; use a Codex version with lifecycle hook support.")
 		}
 		notes = append(notes, "The setup test checks CLI-to-server delivery only; it does not verify Codex hooks.")
@@ -77,10 +79,11 @@ func commandHash(command string) string {
 	return hex.EncodeToString(sum[:])
 }
 func receiptPath(dir string) string { return filepath.Join(dir, ".meow-hook-receipt.json") }
-func containsCommand(data []byte, event, command string) bool {
+func containsCommand(data []byte, event, command string, matcher ...string) bool {
 	var doc struct {
 		Hooks map[string][]struct {
-			Hooks []struct {
+			Matcher string `json:"matcher"`
+			Hooks   []struct {
 				Command string `json:"command"`
 				Type    string `json:"type"`
 				Async   bool   `json:"async"`
@@ -91,6 +94,9 @@ func containsCommand(data []byte, event, command string) bool {
 		return false
 	}
 	for _, g := range doc.Hooks[event] {
+		if len(matcher) > 0 && g.Matcher != matcher[0] {
+			continue
+		}
 		for _, h := range g.Hooks {
 			if h.Command == command && h.Type == "command" && h.Async {
 				return true
@@ -179,9 +185,17 @@ func codexHookStatus() (string, bool) {
 	for _, summary := range []bool{true, false} {
 		commands := codexCommands(setupOptions{exe: exe, summary: summary})
 		command := commands["Stop"]
+		if !containsCommand(b, "PreToolUse", commands["PreToolUse"], codexInputMatcher) {
+			continue
+		}
 		if containsCommand(b, "Stop", command) && containsCommand(b, "PermissionRequest", commands["PermissionRequest"]) && codexReceiptMatches(dir, command) {
 			return "Codex Stop hook execution previously observed; current trust cannot be verified (check /hooks)", true
 		}
 	}
-	return "Codex waiting for hook authorization or first execution; open /hooks, authorize both Meow hooks, then finish a normal task", false
+	commands := codexCommands(setupOptions{exe: exe, summary: true})
+	quietCommands := codexCommands(setupOptions{exe: exe, summary: false})
+	if !containsCommand(b, "PreToolUse", commands["PreToolUse"], codexInputMatcher) && !containsCommand(b, "PreToolUse", quietCommands["PreToolUse"], codexInputMatcher) {
+		return "Codex user-input hook missing or outdated; run meow setup codex, restart the session and authorize the Meow hooks in /hooks", false
+	}
+	return "Codex waiting for hook authorization or first execution; open /hooks, authorize all three Meow hooks, then finish a normal task", false
 }

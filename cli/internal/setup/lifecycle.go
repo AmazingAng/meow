@@ -9,6 +9,11 @@ import (
 // foreign handlers. Ownership is an exact generated command prefix, not a
 // substring that could occur in a user's shell script.
 func LifecycleHooks(src []byte, commands map[string]string, install bool, kinds []string, known ...string) ([]byte, error) {
+	return LifecycleHooksMatching(src, commands, nil, install, kinds, known...)
+}
+
+// LifecycleHooksMatching restricts selected events without widening foreign groups.
+func LifecycleHooksMatching(src []byte, commands, matchers map[string]string, install bool, kinds []string, known ...string) ([]byte, error) {
 	members, err := parseObject(src)
 	if err != nil {
 		return nil, err
@@ -71,7 +76,7 @@ func LifecycleHooks(src []byte, commands map[string]string, install bool, kinds 
 	}
 	if install {
 		for event, command := range commands {
-			hooks[event] = append(list(hooks[event]), hookGroup("", command))
+			hooks[event] = append(list(hooks[event]), hookGroup(matchers[event], command))
 		}
 	}
 	if len(hooks) == 0 && at >= 0 {
