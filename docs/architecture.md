@@ -213,3 +213,40 @@ Direct APNs payloads and gateway wakes omit `aps.badge`; PushTarget no longer ru
 Run `python3 -B ios/scripts/verify_local_unread.py --output <fresh-directory> --full` for the current shared-inbox migration, local-only reads, two-process SQLite, notification lifecycle, simulator and server compatibility gauntlet. Older performance evidence/verifiers describe their recorded source states.
 
 Product rules and acceptance criteria: [Inbox grouping PRD](prd/Meow_Inbox_Grouping_PRD.md). Run `python3 -B ios/scripts/verify_ui_optimization.py --output <new-output-directory>` for native iOS model tests, simulator navigation/view-menu/search checks and exported screenshots against an isolated local fixture. This does not test live APNs delivery or install the app on a phone.
+
+## Notification-only launch hardening
+
+The build toolchain is Go 1.27.3. Device Keys advertise only their effective
+`notify` grant; old stored `ask` grants are ignored. Question creation, response,
+cancellation and wait endpoints are 410 tombstones. Historical question GET
+requires the owning phone credential. There is no broker, answer executor or
+long-poll SDK/CLI route. Historical schema and cache-expiry housekeeping remain;
+old-format write helpers exist only in `_test.go` fixtures.
+
+The iOS saved-reply archive has no sender/retry methods. Loading preserves original
+text, IDs, timestamps and failures; explicit deletion works for both unsent and
+refused records. Both require confirmation before a server reset. Unused iOS
+pending/read/count HTTP methods are removed; local SQLite still owns read state.
+
+Before SQLite opens a database, owned regular database/WAL/SHM files are tightened
+to 0600; newly created parent directories use 0700. Final symlink/special-file
+targets are rejected. File paths are encoded into SQLite URIs internally, so `?`
+and `#` in actual filenames cannot redirect the connection to another file.
+Online backup is built in a private temporary directory and atomically published
+with a no-replace hard link. Existing parent ownership/permissions remain the
+operator's responsibility. No content encryption or byte erasure is implied.
+
+The gateway retains IP/enrollment limits. Its concurrency default
+is 0 (unlimited); positive operator caps are optional. APNs-confirmed invalid
+routes are removed only if the current token/environment still match the failed
+request. Healthy idle routes are retained. Schema v7 shares the existing
+60/minute allowance by case-normalized APNs token and environment. The quota
+survives route deletion, re-enrollment and restart; expired identities are
+pruned on admission. The migration backfills active legacy route windows
+conservatively. Admission checks that the route still has the token being sent.
+
+Earlier V0 failure/recovery verifiers retain manifests and mutation anchors for
+their recorded source states. Their reusable native-package helpers include the
+current read-only archive tests. Use `verify_launch_hardening.py --ios` for the
+current security/retirement suite and `verify_ui_optimization.py` for full native
+unit/UI coverage; V0 reply-send scenarios are intentionally retired.

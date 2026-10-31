@@ -3,12 +3,11 @@
 A self-hosted Meow server can use an operator-run gateway without installing
 Apple credentials. The phone registers automatically after receiving its APNs
 token. Only routing metadata crosses the gateway; the phone fetches notification
-content and sends replies directly to its saved Meow API. FCM is not involved.
+content directly from its saved Meow API. Replies stay in the agent on the computer. FCM is not involved.
 
 ```text
 Wake:    Meow API → gateway → APNs → iPhone
 Content: iPhone → Meow API
-Replies: iPhone → Meow API
 ```
 
 ## Gateway operator
@@ -89,7 +88,7 @@ listener directly to untrusted clients.
 
 After registration, management and wake operations require distinct,
 device-scoped credentials. `gwm_` manages one route and `gwp_` only wakes that
-route. Neither reads content or answers questions. The gateway stores only
+route. Neither reads content or executes a decision. The gateway stores only
 hashes of those credentials. The phone keeps them in Keychain and passes only
 the wake capability to its own API. The API must store that outbound capability
 recoverably, so protect its database and backups; inbound `mdt_` and `meow_`
@@ -98,39 +97,43 @@ credentials remain hash-only.
 A gateway wake is a generic mutable APNs alert with no approval/reply category.
 It contains only event ID, binding ID and `relay:true`. The extension checks its
 current binding, fetches `GET /v1/notifications/{id}` from the locally saved API,
-then builds the displayed text and actions. No URL from the push is followed.
-Failed fetches show a generic alert without actions; expiry is checked again
-before display and before responding. Replies use the existing durable offline
-queue, mobile authentication and fixed idempotency key.
+then builds the displayed text. No URL from the push is followed. Failed fetches
+show a generic alert without actions. V1 never offers approval/reply actions;
+old saved reply text remains copyable on the phone and is never transmitted.
 
 Server changes clear the local binding and attempt to revoke the old route.
-Offline revocation is best-effort; old-binding notifications still cannot act
-on the new server identity. Gateway retries can duplicate alerts after an
-ambiguous network failure, while answer idempotency prevents duplicate question
-resolution.
+Offline revocation is best-effort; old-binding notifications cannot act on the new
+server identity. Ambiguous network failures can still duplicate an alert.
 
 ## Delivery and operations
 
-- Wake rate limiting remains 60 attempts/minute per device route and survives
-  restarts. Failed APNs attempts count toward that rate.
-- APNs delivery is capped at 32 concurrent requests across routes and clients.
-  Set `MEOW_GATEWAY_MAX_CONCURRENT_PUSHES` to a positive whole number to tune
-  capacity; invalid settings fail gateway startup. IP limits and this concurrent
-  cap apply per process, not across multiple gateway replicas.
+- Wake rate limiting remains 60 attempts/minute, now shared by APNs token and
+  environment across routes, case aliases and client IPs. Restart, revocation
+  and re-enrollment do not reset active usage. Failed APNs attempts count.
+- Gateway delivery has no fixed concurrency cap by default:
+  `MEOW_GATEWAY_MAX_CONCURRENT_PUSHES=0`. Set a positive whole number only when
+  you want an explicit operator cap; negative/malformed settings fail startup.
+  Existing deployments with an explicit `32` keep it until that setting is
+  removed or changed to `0`. IP limits and any opted-in cap apply per process.
 - IP exhaustion returns HTTP 429 `rate_limited` and a positive `Retry-After`.
-  Full APNs capacity returns the same error with `Retry-After: 1`, immediately,
+  When an explicit cap is configured, full APNs capacity returns the same error with `Retry-After: 1`, immediately,
   without queuing another push or spending the route's durable quota. Existing
   Meow API push retries already respect this delay. Health and management do not
   need an APNs slot, though their own IP/authentication limits still apply.
 - The gateway sees APNs tokens, routing/event IDs, priority, expiry, network
-  metadata and timing. Notification content and replies stay on the API path.
+  metadata and timing. Notification content stays on the API path; replies remain on the computer.
 - `accepted` means APNs accepted the push; extension receipt and `read_at` are
   separate and do not prove that iOS displayed it to the user.
 - Agent `GET /v1/whoami` exposes transport-neutral `push_registered` for setup
   and doctor; a gateway device does not need a direct APNs token on the API.
-- SQLite upgrades v1→v2 transactionally. Old binaries cannot read v2 databases;
+- APNs `Unregistered`, invalid-token and token/topic errors remove the matching
+  route. Conditional deletion preserves a token rotated while a push was in
+  flight. Transient network/provider failures do not delete registrations.
+- SQLite upgrades to v7 transactionally, preserving active legacy quota usage.
+  Old binaries cannot read v7 databases;
   keep a pre-upgrade snapshot if you need to roll back.
 
-Verification: `python3 scripts/verify_gateway.py --simulator-id <dedicated-Meow-Gateway-simulator> --mutations`.
-The suite uses simulated APNs boundaries; locked physical-device delivery and
-Face ID for this route remain separate real-device checks.
+Current verification: `python3 -B scripts/verify_launch_hardening.py --output dist/launch-check`.
+It uses disposable SQLite, loopback HTTP and simulated APNs boundaries. Physical
+phone delivery remains a separate check. Older gateway verification artifacts
+record their original source states, including the retired approval workflow.

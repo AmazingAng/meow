@@ -11,7 +11,7 @@
 //	MEOW_MAX_DAILY_MESSAGES       notifications and questions per device per 24h (default 1000, 0 = unlimited)
 //	MEOW_INACTIVE_DEVICE_TTL      delete devices the app hasn't contacted for this long, e.g. 2160h (default off)
 //	MEOW_LOG_LEVEL      debug | info | warn | error (default info)
-//	MEOW_GATEWAY_MAX_CONCURRENT_PUSHES  simultaneous APNs requests in gateway mode (default 32)
+//	MEOW_GATEWAY_MAX_CONCURRENT_PUSHES  simultaneous APNs requests in gateway mode (default 0 = unlimited)
 //	MEOW_PUSH_GATEWAY_URL  use a wake gateway instead of direct APNs
 //	MEOW_APNS_KEY_FILE  path to the APNs .p8 auth key; direct push is disabled when unset
 //	MEOW_APNS_KEY_ID    APNs key ID
@@ -143,9 +143,7 @@ func run(gatewayMode bool) error {
 	defer stopBG()
 	var wg sync.WaitGroup
 
-	const maxWait = 60 * time.Second
 	var handler http.Handler
-	closeHandler := func() {}
 	if gatewayMode {
 		handler = api.NewGateway(api.GatewayConfig{Store: st, Push: pusher,
 			TrustProxy: env("MEOW_TRUST_PROXY", "") == "true", MaxConcurrentPushes: maxConcurrentPushes})
@@ -165,13 +163,12 @@ func run(gatewayMode bool) error {
 			"daily_messages", st.Limits.DailyMessages, "inactive_device_ttl", inactiveTTL.String())
 
 		srv := api.New(api.Config{
-			Store: st, Push: dispatcher, Log: log, MaxWait: maxWait,
+			Store: st, Push: dispatcher, Log: log,
 			TrustProxy: env("MEOW_TRUST_PROXY", "") == "true",
 			GatewayURL: gatewayURL(pusher),
 		})
-		wg.Go(func() { maintain(bg, srv, st, retention, inactiveTTL, log) })
+		wg.Go(func() { maintain(bg, st, st, retention, inactiveTTL, log) })
 		handler = srv
-		closeHandler = srv.Close
 	}
 	// Check APNs in the background: a wrong Key ID shows up in the log at
 	// deploy time instead of as silently missing notifications. It never
@@ -183,10 +180,9 @@ func run(gatewayMode bool) error {
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      maxWait + 30*time.Second, // must outlast long polls
+		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 	}
-	hs.RegisterOnShutdown(closeHandler) // release long polls so shutdown is quick
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -220,8 +216,8 @@ func retentionFromEnv() (time.Duration, error) {
 
 func gatewayConcurrencyFromEnv() (int, error) {
 	n, err := strconv.Atoi(env("MEOW_GATEWAY_MAX_CONCURRENT_PUSHES", strconv.Itoa(api.DefaultGatewayMaxConcurrentPushes)))
-	if err != nil || n <= 0 {
-		return 0, fmt.Errorf("MEOW_GATEWAY_MAX_CONCURRENT_PUSHES must be a positive whole number")
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("MEOW_GATEWAY_MAX_CONCURRENT_PUSHES must be a non-negative whole number (0 = unlimited)")
 	}
 	return n, nil
 }
@@ -232,7 +228,7 @@ type cacheMaintenance interface {
 }
 
 type questionExpiry interface {
-	ExpireDue(context.Context) error
+	ExpireDue(context.Context) ([]string, error)
 }
 
 // maintain expires overdue questions and bounds the server's message cache.
@@ -264,7 +260,7 @@ func maintain(ctx context.Context, srv questionExpiry, st cacheMaintenance, rete
 		case <-ctx.Done():
 			return
 		case <-expire.C:
-			if err := srv.ExpireDue(ctx); err != nil && ctx.Err() == nil {
+			if _, err := srv.ExpireDue(ctx); err != nil && ctx.Err() == nil {
 				log.Error("expire questions", "err", err)
 			}
 		case <-prune.C:

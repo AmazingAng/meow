@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"meow.blue/meow/message"
 	"meow.blue/meow/server/internal/store"
 )
 
@@ -121,7 +120,7 @@ func (s *Server) createKey(w http.ResponseWriter, r *http.Request, p principal) 
 	scopes := store.DefaultScopes
 	if len(in.Scopes) > 0 {
 		scopes = nil
-		for _, want := range []string{store.ScopeNotify, store.ScopeAsk} {
+		for _, want := range []string{store.ScopeNotify} {
 			for _, sc := range in.Scopes {
 				if sc == want {
 					scopes = append(scopes, want)
@@ -130,7 +129,7 @@ func (s *Server) createKey(w http.ResponseWriter, r *http.Request, p principal) 
 			}
 		}
 		for _, sc := range in.Scopes {
-			if !checkEnum(w, "scopes[]", sc, store.ScopeNotify, store.ScopeAsk) {
+			if !checkEnum(w, "scopes[]", sc, store.ScopeNotify) {
 				return
 			}
 		}
@@ -262,44 +261,6 @@ func (s *Server) mark(w http.ResponseWriter, r *http.Request, err error) {
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "notification not found")
-	default:
-		s.internalError(w, r, err)
-	}
-}
-
-// respond answers a question from the iOS app. An Idempotency-Key is required
-// so that a reply queued offline and retried is applied at most once.
-func (s *Server) respond(w http.ResponseWriter, r *http.Request, p principal) {
-	key := r.Header.Get("Idempotency-Key")
-	if key == "" || message.ValidateIdempotencyKey(key) != nil {
-		writeError(w, http.StatusBadRequest, "invalid_idempotency_key", "an Idempotency-Key header of at most 128 printable ASCII characters is required")
-		return
-	}
-	var in struct {
-		Answer string `json:"answer"`
-	}
-	if !decodeJSON(w, r, &in) {
-		return
-	}
-	in.Answer = strings.TrimSpace(in.Answer)
-	if !checkText(w, "answer", in.Answer, true, maxAnswer) {
-		return
-	}
-	id := r.PathValue("id")
-	q, replay, err := s.st.Respond(r.Context(), id, p.device.ID, in.Answer, key)
-	switch {
-	case err == nil:
-		s.waits.publish(id)
-		writeJSON(w, created(w, replay), toQuestionJSON(q))
-	case errors.Is(err, store.ErrNotFound):
-		writeError(w, http.StatusNotFound, "not_found", "question not found")
-	case errors.Is(err, store.ErrResolved):
-		writeJSON(w, http.StatusConflict, conflictBody("already_resolved", "question is already "+q.Status, q))
-	case errors.Is(err, store.ErrExpired):
-		s.waits.publish(id)
-		writeJSON(w, http.StatusGone, conflictBody("expired", "question expired before it was answered", q))
-	case errors.Is(err, store.ErrInvalidAnswer):
-		writeError(w, http.StatusUnprocessableEntity, "invalid_answer", "answer must be one of the question's choices")
 	default:
 		s.internalError(w, r, err)
 	}

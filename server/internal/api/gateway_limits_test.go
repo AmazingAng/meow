@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -115,7 +116,7 @@ func TestGatewayLimitsRoutesShareIPBudget(t *testing.T) {
 		routes := make([]store.GatewayRegistration, 5)
 		for i := range routes {
 			var err error
-			routes[i], err = st.RegisterGatewayRoute(context.Background(), strings.Repeat("a", 64), "sandbox", fmt.Sprint("binding_", i))
+			routes[i], err = st.RegisterGatewayRoute(context.Background(), fmt.Sprintf("%064x", i+1), "sandbox", fmt.Sprint("binding_", i))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -213,7 +214,7 @@ func (p *gatewayBlockingPush) Push(ctx context.Context, _ push.Message) error {
 
 func gatewayLimitRoute(t *testing.T, st *store.Store, binding string) store.GatewayRegistration {
 	t.Helper()
-	r, err := st.RegisterGatewayRoute(context.Background(), strings.Repeat("a", 64), "sandbox", binding)
+	r, err := st.RegisterGatewayRoute(context.Background(), fmt.Sprintf("%x", sha256.Sum256([]byte(binding))), "sandbox", binding)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,15 +235,12 @@ func gatewayWakeRequest(h http.Handler, route store.GatewayRegistration, ip stri
 }
 
 func TestGatewayLimitsGlobalPushAdmission(t *testing.T) {
-	for _, config := range []int{0, 2} {
+	for _, config := range []int{2} {
 		t.Run(fmt.Sprint(config), func(t *testing.T) {
 			st := gatewayLimitStore(t)
 			p := &gatewayBlockingPush{entered: make(chan struct{}, 64), release: make(chan struct{})}
 			h := NewGateway(GatewayConfig{Store: st, Push: p, MaxConcurrentPushes: config})
 			limit := config
-			if limit == 0 {
-				limit = 32
-			}
 			route := gatewayLimitRoute(t, st, "holding")
 			busy := gatewayLimitRoute(t, st, "busy")
 			var wg sync.WaitGroup
@@ -298,6 +296,63 @@ func TestGatewayLimitsGlobalPushAdmission(t *testing.T) {
 				t.Fatalf("busy blocked revocation: %d", w.Code)
 			}
 		})
+	}
+}
+
+func TestGatewayLimitsDefaultHasNoFixedConcurrencyCap(t *testing.T) {
+	st := gatewayLimitStore(t)
+	p := &gatewayBlockingPush{entered: make(chan struct{}, 64), release: make(chan struct{})}
+	h := NewGateway(GatewayConfig{Store: st, Push: p})
+	routes := []store.GatewayRegistration{gatewayLimitRoute(t, st, "default_a"), gatewayLimitRoute(t, st, "default_b")}
+	var wg sync.WaitGroup
+	defer func() { close(p.release); wg.Wait() }()
+	for i := 0; i < 64; i++ {
+		route := routes[i%2]
+		wg.Go(func() {
+			w := gatewayWakeRequest(h, route, "192.0.2.1", context.Background())
+			if w.Code != 200 {
+				t.Errorf("default request rejected: %d", w.Code)
+			}
+		})
+	}
+	for i := 0; i < 64; i++ {
+		select {
+		case <-p.entered:
+		case <-time.After(3 * time.Second):
+			t.Fatalf("only %d of 64 default requests reached provider", i)
+		}
+	}
+}
+
+func TestGatewayQuotaCannotBeResetByRoutesOrClientIPs(t *testing.T) {
+	st := gatewayLimitStore(t)
+	h := NewGateway(GatewayConfig{Store: st, Push: gatewayLimitPush{}})
+	first, err := st.RegisterGatewayRoute(context.Background(), strings.Repeat("a", 64), "sandbox", "first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := st.RegisterGatewayRoute(context.Background(), strings.Repeat("A", 64), "sandbox", "second")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range 60 {
+		if w := gatewayWakeRequest(h, first, fmt.Sprintf("192.0.2.%d", i+1), context.Background()); w.Code != 200 {
+			t.Fatalf("push %d: %d %s", i, w.Code, w.Body)
+		}
+	}
+	w := gatewayWakeRequest(h, second, "198.51.100.1", context.Background())
+	requireGatewayRateLimit(t, w)
+	if w.Header().Get("Retry-After") != "60" {
+		t.Fatalf("not the durable shared quota: %v", w.Header())
+	}
+}
+
+func TestGatewayRouteChangeBeforeAdmissionCanRetry(t *testing.T) {
+	w := httptest.NewRecorder()
+	gatewayStoreError(w, store.ErrGatewayRouteChanged)
+	requireGatewayRateLimit(t, w)
+	if w.Header().Get("Retry-After") != "1" {
+		t.Fatalf("route rotation retry=%v", w.Header())
 	}
 }
 

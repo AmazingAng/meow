@@ -18,7 +18,7 @@ import (
 
 // Runs the actual persisted dispatcher -> HTTP gateway -> APNs boundary, then
 // fetches and answers against the originating API with its mobile credential.
-func TestGatewayEndToEndDispatchAndReply(t *testing.T) {
+func TestGatewayEndToEndDispatchAndRead(t *testing.T) {
 	_, apns, gatewayURL := gatewayFixture(t)
 	route := enroll(t, gatewayURL, "bind_1")
 	st, err := store.Open(filepath.Join(t.TempDir(), "origin.db"))
@@ -45,13 +45,13 @@ func TestGatewayEndToEndDispatchAndReply(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mobile := client.New(ts.URL, registration.DeviceToken)
+
 	agent := client.New(ts.URL, registration.Key.Secret)
 	status, body := gatewayRequest(t, ts.URL, "PUT", "/v1/device/push-gateway", registration.DeviceToken, map[string]string{"gateway_device_id": route.ID, "push_token": route.PushToken, "binding_id": route.BindingID})
 	if status != 204 {
 		t.Fatalf("bind=%d %s", status, body)
 	}
-	q, err := agent.Ask(ctx, client.AskRequest{Question: "PRIVATE QUESTION", Body: "PRIVATE BODY", Source: "PRIVATE SOURCE", Choices: []string{"approve", "reject"}}, "")
+	q, err := agent.Notify(ctx, client.NotifyRequest{Title: "PRIVATE QUESTION", Body: "PRIVATE BODY", Source: "PRIVATE SOURCE"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,8 +73,8 @@ func TestGatewayEndToEndDispatchAndReply(t *testing.T) {
 		}
 		t.Fatalf("notification never reached %s", want)
 	}
-	awaitPush(q.NotificationID, store.PushAccepted)
-	status, body = gatewayRequest(t, ts.URL, "GET", "/v1/notifications/"+q.NotificationID, registration.DeviceToken, nil)
+	awaitPush(q.ID, store.PushAccepted)
+	status, body = gatewayRequest(t, ts.URL, "GET", "/v1/notifications/"+q.ID, registration.DeviceToken, nil)
 	var n client.Notification
 	err = json.Unmarshal(body, &n)
 	if status != 200 || err != nil || n.Title != "PRIVATE QUESTION" || n.Body != "PRIVATE BODY" {
@@ -87,16 +87,6 @@ func TestGatewayEndToEndDispatchAndReply(t *testing.T) {
 		if strings.Contains(payload, secret) {
 			t.Fatal("content or credential leaked to APNs")
 		}
-	}
-	if _, err = mobile.Respond(ctx, q.ID, "approve", "reply-fixed-id"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = mobile.Respond(ctx, q.ID, "approve", "reply-fixed-id"); err != nil {
-		t.Fatalf("idempotent retry: %v", err)
-	}
-	resolved, err := agent.Question(ctx, q.ID)
-	if err != nil || resolved.Status != "answered" {
-		t.Fatalf("agent result=%+v %v", resolved, err)
 	}
 	apns.mu.Lock()
 	apns.err = &push.Error{Status: 503, Reason: "ServiceUnavailable"}

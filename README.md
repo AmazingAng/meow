@@ -219,21 +219,18 @@ For scripts, CI, backups and monitors, the [service integration guide](skills/me
 
 ## HTTP API
 
-All requests use `Authorization: Bearer <token>`. There are two credentials:
+Authenticated endpoints use `Authorization: Bearer <token>`. There are two credentials:
 
-- **Device Key** (`meow_…`): send-only, for agents and scripts. Scopes `notify` and `ask`. Revocable. It can never answer questions.
-- **Device token** (`mdt_…`): held by the iOS app. Answers questions and manages keys.
+- **Device Key** (`meow_…`): send-only, for agents and scripts. Only the `notify` scope is active. Revocable. It cannot read questions or answers.
+- **Device token** (`mdt_…`): held by the iOS app. Reads its own history and manages keys.
 
 Only SHA-256 hashes of both are stored.
 
 | Endpoint | Credential | |
 | --- | --- | --- |
 | `POST /v1/notifications` | Device Key | JSON `{title, body, source, priority, type, event?, context?}` or a plain-text body |
-| `POST /v1/questions` | Device Key | `{question, body, source, choices, timeout}` → `{id, status, expires_at, …}` |
-| `GET /v1/questions/{id}` | Device Key with `ask`, or device token | current state |
-| `GET /v1/questions/{id}/wait?timeout=30` | Device Key | long poll until resolved, at most 60s |
-| `POST /v1/questions/{id}/cancel` | Device Key | |
-| `POST /v1/questions/{id}/responses` | device token | `{answer}`; `Idempotency-Key` required |
+| `GET /v1/questions/{id}` | device token | read-only legacy history; sender keys get 403 |
+| Retired question create / wait / cancel / responses | none | `410 feature_retired`; no execution or side effects |
 | `POST /v1/devices` | none | register; returns the device token and the first Device Key once |
 | `GET/PATCH /v1/device`, `GET/POST /v1/keys`, `DELETE /v1/keys/{id}` | device token | |
 | `GET /v1/inbox`, `POST /v1/notifications/{id}/read`, `…/delivered` | device token | |
@@ -247,9 +244,13 @@ curl -H "Authorization: Bearer $MEOW_KEY" -d "Build completed" "$MEOW_SERVER/v1/
 
 The optional notification `context` object accepts `workspace`, `workspace_id`, `session` and `session_id`. Display names allow 200 Unicode characters; IDs allow 128. Values are trimmed and must be single-line text without control characters. Context is returned by notification detail and inbox endpoints and included in creation idempotency. Omitting it preserves the previous request format. Update the server, CLI and iOS app for session context to appear end to end; server startup migrates SQLite to schema v3 while preserving history.
 
-In the iOS inbox, swipe left and tap the trash icon to delete one message. The header trash menu clears a selected time range after confirmation. Time ranges use the iPhone's local calendar and apply to all messages, including those hidden by search. Deletion removes server records and the local cache; it cannot be undone. Update the server before using these controls; unsupported endpoints and network failures keep local messages and show an error. Bulk deletion requires both bounds (`0 <= from < before <= 253402300799999`); missing, duplicate and unknown query parameters are rejected. Deleting a legacy question message also removes its question and responses and wakes waiting clients with `404`; it never approves anything. Creation idempotency records keep their normal retention to prevent sender retries from recreating deleted messages. An APNs notification already accepted by Apple may remain in Notification Center.
+In the iOS inbox, swipe left and tap the trash icon to delete one message. The header trash menu clears a selected time range after confirmation. Time ranges use the iPhone's local calendar and apply to all messages, including those hidden by search. Deletion removes server records and the local cache; it cannot be undone. Update the server before using these controls; unsupported endpoints and network failures keep local messages and show an error. Bulk deletion requires both bounds (`0 <= from < before <= 253402300799999`); missing, duplicate and unknown query parameters are rejected. Deleting a legacy question message also removes its question and responses without affecting other devices; it never approves anything. Creation idempotency records keep their normal retention to prevent sender retries from recreating deleted messages. An APNs notification already accepted by Apple may remain in Notification Center.
 
-Question lifecycle: `pending` → `answered` | `rejected` | `expired` | `cancelled`. Exactly one response is accepted per question. A retry with the same `Idempotency-Key` and answer returns the stored result. Any other second response gets `409`, and a response after expiry gets `410`. Expiry never approves anything.
+Legacy question and answer records remain readable. New questions, answers,
+cancellation and long polling are retired. Existing sender keys retain notification
+sending, but old `ask` grants no longer authorize any history access. Key creation
+and App key rotation use only `notify`. Previously saved phone replies are
+copy/delete records and have no network sender or retry queue.
 
 `POST` requests that create resources accept an optional `Idempotency-Key`; replays return `200` with `Idempotent-Replayed: true`.
 
@@ -262,7 +263,8 @@ For a persistent Docker deployment with Caddy HTTPS, see [deploy/README.md](depl
 | Variable | Default | |
 | --- | --- | --- |
 | `MEOW_ADDR` | `:8080` | |
-| `MEOW_DB` | `meow.db` | keep it on a persistent local volume |
+| `MEOW_DB` | `meow.db` | filesystem path on a persistent local volume; files are restricted to 0600 |
+| `MEOW_GATEWAY_MAX_CONCURRENT_PUSHES` | `0` | gateway only; 0 = no fixed concurrency cap; positive values opt into a cap |
 | `MEOW_RETENTION` | `720h` | server delivery-cache lifetime (minimum `1h`); startup and every 5 minutes prune expired content; downloaded iPhone history is independent |
 | `MEOW_TRUST_PROXY` | | `true` to rate-limit by `X-Forwarded-For` behind a reverse proxy |
 | `MEOW_APNS_KEY_FILE`, `MEOW_APNS_KEY_ID`, `MEOW_APNS_TEAM_ID`, `MEOW_APNS_TOPIC` | | APNs token auth (.p8); push is disabled when unset |
@@ -279,7 +281,7 @@ Content-free per-device send receipts and creation-idempotency metadata are kept
 
 TTL is logical deletion, not guaranteed forensic erasure of SQLite free pages, WAL files or existing backups. Configure encrypted storage and a separate backup retention policy when appropriate.
 
-Back up the live database with `meow-server backup /path/to/backup.db` (a consistent `VACUUM INTO` snapshot). Do not copy the `.db` file while the server is running.
+Back up the live database with `meow-server backup /path/to/backup.db` (a consistent `VACUUM INTO` snapshot). Do not copy the `.db` file while the server is running. Database/WAL/SHM and snapshots are restricted to 0600; newly created data directories are 0700. Existing parent directories are not chmodded. Backups are published only when complete and never replace existing files or symlink targets. Protect directory ownership as well as modes; this is not encryption at rest.
 
 ## iOS app
 

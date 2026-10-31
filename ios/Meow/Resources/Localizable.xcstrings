@@ -3603,6 +3603,22 @@
           }
         }
       }
+    },
+    "Saved reply records are kept. Discard them to change servers.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved reply records are kept. Discard them to change servers."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保留回复记录。若要更换服务器，请先确认丢弃这些记录。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

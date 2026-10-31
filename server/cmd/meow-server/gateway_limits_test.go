@@ -11,8 +11,8 @@ func TestGatewayConcurrencyConfiguration(t *testing.T) {
 		want    int
 		invalid bool
 	}{
-		{"", 32, false}, {"1", 1, false}, {"64", 64, false}, {" 8 ", 8, false},
-		{"0", 0, true}, {"-1", 0, true}, {"1.5", 0, true}, {"bad", 0, true},
+		{"", 0, false}, {"1", 1, false}, {"64", 64, false}, {" 8 ", 8, false},
+		{"0", 0, false}, {"-1", 0, true}, {"1.5", 0, true}, {"bad", 0, true},
 		{"999999999999999999999999999", 0, true},
 	} {
 		t.Run(tt.input, func(t *testing.T) {
@@ -30,7 +30,7 @@ func TestGatewayConcurrencyConfiguration(t *testing.T) {
 }
 
 func TestGatewayInvalidConcurrencyFailsBeforeStartup(t *testing.T) {
-	t.Setenv("MEOW_GATEWAY_MAX_CONCURRENT_PUSHES", "0")
+	t.Setenv("MEOW_GATEWAY_MAX_CONCURRENT_PUSHES", "-1")
 	t.Setenv("MEOW_APNS_KEY_FILE", "")
 	err := run(true)
 	if err == nil || !strings.Contains(err.Error(), "MEOW_GATEWAY_MAX_CONCURRENT_PUSHES") {

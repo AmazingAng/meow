@@ -72,7 +72,7 @@ final class DeviceKeyResetTests: XCTestCase {
     }
 
     private func key(_ secret: String? = "meow_new_fixture") -> Data {
-        var json: [String: Any] = ["id": "key_new", "name": "Default", "hint": "fixture", "scopes": ["notify", "ask"],
+        var json: [String: Any] = ["id": "key_new", "name": "Default", "hint": "fixture", "scopes": ["notify"],
                                    "created_at": "2026-10-28T00:00:00Z"]
         if let secret { json["secret"] = secret }
         return try! JSONSerialization.data(withJSONObject: json)
@@ -288,7 +288,7 @@ final class DeviceKeyResetTests: XCTestCase {
                 if request.httpMethod == "DELETE" { throw URLError(.notConnectedToInternet) }
                 return (201, response)
             }
-            let queue = ReplyQueue(fileURL: folder.appendingPathComponent("queue.json")) { _ in throw URLError(.badURL) }
+            let queue = ReplyQueue(fileURL: folder.appendingPathComponent("queue.json"))
             let model = AppModel(replies: queue, inboxStore: store)
             let rotation = Task { await model.rotateKey() }
             await fulfillment(of: [started], timeout: 3)

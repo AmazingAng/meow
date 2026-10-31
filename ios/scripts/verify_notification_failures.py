@@ -10,7 +10,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = list((ROOT / 'ios/Shared').glob('*.swift')) + [ROOT / 'ios/Meow/App/ReplyQueue.swift']
-TESTS = ['GatewayTests.swift', 'NotificationFailureTests.swift', 'ReplyFailureTests.swift', 'NotificationCallbackTests.swift']
+TESTS = ['GatewayTests.swift', 'NotificationFailureTests.swift', 'SavedReplyRecordsTests.swift', 'NotificationCallbackTests.swift']
 EXPECTED_LAYERS = {'native', 'coverage', 'mutations', 'go', 'go_vet', 'ios_compile'}
 
 
@@ -38,15 +38,6 @@ let package = Package(name: "MeowFailures", platforms: [.macOS(.v14)], targets: 
         source = ROOT / 'ios/MeowTests' / name
         if source.exists():
             shutil.copy2(source, path / 'Tests' / name)
-    # Reuse the existing queue regressions verbatim. Only these top-level Swift
-    # declarations are platform independent; the other classes require UIKit.
-    original = (ROOT / 'ios/MeowTests/MeowTests.swift').read_text()
-    header = r'^(?:final class ReplyQueueTests: XCTestCase|extension ReplyQueueTests(?:\.HeldServer)?) \{'
-    blocks = re.findall(header + r'.*?^\}', original, re.M | re.S)
-    if not blocks or len(blocks) != len(re.findall(header, original, re.M)):
-        raise RuntimeError('incomplete original queue test extraction')
-    (path / 'Tests/OriginalReplyQueueTests.swift').write_text(
-        'import XCTest\n@testable import Meow\n\n' + '\n\n'.join(blocks) + '\n')
 
 
 def native(path, name='native', test_filter=None, check=True):

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"meow.blue/meow/server/internal/ids"
@@ -47,6 +48,12 @@ func (s *Store) RevokeGatewayRoute(ctx context.Context, id, secret string) error
 	return affected(res, err)
 }
 
+// A late invalid-token result must not revoke a token replaced in flight.
+func (s *Store) InvalidateGatewayRoute(ctx context.Context, route GatewayRoute) error {
+	_, err := s.w.ExecContext(ctx, `DELETE FROM gateway_routes WHERE id=? AND apns_token=? AND apns_env=?`, route.ID, route.APNsToken, route.APNsEnv)
+	return err
+}
+
 func affected(res sql.Result, err error) error {
 	if err != nil {
 		return err
@@ -58,22 +65,56 @@ func affected(res sql.Result, err error) error {
 	return err
 }
 
-// TakeGatewayQuota atomically consumes a slot in a durable fixed window.
-// Failed APNs attempts also count, so a bad token cannot create a retry flood.
+const gatewayQuotaSchema = `CREATE TABLE IF NOT EXISTS gateway_push_quotas (
+ apns_token TEXT NOT NULL,
+ apns_env TEXT NOT NULL,
+ quota_at INTEGER NOT NULL,
+ quota_count INTEGER NOT NULL,
+ PRIMARY KEY(apns_token,apns_env)
+);
+CREATE INDEX IF NOT EXISTS gateway_push_quota_expiry ON gateway_push_quotas(quota_at);`
+
+// TakeGatewayQuota shares the existing 60/minute allowance across routes for
+// the same token/environment. Re-enrollment, revocation and token-case aliases
+// cannot reset it. Failed provider attempts also count. The independent table
+// expires after its fixed window, so unused token identities do not accumulate.
 func (s *Store) TakeGatewayQuota(ctx context.Context, id string) error {
+	var route GatewayRoute
+	route.ID = id
+	if err := s.r.QueryRowContext(ctx, `SELECT apns_token,apns_env FROM gateway_routes WHERE id=?`, id).Scan(&route.APNsToken, &route.APNsEnv); err != nil {
+		return noRows(err)
+	}
+	return s.TakeGatewayPushQuota(ctx, route)
+}
+
+// Bind admission to the exact token that will be sent to APNs. A concurrent
+// route update/revocation cannot spend a different token's quota or revive a
+// deleted route. The caller retries after reloading the route when this fails.
+func (s *Store) TakeGatewayPushQuota(ctx context.Context, route GatewayRoute) error {
 	now := ms(s.now())
-	res, err := s.w.ExecContext(ctx, `UPDATE gateway_routes SET
- quota_count=CASE WHEN quota_at<=? THEN 1 ELSE quota_count+1 END,
- quota_at=CASE WHEN quota_at<=? THEN ? ELSE quota_at END
- WHERE id=? AND (quota_at<=? OR quota_count<60)`, now-int64(time.Minute/time.Millisecond), now-int64(time.Minute/time.Millisecond), now, id, now-int64(time.Minute/time.Millisecond))
-	if err != nil {
+	cutoff := now - int64(time.Minute/time.Millisecond)
+	return s.tx(ctx, func(tx *sql.Tx) error {
+		var token, environment string
+		if err := tx.QueryRowContext(ctx, `SELECT apns_token,apns_env FROM gateway_routes WHERE id=?`, route.ID).Scan(&token, &environment); err != nil {
+			return noRows(err)
+		}
+		if token != route.APNsToken || environment != route.APNsEnv {
+			return ErrGatewayRouteChanged
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM gateway_push_quotas WHERE quota_at<=?`, cutoff); err != nil {
+			return err
+		}
+		res, err := tx.ExecContext(ctx, `INSERT INTO gateway_push_quotas(apns_token,apns_env,quota_at,quota_count) VALUES(?,?,?,1)
+ ON CONFLICT(apns_token,apns_env) DO UPDATE SET quota_count=quota_count+1 WHERE quota_count<60`, strings.ToLower(route.APNsToken), route.APNsEnv, now)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err == nil && n == 0 {
+			return &QuotaError{Limit: "gateway_pushes", Max: 60}
+		}
 		return err
-	}
-	n, err := res.RowsAffected()
-	if err == nil && n == 0 {
-		return &QuotaError{Limit: "gateway_pushes", Max: 60}
-	}
-	return err
+	})
 }
 
 // GatewayBinding is an outbound capability. Unlike inbound credentials, its

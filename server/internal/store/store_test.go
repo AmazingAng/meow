@@ -55,7 +55,7 @@ func TestRegisterAndAuthenticate(t *testing.T) {
 		t.Fatalf("DeviceByToken = %v, %v", d.ID, err)
 	}
 	k, err := s.KeyBySecret(ctx, reg.KeySecret)
-	if err != nil || k.DeviceID != reg.Device.ID || !k.Has(ScopeAsk) || !k.Has(ScopeNotify) {
+	if err != nil || k.DeviceID != reg.Device.ID || k.Has(ScopeAsk) || !k.Has(ScopeNotify) {
 		t.Fatalf("KeyBySecret = %+v, %v", k, err)
 	}
 	if _, err := s.KeyBySecret(ctx, reg.DeviceToken); !errors.Is(err, ErrNotFound) {

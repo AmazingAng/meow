@@ -1,4 +1,3 @@
-import LocalAuthentication
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -34,7 +33,6 @@ enum AvatarStyle {
         return Int(hash % UInt32(palette.count))
     }
 }
-
 struct SourceAvatar: View {
     var source: String
     var size: CGFloat = 40
@@ -242,19 +240,5 @@ struct CommandBlock: View {
                 .padding(12)
                 .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-    }
-}
-
-enum DeviceAuth {
-    /// Asks for Face ID, Touch ID or the passcode. A device without a passcode
-    /// cannot authenticate and is let through, as iOS does for notification
-    /// actions that require authentication.
-    static func confirm(reason: String) async -> Bool {
-        let context = LAContext()
-        var error: NSError?
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            return error?.domain == LAErrorDomain && error?.code == LAError.passcodeNotSet.rawValue
-        }
-        return (try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)) ?? false
     }
 }

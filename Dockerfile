@@ -5,7 +5,7 @@
 #   docker build -t meow-server .
 #   docker run -p 8080:8080 -v meow-data:/data meow-server
 
-FROM golang:1.27.2 AS build
+FROM golang:1.27.3 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -14,7 +14,7 @@ COPY server ./server
 ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
       -o /out/meow-server ./server/cmd/meow-server \
- && mkdir /out/data
+ && mkdir -m 700 /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/meow-server /meow-server

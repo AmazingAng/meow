@@ -73,14 +73,14 @@ func (s *fakeCacheMaintenance) PruneInactiveDevices(_ context.Context, d time.Du
 	}
 	return 1, nil
 }
-func (s *fakeCacheMaintenance) ExpireDue(context.Context) error {
+func (s *fakeCacheMaintenance) ExpireDue(context.Context) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state.expires++
 	if s.state.expiryFail {
-		return errors.New("expiry unavailable")
+		return nil, errors.New("expiry unavailable")
 	}
-	return nil
+	return nil, nil
 }
 
 type lockedLog struct {

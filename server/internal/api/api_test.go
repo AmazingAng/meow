@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"meow.blue/meow/client"
 	"meow.blue/meow/server/internal/api"
@@ -47,7 +46,7 @@ func setup(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	e := &env{st: st, push: &recordingPush{}, dbPath: path}
-	e.srv = api.New(api.Config{Store: st, Push: e.push, MaxWait: 5 * time.Second})
+	e.srv = api.New(api.Config{Store: st, Push: e.push})
 	ts := httptest.NewServer(e.srv)
 	t.Cleanup(func() {
 		e.srv.Close()
@@ -76,159 +75,6 @@ func apiErr(t *testing.T, err error, status int, code string) *client.Error {
 var ctx = context.Background()
 
 // The core V0 loop: a waiting CLI receives exactly the answer given on the phone.
-func TestAskWaitAnswer(t *testing.T) {
-	e := setup(t)
-	q, err := e.agent.Ask(ctx, client.AskRequest{Question: "What should I do next?", Source: "Codex"}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if q.Status != "pending" || q.ID == "" || q.ExpiresAt.IsZero() {
-		t.Fatalf("created question = %+v", q)
-	}
-
-	done := make(chan *client.Question, 1)
-	go func() {
-		got, err := e.agent.Wait(ctx, q.ID, nil)
-		if err != nil {
-			t.Error(err)
-		}
-		done <- got
-	}()
-	time.Sleep(100 * time.Millisecond) // let the waiter subscribe
-
-	const answer = "Run the evaluation first"
-	if _, err := e.phone.Respond(ctx, q.ID, answer, "reply-1"); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case got := <-done:
-		if got.Status != "answered" || got.Answer == nil || *got.Answer != answer {
-			t.Fatalf("waiter got %+v", got)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("waiter was not woken by the response")
-	}
-}
-
-func TestApproveRejectSingleOutcome(t *testing.T) {
-	e := setup(t)
-	q, err := e.agent.Ask(ctx, client.AskRequest{Question: "Deploy?", Choices: []string{"approve", "reject"}}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.phone.Respond(ctx, q.ID, "maybe", "r0"); err != nil {
-		apiErr(t, err, 422, "invalid_answer")
-	}
-	got, err := e.phone.Respond(ctx, q.ID, "reject", "r1")
-	if err != nil || got.Status != "rejected" {
-		t.Fatalf("reject = %+v, %v", got, err)
-	}
-	// Retry of the same submission (e.g. offline queue) replays the result.
-	if got, err = e.phone.Respond(ctx, q.ID, "reject", "r1"); err != nil || got.Status != "rejected" {
-		t.Fatalf("replay = %+v, %v", got, err)
-	}
-	// A different submission is refused and reports the actual outcome.
-	_, err = e.phone.Respond(ctx, q.ID, "approve", "r2")
-	if ae := apiErr(t, err, 409, "already_resolved"); ae.Question == nil || ae.Question.Status != "rejected" {
-		t.Fatalf("conflict body = %+v", ae.Question)
-	}
-}
-
-func TestExpiredResponseRejected(t *testing.T) {
-	e := setup(t)
-	q, err := e.agent.Ask(ctx, client.AskRequest{Question: "Deploy?", Choices: []string{"approve", "reject"}, Timeout: 10}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	e.st.Now = func() time.Time { return time.Now().Add(time.Minute) }
-	_, err = e.phone.Respond(ctx, q.ID, "approve", "r1")
-	if ae := apiErr(t, err, 410, "expired"); ae.Question == nil || ae.Question.Status != "expired" || ae.Question.Answer != nil {
-		t.Fatalf("expired body = %+v", ae.Question)
-	}
-	got, err := e.agent.Question(ctx, q.ID)
-	if err != nil || got.Status != "expired" {
-		t.Fatalf("question = %+v, %v", got, err)
-	}
-}
-
-func TestWaitReturnsOnExpiry(t *testing.T) {
-	e := setup(t)
-	q, err := e.agent.Ask(ctx, client.AskRequest{Question: "Anyone?", Timeout: 10}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Shift the clock so the question expires ~200ms from now.
-	shift := 10*time.Second - 200*time.Millisecond
-	e.st.Now = func() time.Time { return time.Now().Add(shift) }
-	start := time.Now()
-	got, err := e.agent.WaitOnce(ctx, q.ID, 5*time.Second)
-	if err != nil || got.Status != "expired" {
-		t.Fatalf("wait = %+v, %v", got, err)
-	}
-	if d := time.Since(start); d > 2*time.Second {
-		t.Fatalf("wait took %v; should return at expiry", d)
-	}
-}
-
-func TestWaitTimeoutReturnsPending(t *testing.T) {
-	e := setup(t)
-	q, _ := e.agent.Ask(ctx, client.AskRequest{Question: "Anyone?"}, "")
-	got, err := e.agent.WaitOnce(ctx, q.ID, time.Second)
-	if err != nil || got.Status != "pending" {
-		t.Fatalf("wait = %+v, %v", got, err)
-	}
-}
-
-func TestCancelWakesWaiter(t *testing.T) {
-	e := setup(t)
-	q, _ := e.agent.Ask(ctx, client.AskRequest{Question: "Anyone?"}, "")
-	done := make(chan string, 1)
-	go func() {
-		got, _ := e.agent.WaitOnce(ctx, q.ID, 5*time.Second)
-		done <- got.Status
-	}()
-	time.Sleep(100 * time.Millisecond)
-	if _, err := e.agent.Cancel(ctx, q.ID); err != nil {
-		t.Fatal(err)
-	}
-	if s := <-done; s != "cancelled" {
-		t.Fatalf("waiter saw %q", s)
-	}
-	_, err := e.phone.Respond(ctx, q.ID, "late", "r1")
-	apiErr(t, err, 409, "already_resolved")
-}
-
-func TestCredentialSeparation(t *testing.T) {
-	e := setup(t)
-	q, _ := e.agent.Ask(ctx, client.AskRequest{Question: "Deploy?", Choices: []string{"approve", "reject"}}, "")
-
-	// A Device Key can send but must never be able to approve.
-	_, err := e.agent.Respond(ctx, q.ID, "approve", "r1")
-	apiErr(t, err, 403, "forbidden")
-	_, _, err = e.agent.Inbox(ctx, "", 10)
-	apiErr(t, err, 403, "forbidden")
-	_, err = e.agent.CreateKey(ctx, "x", nil)
-	apiErr(t, err, 403, "forbidden")
-
-	// The device token is not a send credential.
-	_, err = e.phone.Notify(ctx, client.NotifyRequest{Title: "hi"}, "")
-	apiErr(t, err, 403, "forbidden")
-
-	_, err = client.New(e.url, "meow_bogus").Notify(ctx, client.NotifyRequest{Title: "hi"}, "")
-	apiErr(t, err, 401, "unauthorized")
-	_, err = client.New(e.url, "").Notify(ctx, client.NotifyRequest{Title: "hi"}, "")
-	apiErr(t, err, 401, "unauthorized")
-
-	// Another device cannot see or answer this device's question.
-	other, err := client.New(e.url, "").Register(ctx, "other")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = client.New(e.url, other.DeviceToken).Respond(ctx, q.ID, "approve", "r1")
-	apiErr(t, err, 404, "not_found")
-	_, err = client.New(e.url, other.Key.Secret).Question(ctx, q.ID)
-	apiErr(t, err, 404, "not_found")
-}
 
 func TestKeyScopesAndRevocation(t *testing.T) {
 	e := setup(t)
@@ -240,8 +86,6 @@ func TestKeyScopesAndRevocation(t *testing.T) {
 	if _, err := ci.Notify(ctx, client.NotifyRequest{Title: "CI passed"}, ""); err != nil {
 		t.Fatal(err)
 	}
-	_, err = ci.Ask(ctx, client.AskRequest{Question: "?"}, "")
-	apiErr(t, err, 403, "forbidden")
 
 	if err := e.phone.RevokeKey(ctx, k.ID); err != nil {
 		t.Fatal(err)
@@ -307,53 +151,9 @@ func TestValidation(t *testing.T) {
 			_, err := e.agent.Notify(ctx, client.NotifyRequest{Title: strings.Repeat("x", 300)}, "")
 			return err
 		}},
-		{"one choice", func() error {
-			_, err := e.agent.Ask(ctx, client.AskRequest{Question: "?", Choices: []string{"ok"}}, "")
-			return err
-		}},
-		{"duplicate choices", func() error {
-			_, err := e.agent.Ask(ctx, client.AskRequest{Question: "?", Choices: []string{"ok", "OK"}}, "")
-			return err
-		}},
-		{"timeout too long", func() error {
-			_, err := e.agent.Ask(ctx, client.AskRequest{Question: "?", Timeout: 999999}, "")
-			return err
-		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) { apiErr(t, tc.call(), 422, "invalid_request") })
-	}
-}
-
-func TestRespondRequiresIdempotencyKey(t *testing.T) {
-	e := setup(t)
-	q, _ := e.agent.Ask(ctx, client.AskRequest{Question: "?"}, "")
-	_, err := e.phone.Respond(ctx, q.ID, "hi", "")
-	apiErr(t, err, 400, "invalid_idempotency_key")
-}
-
-func TestServerRestartKeepsQuestions(t *testing.T) {
-	e := setup(t)
-	q, _ := e.agent.Ask(ctx, client.AskRequest{Question: "Deploy?", Choices: []string{"approve", "reject"}}, "")
-
-	// A second server on the same database file, as after a restart.
-	st2, err := store.Open(e.dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st2.Close()
-	srv2 := api.New(api.Config{Store: st2, Push: &recordingPush{}})
-	ts2 := httptest.NewServer(srv2)
-	defer ts2.Close()
-	defer srv2.Close()
-
-	got, err := client.New(ts2.URL, e.reg.DeviceToken).Respond(ctx, q.ID, "approve", "r1")
-	if err != nil || got.Status != "answered" {
-		t.Fatalf("respond after restart = %+v, %v", got, err)
-	}
-	got, err = client.New(ts2.URL, e.reg.Key.Secret).Question(ctx, q.ID)
-	if err != nil || *got.Answer != "approve" {
-		t.Fatalf("question after restart = %+v, %v", got, err)
 	}
 }
 
@@ -371,7 +171,7 @@ func TestRegistrationRateLimit(t *testing.T) {
 func TestInboxFilterAndCounts(t *testing.T) {
 	e := setup(t)
 	e.agent.Notify(ctx, client.NotifyRequest{Title: "Build completed", Source: "Codex"}, "")
-	e.agent.Ask(ctx, client.AskRequest{Question: "Deploy?", Choices: []string{"approve", "reject"}}, "")
+	seedPendingHistory(t, e)
 
 	get := func(query string, out any) int {
 		t.Helper()
@@ -428,13 +228,13 @@ func TestInboxFilterAndCounts(t *testing.T) {
 
 func TestQuotaExceededIsNotRetried(t *testing.T) {
 	e := setup(t)
-	e.st.Limits = store.Limits{PendingQuestions: 1, KeysPerDevice: 1}
-	if _, err := e.agent.Ask(ctx, client.AskRequest{Question: "first?"}, ""); err != nil {
+	e.st.Limits = store.Limits{DailyMessages: 1, KeysPerDevice: 1}
+	if _, err := e.agent.Notify(ctx, client.NotifyRequest{Title: "first"}, ""); err != nil {
 		t.Fatal(err)
 	}
-	_, err := e.agent.Ask(ctx, client.AskRequest{Question: "second?"}, "")
+	_, err := e.agent.Notify(ctx, client.NotifyRequest{Title: "second"}, "")
 	ae := apiErr(t, err, http.StatusTooManyRequests, "quota_exceeded")
-	if ae.Temporary() || !strings.Contains(ae.Message, "unanswered questions") {
+	if ae.Temporary() || !strings.Contains(ae.Message, "messages in 24 hours") {
 		t.Fatalf("quota error = %+v, temporary=%v", ae, ae.Temporary())
 	}
 	_, err = e.phone.CreateKey(ctx, "extra", []string{"notify"})

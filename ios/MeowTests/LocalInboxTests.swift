@@ -392,7 +392,7 @@ extension LocalInboxModelTests {
     func testCacheDeletionFailureKeepsCurrentServerAndMessages() async throws {
         try await store.save([localItem("saved")], scope: scope)
         try executeSQLite("CREATE TRIGGER fail_delete BEFORE DELETE ON inbox_messages BEGIN SELECT RAISE(ABORT,'disk delete failed'); END")
-        let queue = ReplyQueue(fileURL: folder.appendingPathComponent("replies.json")) { _ in throw URLError(.notConnectedToInternet) }
+        let queue = ReplyQueue(fileURL: folder.appendingPathComponent("replies.json"))
         let model = AppModel(replies: queue, inboxStore: store)
         let reset = await model.reset(server: URL(string: "https://new.invalid")!)
         XCTAssertFalse(reset)
@@ -551,32 +551,6 @@ extension LocalInboxModelTests {
         XCTAssertEqual(model.notifications.map(\.id), ["second"])
     }
 
-    func testAcceptedAnswerSurvivesAnOlderInflightSyncAndPersists() async throws {
-        let original = localItem("question", question: .init(id: "q_question", status: .pending,
-            choices: ["approve", "reject"], expiresAt: .now.addingTimeInterval(3600)))
-        try await store.save([original], scope: scope)
-        let data = try page([original])
-        let started = expectation(description: "old snapshot held"), gate = DispatchSemaphore(value: 0)
-        LocalInboxProtocol.install { request in
-            if request.url!.path.hasSuffix("/counts") { return (200, Data(#"{"unread":0,"pending":0}"#.utf8)) }
-            started.fulfill(); _ = gate.wait(timeout: .now() + 5)
-            return (200, data)
-        }
-        let queue = ReplyQueue(fileURL: folder.appendingPathComponent("replies.json")) { _ in
-            MeowQuestion(id: "q_question", status: .answered, question: original.title,
-                choices: ["approve", "reject"], answer: "approve", createdAt: original.createdAt,
-                expiresAt: original.question!.expiresAt, resolvedAt: .now, notificationId: original.id)
-        }
-        let model = AppModel(replies: queue, inboxStore: store)
-        let task = Task { await model.refresh() }
-        await fulfillment(of: [started], timeout: 3)
-        let answer = await model.answer("q_question", with: "approve")
-        XCTAssertEqual(answer, .sent)
-        gate.signal(); await task.value
-        XCTAssertEqual(model.notification(id: "question")?.question?.status, .answered)
-        let saved = try await store.load(scope: scope)
-        XCTAssertEqual(saved?.first?.question?.answer, "approve")
-    }
 
     func testCache404AndOlderSyncBothPreserveSavedHistory() async throws {
         try await store.save([localItem("removed")], scope: scope)
@@ -609,7 +583,7 @@ extension LocalInboxModelTests {
             started.fulfill(); _ = gate.wait(timeout: .now() + 5)
             return (200, data)
         }
-        let queue = ReplyQueue(fileURL: folder.appendingPathComponent("replies.json")) { _ in throw URLError(.notConnectedToInternet) }
+        let queue = ReplyQueue(fileURL: folder.appendingPathComponent("replies.json"))
         let model = AppModel(replies: queue, inboxStore: store)
         let task = Task { await model.refresh() }
         await fulfillment(of: [started], timeout: 3)

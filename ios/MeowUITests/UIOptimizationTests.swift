@@ -11,8 +11,12 @@ final class UIOptimizationTests: XCTestCase {
         }
         server = url
         let done = expectation(description: "fixture reset")
-        URLSession.shared.dataTask(with: URL(string: url + "/fixture/reset")!) { _, _, _ in done.fulfill() }.resume()
-        wait(for: [done], timeout: 5)
+        URLSession.shared.dataTask(with: URL(string: url + "/fixture/reset")!) { _, response, error in
+            XCTAssertNil(error)
+            XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 20)
     }
 
     private func open(id: String? = nil, large: Bool = false, chinese: Bool = false) -> XCUIApplication {
@@ -586,8 +590,9 @@ final class UIOptimizationTests: XCTestCase {
     func test06UrgentQuestionBeyondFirstPageAppearsFirst() {
         scenario("pagination")
         let app = open()
-        let urgent = app.descendants(matching: .any).matching(identifier: "notification.ntf_soon").firstMatch
-        let later = app.descendants(matching: .any).matching(identifier: "notification.ntf_later").firstMatch
+        browse("messages", in: app)
+        let urgent = app.descendants(matching: .any).matching(identifier: "notification.ntf_pagination_soon").firstMatch
+        let later = app.descendants(matching: .any).matching(identifier: "notification.ntf_pagination_later").firstMatch
         XCTAssertTrue(urgent.waitForExistence(timeout: 10))
         XCTAssertTrue(urgent.isHittable)
         XCTAssertLessThan(urgent.frame.minY, later.frame.minY)

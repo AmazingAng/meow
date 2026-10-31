@@ -25,6 +25,7 @@ def timestamp(date):
 
 class Fixture(BaseHTTPRequestHandler):
     device_id = None
+    app_path = None
     local_database = None
     read_requests = 0
     items = []
@@ -112,6 +113,17 @@ class Fixture(BaseHTTPRequestHandler):
                                    'key_attempts': type(self).key_attempts, 'key_revocations': type(self).key_revocations,
                                    'sender_key_old': type(self).sender_key_old, 'sender_key_new': type(self).sender_key_new})
         if url.path == '/fixture/reset':
+            # Each XCTest case starts with a new installation on this runner's
+            # disposable simulator. Origin cache omission must never be used
+            # to clear the phone's intentionally persistent local history.
+            if self.device_id and self.app_path:
+                subprocess.run(['xcrun', 'simctl', 'terminate', self.device_id, 'blue.meow.app'], capture_output=True)
+                for command in [
+                    ['uninstall', self.device_id, 'blue.meow.app'],
+                    ['keychain', self.device_id, 'reset'],
+                    ['install', self.device_id, str(self.app_path)],
+                ]:
+                    subprocess.run(['xcrun', 'simctl', *command], check=True, capture_output=True)
             self.reset()
             return self.send_json({})
         if url.path == '/fixture/append-group-message':
@@ -125,6 +137,10 @@ class Fixture(BaseHTTPRequestHandler):
             if scenario == 'key-reset':
                 type(self).key_reset_check = True
             elif scenario == 'pagination':
+                # Local history deliberately survives fixture omission. Use
+                # case-owned IDs and select Messages explicitly in the test.
+                soon = dict(soon, id='ntf_pagination_soon')
+                later = dict(later, id='ntf_pagination_later')
                 soon['question']['expires_at'] = timestamp(datetime.now(timezone.utc) + timedelta(seconds=120))
                 self.items[:] = [later] + [dict(info, id=f'ntf_info_{i}') for i in range(49)] + [soon]
             elif scenario == 'onboarding-missing-key':
@@ -261,7 +277,7 @@ class Fixture(BaseHTTPRequestHandler):
                                              'has_apns_token': False, 'created_at': now, 'last_seen_at': now},
                                    'device_token': 'mdt_disposable_ui_fixture',
                                    'key': {'id': 'key_ui', 'name': 'Default', 'hint': 'fixture',
-                                           'scopes': ['notify', 'ask'], 'created_at': now,
+                                           'scopes': ['notify'], 'created_at': now,
                                            'secret': None if self.missing_key else 'meow_disposable_ui_fixture'}}, 201)
         if self.path == '/v1/keys':
             type(self).key_attempts += 1
@@ -271,7 +287,7 @@ class Fixture(BaseHTTPRequestHandler):
             type(self).reset_sender_secret = secret
             type(self).active_sender_keys.add(secret)
             return self.send_json({'id': 'key_reset' if self.key_reset_check else 'key_recovered', 'name': 'Default', 'hint': 'fixture',
-                                   'scopes': ['notify', 'ask'], 'created_at': now,
+                                   'scopes': ['notify'], 'created_at': now,
                                    'secret': secret}, 201)
         if self.path == '/v1/notifications':
             secret = self.headers.get('Authorization', '').removeprefix('Bearer ')
@@ -330,6 +346,7 @@ def main():
         run(['xcodegen', 'generate', '--spec', 'ios/project.yml'])
         device = run(['xcrun', 'simctl', 'create', 'Meow UI Polish Temporary', args.device_type, args.runtime]).strip()
         Fixture.device_id = device
+        Fixture.app_path = output.parent / 'DerivedData/Build/Products/Debug-iphonesimulator/Meow.app'
         if args.appearance:
             run(['xcrun', 'simctl', 'boot', device])
             run(['xcrun', 'simctl', 'bootstatus', device, '-b'])

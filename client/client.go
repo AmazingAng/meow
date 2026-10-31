@@ -67,8 +67,6 @@ type Question struct {
 	NotificationID string     `json:"notification_id"`
 }
 
-func (q *Question) Pending() bool { return q.Status == "pending" }
-
 type Device struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
@@ -155,69 +153,9 @@ func (c *Client) Notify(ctx context.Context, r NotifyRequest, idemKey string) (*
 	return &n, c.do(ctx, http.MethodPost, "/v1/notifications", idemKey, r, &n)
 }
 
-type AskRequest struct {
-	Question string   `json:"question"`
-	Body     string   `json:"body,omitempty"`
-	Source   string   `json:"source,omitempty"`
-	Priority string   `json:"priority,omitempty"` // default high
-	Choices  []string `json:"choices,omitempty"`  // empty means a free-text reply
-	Timeout  int      `json:"timeout,omitempty"`  // seconds until expiry; default 900
-}
-
-func (c *Client) Ask(ctx context.Context, r AskRequest, idemKey string) (*Question, error) {
-	var q Question
-	return &q, c.do(ctx, http.MethodPost, "/v1/questions", idemKey, r, &q)
-}
-
 func (c *Client) Question(ctx context.Context, id string) (*Question, error) {
 	var q Question
 	return &q, c.do(ctx, http.MethodGet, "/v1/questions/"+url.PathEscape(id), "", nil, &q)
-}
-
-// WaitOnce long-polls for up to timeout and returns the question's state,
-// which is still pending if nothing happened in time.
-func (c *Client) WaitOnce(ctx context.Context, id string, timeout time.Duration) (*Question, error) {
-	var q Question
-	path := "/v1/questions/" + url.PathEscape(id) + "/wait?timeout=" + strconv.Itoa(int(timeout.Seconds()))
-	return &q, c.do(ctx, http.MethodGet, path, "", nil, &q)
-}
-
-// Wait blocks until the question is resolved or ctx ends. Network failures and
-// server restarts are retried with backoff, so a waiting process survives them.
-// onRetry, if non-nil, is called for each transient failure.
-func (c *Client) Wait(ctx context.Context, id string, onRetry func(error)) (*Question, error) {
-	backoff := time.Second
-	for {
-		q, err := c.WaitOnce(ctx, id, 55*time.Second)
-		if err == nil {
-			if !q.Pending() {
-				return q, nil
-			}
-			backoff = time.Second
-			continue
-		}
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		var ae *Error
-		if errors.Is(err, ErrNoServer) || (errors.As(err, &ae) && !ae.Temporary()) {
-			return nil, err
-		}
-		if onRetry != nil {
-			onRetry(err)
-		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(backoff):
-		}
-		backoff = min(backoff*2, 30*time.Second)
-	}
-}
-
-func (c *Client) Cancel(ctx context.Context, id string) (*Question, error) {
-	var q Question
-	return &q, c.do(ctx, http.MethodPost, "/v1/questions/"+url.PathEscape(id)+"/cancel", "", nil, &q)
 }
 
 type WhoAmI struct {
@@ -251,13 +189,6 @@ type Registration struct {
 func (c *Client) Register(ctx context.Context, name string) (*Registration, error) {
 	var r Registration
 	return &r, c.do(ctx, http.MethodPost, "/v1/devices", "", map[string]string{"name": name}, &r)
-}
-
-// Respond answers a question; idemKey is required and must be reused on retries.
-func (c *Client) Respond(ctx context.Context, questionID, answer, idemKey string) (*Question, error) {
-	var q Question
-	return &q, c.do(ctx, http.MethodPost, "/v1/questions/"+url.PathEscape(questionID)+"/responses", idemKey,
-		map[string]string{"answer": answer}, &q)
 }
 
 func (c *Client) Inbox(ctx context.Context, cursor string, limit int) ([]Notification, string, error) {

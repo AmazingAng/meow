@@ -2,6 +2,7 @@ package push
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"io"
 	"log/slog"
@@ -46,11 +47,34 @@ func reviewStore(t *testing.T) (*store.Store, store.Registration) {
 func TestDispatcherReloadsBeforeRetry(t *testing.T) {
 	for _, action := range []string{"cancel", "answer", "reject", "expire", "rotate", "accepted"} {
 		t.Run(action, func(t *testing.T) {
-			st, reg := reviewStore(t)
+			path := filepath.Join(t.TempDir(), "legacy.db")
+			st, err := store.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer st.Close()
 			ctx := context.Background()
+			reg, err := st.RegisterDevice(ctx, "fixture")
+			if err != nil {
+				t.Fatal(err)
+			}
+			token := strings.Repeat("ab", 32)
+			if _, err = st.UpdateDevice(ctx, reg.Device.ID, store.DeviceUpdate{APNsToken: &token}); err != nil {
+				t.Fatal(err)
+			}
+			db, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
 			now := time.Now()
 			st.Now = func() time.Time { return now }
-			q, _, err := st.CreateQuestion(ctx, store.NewQuestion{NewNotification: store.NewNotification{DeviceID: reg.Device.ID, KeyID: reg.Key.ID, Title: "Question", Priority: "normal"}, Choices: []string{"approve", "reject"}, TTL: time.Hour}, store.Idem{})
+			q := store.Question{ID: "qst_fixture", NotificationID: "ntf_fixture", ExpiresAt: now.Add(time.Hour)}
+			_, err = db.Exec(`INSERT INTO questions(id,device_id,key_id,choices,status,created_at,expires_at) VALUES(?,?,?,'["approve","reject"]','pending',?,?)`, q.ID, reg.Device.ID, reg.Key.ID, now.UnixMilli(), q.ExpiresAt.UnixMilli())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = db.Exec(`INSERT INTO notifications(id,device_id,key_id,type,title,priority,question_id,created_at) VALUES(?,?,?,'question','Old question','normal',?,?)`, q.NotificationID, reg.Device.ID, reg.Key.ID, q.ID, now.UnixMilli())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -61,11 +85,11 @@ func TestDispatcherReloadsBeforeRetry(t *testing.T) {
 				if calls == 1 {
 					switch action {
 					case "cancel":
-						_, err = st.CancelQuestion(ctx, q.ID, reg.Device.ID)
+						_, err = db.Exec(`UPDATE questions SET status='cancelled' WHERE id=?`, q.ID)
 					case "answer":
-						_, _, err = st.Respond(ctx, q.ID, reg.Device.ID, "approve", "r")
+						_, err = db.Exec(`UPDATE questions SET status='answered',answer='approve' WHERE id=?`, q.ID)
 					case "reject":
-						_, _, err = st.Respond(ctx, q.ID, reg.Device.ID, "reject", "r")
+						_, err = db.Exec(`UPDATE questions SET status='rejected',answer='reject' WHERE id=?`, q.ID)
 					case "expire":
 						now = q.ExpiresAt
 					case "rotate":

@@ -162,7 +162,7 @@ extension GatewaySessionTests {
         defer { session.invalidateAndCancel() }
         let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: file) }
-        let replies = ReplyQueue(fileURL: file) { _ in throw URLError(.notConnectedToInternet) }
+        let replies = ReplyQueue(fileURL: file)
         let model = AppModel(replies: replies, pushSession: session)
         let enrolling = Task {
             model.didReceiveAPNsToken(String(repeating: "a", count: 64))

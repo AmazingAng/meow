@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const DefaultGatewayMaxConcurrentPushes = 32
+const DefaultGatewayMaxConcurrentPushes = 0 // unlimited unless the operator opts in
 
 // Share allowance across address aliases and an IPv6 client's interface
 // addresses. Proxy selection still follows the explicitly configured trust.
@@ -29,6 +29,9 @@ func (g *gateway) admitPush(w http.ResponseWriter, r *http.Request) bool {
 	if r.Context().Err() != nil {
 		writeError(w, http.StatusRequestTimeout, "request_cancelled", "request was cancelled")
 		return false
+	}
+	if g.pushSlots == nil {
+		return true
 	}
 	select {
 	case g.pushSlots <- struct{}{}:

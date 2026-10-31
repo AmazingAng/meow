@@ -183,7 +183,7 @@ func TestPerformanceMigrationPreservesRecords(t *testing.T) {
 	}
 	defer migrated.Close()
 	var v int
-	if err := migrated.r.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil || v != 6 {
+	if err := migrated.r.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil || v != schemaVersion {
 		t.Fatalf("version=%d error=%v", v, err)
 	}
 	if _, err := migrated.DeviceByToken(ctx, r.DeviceToken); err != nil {

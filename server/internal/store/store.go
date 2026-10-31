@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -30,10 +32,11 @@ var schemaSQL string
 //go:embed gateway.sql
 var gatewaySQL string
 
-const schemaVersion = 6
+const schemaVersion = 7
 
 var (
 	ErrNotFound            = errors.New("not found")
+	ErrGatewayRouteChanged = errors.New("gateway route changed before admission")
 	ErrResolved            = errors.New("question already resolved")
 	ErrExpired             = errors.New("question expired")
 	ErrInvalidAnswer       = errors.New("answer is not one of the allowed choices")
@@ -85,10 +88,9 @@ const (
 // API key scopes.
 const (
 	ScopeNotify = "notify"
-	ScopeAsk    = "ask"
 )
 
-var DefaultScopes = []string{ScopeNotify, ScopeAsk}
+var DefaultScopes = []string{ScopeNotify}
 
 type Store struct {
 	Limits Limits
@@ -99,6 +101,20 @@ type Store struct {
 }
 
 func Open(path string) (*Store, error) {
+	if strings.HasPrefix(path, "file:") || path == ":memory:" {
+		return nil, fmt.Errorf("database must use a filesystem path")
+	}
+	var err error
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := privateDatabaseFile(path, true); err != nil {
+		return nil, fmt.Errorf("prepare private database: %w", err)
+	}
+	if err := privateSidecars(path); err != nil {
+		return nil, err
+	}
 	w, err := sql.Open("sqlite", dsn(path, true))
 	if err != nil {
 		return nil, err
@@ -115,6 +131,10 @@ func Open(path string) (*Store, error) {
 		s.Close()
 		return nil, fmt.Errorf("migrate %s: %w", path, err)
 	}
+	if err := privateSidecars(path); err != nil {
+		s.Close()
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -126,7 +146,7 @@ func dsn(path string, writer bool) string {
 	if writer {
 		q.Set("_txlock", "immediate")
 	}
-	return path + "?" + q.Encode()
+	return (&url.URL{Scheme: "file", Path: path, RawQuery: q.Encode()}).String()
 }
 
 func (s *Store) Close() error {
@@ -181,6 +201,19 @@ func (s *Store) migrate(ctx context.Context) error {
 				return err
 			}
 		}
+		if v < 7 {
+			if _, err := tx.ExecContext(ctx, gatewayQuotaSchema); err != nil {
+				return err
+			}
+			// Preserve active usage from every old route sharing a token. Taking
+			// the latest start is conservative across staggered legacy windows.
+			if _, err := tx.ExecContext(ctx, `INSERT INTO gateway_push_quotas(apns_token,apns_env,quota_at,quota_count)
+ SELECT lower(apns_token),apns_env,MAX(quota_at),SUM(quota_count) FROM gateway_routes
+ WHERE quota_at>? GROUP BY lower(apns_token),apns_env
+ ON CONFLICT(apns_token,apns_env) DO UPDATE SET quota_at=MAX(quota_at,excluded.quota_at),quota_count=MAX(quota_count,excluded.quota_count)`, ms(s.now().Add(-time.Minute))); err != nil {
+				return err
+			}
+		}
 		_, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion))
 		return err
 	})
@@ -203,8 +236,30 @@ func (s *Store) Ping(ctx context.Context) error { return s.r.PingContext(ctx) }
 
 // Backup writes a consistent snapshot of the live database to path using VACUUM INTO.
 func (s *Store) Backup(ctx context.Context, path string) error {
-	_, err := s.r.ExecContext(ctx, "VACUUM INTO ?", path)
-	return err
+	if _, err := os.Lstat(path); err == nil {
+		return fmt.Errorf("backup destination already exists")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	parent := filepath.Dir(path)
+	if err := os.MkdirAll(parent, 0700); err != nil {
+		return err
+	}
+	stage, err := os.MkdirTemp(parent, ".meow-backup-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(stage)
+	snapshot := filepath.Join(stage, "snapshot.db")
+	if err = privateDatabaseFile(snapshot, true); err != nil {
+		return err
+	}
+	if _, err = s.r.ExecContext(ctx, "VACUUM INTO ?", snapshot); err != nil {
+		return err
+	}
+	// Publish the complete snapshot atomically without replacing any existing
+	// file or following a destination symlink created during the backup.
+	return os.Link(snapshot, path)
 }
 
 func (s *Store) now() time.Time { return s.Now().UTC().Truncate(time.Millisecond) }
@@ -367,7 +422,12 @@ func scanKey(row scanner) (APIKey, error) {
 	if err := row.Scan(&k.ID, &k.DeviceID, &k.Hint, &k.Name, &scopes, &created, &used); err != nil {
 		return k, noRows(err)
 	}
-	k.Scopes = strings.Split(scopes, ",")
+	k.Scopes = []string{}
+	for _, scope := range strings.Split(scopes, ",") {
+		if scope == ScopeNotify {
+			k.Scopes = append(k.Scopes, scope)
+		}
+	}
 	k.CreatedAt, k.LastUsedAt = fromMS(created), fromNullMS(used)
 	return k, nil
 }
@@ -800,178 +860,8 @@ func decodeChoices(v sql.NullString) ([]string, error) {
 	return c, json.Unmarshal([]byte(v.String), &c)
 }
 
-type NewQuestion struct {
-	NewNotification // Title holds the question text
-	Choices         []string
-	TTL             time.Duration
-}
-
-func (s *Store) CreateQuestion(ctx context.Context, nq NewQuestion, idem Idem) (q Question, replay bool, err error) {
-	now := s.now()
-	var existing string
-	err = s.tx(ctx, func(tx *sql.Tx) error {
-		if existing, err = lookupIdem(ctx, tx, nq.KeyID, idem, "question"); err != nil || existing != "" {
-			return err
-		}
-		if err := s.checkDaily(ctx, tx, nq.DeviceID, now); err != nil {
-			return err
-		}
-		if err := s.checkQuota(ctx, tx, "pending_questions", s.Limits.PendingQuestions,
-			`SELECT COUNT(*) FROM questions WHERE device_id = ? AND status = 'pending' AND expires_at > ?`,
-			nq.DeviceID, ms(now)); err != nil {
-			return err
-		}
-		var choices any
-		if nq.Choices != nil {
-			b, _ := json.Marshal(nq.Choices)
-			choices = string(b)
-		}
-		qid := ids.New("qst")
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO questions (id, device_id, key_id, choices, status, created_at, expires_at) VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
-			qid, nq.DeviceID, nq.KeyID, choices, ms(now), ms(now.Add(nq.TTL))); err != nil {
-			return err
-		}
-		n := newNotification(nq.NewNotification, now)
-		n.Type, n.QuestionID = "question", qid
-		if err := insertNotification(ctx, tx, n); err != nil {
-			return err
-		}
-		q.ID = qid
-		return saveIdem(ctx, tx, nq.KeyID, idem, "question", qid, now)
-	})
-	if err != nil {
-		return Question{}, false, err
-	}
-	if existing != "" {
-		q, err = s.Question(ctx, existing)
-		return q, true, err
-	}
-	q, err = s.Question(ctx, q.ID)
-	return q, false, err
-}
-
 func (s *Store) Question(ctx context.Context, id string) (Question, error) {
 	return scanQuestion(s.r.QueryRowContext(ctx, questionSelect+` WHERE q.id = ?`, id))
-}
-
-// matchChoice returns the canonical answer, or false if it is not allowed.
-func matchChoice(choices []string, answer string) (string, bool) {
-	if choices == nil {
-		return answer, true
-	}
-	for _, c := range choices {
-		if strings.EqualFold(c, answer) {
-			return c, true
-		}
-	}
-	return "", false
-}
-
-// Respond records the single accepted answer for a pending question.
-//
-// Retrying with the same idempotency key and answer returns the stored result
-// with replay=true. Any other second response fails with ErrResolved. A
-// response arriving after expiry marks the question expired and fails with
-// ErrExpired; nothing is ever approved implicitly. On ErrResolved and
-// ErrExpired the current question is still returned.
-func (s *Store) Respond(ctx context.Context, questionID, deviceID, answer, idemKey string) (Question, bool, error) {
-	var replay, expired bool
-	err := s.tx(ctx, func(tx *sql.Tx) error {
-		// Read the clock only once the write lock is held, so a response that
-		// waited behind other writers is judged at the time it is applied.
-		now := s.now()
-		q, err := scanQuestion(tx.QueryRowContext(ctx, questionSelect+` WHERE q.id = ?`, questionID))
-		if err != nil {
-			return err
-		}
-		if q.DeviceID != deviceID {
-			return ErrNotFound
-		}
-		canonical, valid := matchChoice(q.Choices, answer)
-
-		var prevKey, prevAnswer string
-		err = tx.QueryRowContext(ctx, `SELECT idempotency_key, answer FROM responses WHERE question_id = ?`, questionID).Scan(&prevKey, &prevAnswer)
-		switch {
-		case err == nil:
-			if prevKey == idemKey && valid && prevAnswer == canonical {
-				replay = true
-				return nil
-			}
-			return ErrResolved
-		case !errors.Is(err, sql.ErrNoRows):
-			return err
-		}
-
-		switch q.Status {
-		case StatusPending:
-		case StatusExpired:
-			return ErrExpired
-		default:
-			return ErrResolved
-		}
-		if !now.Before(q.ExpiresAt) {
-			expired = true
-			_, err := tx.ExecContext(ctx, `UPDATE questions SET status = 'expired', resolved_at = ? WHERE id = ? AND status = 'pending'`, ms(now), questionID)
-			return err
-		}
-		if !valid {
-			return ErrInvalidAnswer
-		}
-
-		status := StatusAnswered
-		if q.Choices != nil && strings.EqualFold(canonical, "reject") {
-			status = StatusRejected
-		}
-		res, err := tx.ExecContext(ctx,
-			`UPDATE questions SET status = ?, answer = ?, resolved_at = ? WHERE id = ? AND status = 'pending'`,
-			status, canonical, ms(now), questionID)
-		if err != nil {
-			return err
-		}
-		if n, _ := res.RowsAffected(); n != 1 {
-			return ErrResolved
-		}
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO responses (id, question_id, device_id, answer, idempotency_key, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-			ids.New("rsp"), questionID, deviceID, canonical, idemKey, ms(now)); err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, `UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE question_id = ?`, ms(now), questionID)
-		return err
-	})
-	if err != nil && !errors.Is(err, ErrResolved) && !errors.Is(err, ErrExpired) {
-		return Question{}, false, err
-	}
-	if expired {
-		err = ErrExpired
-	}
-	q, qerr := s.Question(ctx, questionID)
-	if qerr != nil {
-		return Question{}, false, qerr
-	}
-	return q, replay, err
-}
-
-// CancelQuestion cancels a pending question owned by deviceID.
-func (s *Store) CancelQuestion(ctx context.Context, id, deviceID string) (Question, error) {
-	res, err := s.w.ExecContext(ctx,
-		`UPDATE questions SET status = 'cancelled', resolved_at = ? WHERE id = ? AND device_id = ? AND status = 'pending'`,
-		ms(s.now()), id, deviceID)
-	if err != nil {
-		return Question{}, err
-	}
-	q, err := s.Question(ctx, id)
-	if err != nil {
-		return q, err
-	}
-	if q.DeviceID != deviceID {
-		return Question{}, ErrNotFound
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return q, ErrResolved
-	}
-	return q, nil
 }
 
 // ExpireDue marks every pending question past its expiry as expired and returns their IDs.

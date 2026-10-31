@@ -2,11 +2,10 @@
 //
 // Agents and scripts authenticate with a send-only Device Key ("meow_…").
 // The iOS app authenticates with its device token ("mdt_…"); only the device
-// token can answer questions or manage keys.
+// token can read legacy question history or manage keys.
 package api
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -32,8 +31,7 @@ type Config struct {
 	Store      *store.Store
 	Push       Enqueuer
 	Log        *slog.Logger
-	TrustProxy bool          // use the last X-Forwarded-For hop as the client IP
-	MaxWait    time.Duration // upper bound for long polls; default 60s
+	TrustProxy bool // use the last X-Forwarded-For hop as the client IP
 }
 
 type Server struct {
@@ -42,23 +40,17 @@ type Server struct {
 	push       Enqueuer
 	log        *slog.Logger
 	trustProxy bool
-	maxWait    time.Duration
-	waits      *broker
 
 	ipLimit, regLimit, keyLimit, devLimit *limiter
 	mux                                   *http.ServeMux
 }
 
 func New(c Config) *Server {
-	if c.MaxWait <= 0 {
-		c.MaxWait = 60 * time.Second
-	}
 	if c.Log == nil {
 		c.Log = slog.New(slog.DiscardHandler)
 	}
 	s := &Server{
-		st: c.Store, push: c.Push, log: c.Log, trustProxy: c.TrustProxy, maxWait: c.MaxWait, gatewayURL: c.GatewayURL,
-		waits:    newBroker(),
+		st: c.Store, push: c.Push, log: c.Log, trustProxy: c.TrustProxy, gatewayURL: c.GatewayURL,
 		ipLimit:  newLimiter(20, 200),     // all requests, per client IP
 		regLimit: newLimiter(1.0/360, 10), // device registrations: 10/hour per IP
 		keyLimit: newLimiter(1, 60),       // per Device Key
@@ -71,10 +63,10 @@ func New(c Config) *Server {
 	// Agent API (Device Key).
 	m.HandleFunc("GET /v1/whoami", s.withKey("", s.whoami))
 	m.HandleFunc("POST /v1/notifications", s.withKey(store.ScopeNotify, s.createNotification))
-	m.HandleFunc("POST /v1/questions", s.withKey(store.ScopeAsk, s.createQuestion))
-	m.HandleFunc("GET /v1/questions/{id}", s.withAny(s.getQuestion))
-	m.HandleFunc("GET /v1/questions/{id}/wait", s.withKey(store.ScopeAsk, s.waitQuestion))
-	m.HandleFunc("POST /v1/questions/{id}/cancel", s.withKey(store.ScopeAsk, s.cancelQuestion))
+	m.HandleFunc("POST /v1/questions", retiredQuestion)
+	m.HandleFunc("GET /v1/questions/{id}", s.withDevice(s.getQuestion))
+	m.HandleFunc("GET /v1/questions/{id}/wait", retiredQuestion)
+	m.HandleFunc("POST /v1/questions/{id}/cancel", retiredQuestion)
 
 	// Mobile API (device token).
 	m.HandleFunc("POST /v1/devices", s.registerDevice)
@@ -94,13 +86,17 @@ func New(c Config) *Server {
 	m.HandleFunc("GET /v1/notifications/{id}", s.withDevice(s.getNotification))
 	m.HandleFunc("POST /v1/notifications/{id}/read", s.withDevice(s.markRead))
 	m.HandleFunc("POST /v1/notifications/{id}/delivered", s.withDevice(s.markDelivered))
-	m.HandleFunc("POST /v1/questions/{id}/responses", s.withDevice(s.respond))
+	m.HandleFunc("POST /v1/questions/{id}/responses", retiredQuestion)
 
 	m.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "no such endpoint")
 	})
 	s.mux = m
 	return s
+}
+
+func retiredQuestion(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusGone, "feature_retired", "Meow only delivers notifications; continue in the agent on your computer")
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -121,17 +117,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.log.Info("http", "route", route, "status", rec.status, "dur", time.Since(start).Round(time.Millisecond), "ip", ip)
 }
 
-// ExpireDue expires overdue questions and wakes their waiters.
-func (s *Server) ExpireDue(ctx context.Context) error {
-	ids, err := s.st.ExpireDue(ctx)
-	for _, id := range ids {
-		s.waits.publish(id)
-	}
-	return err
-}
-
-// Close releases all long polls; call it when the HTTP server starts shutting down.
-func (s *Server) Close() { s.waits.close() }
+// Close is retained for callers embedding the HTTP handler.
+func (s *Server) Close() {} // retained for embedding callers; no long polls remain
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	if err := s.st.Ping(r.Context()); err != nil {
@@ -248,14 +235,6 @@ func (s *Server) withDevice(h authedHandler) http.HandlerFunc {
 		case p.device == nil:
 			writeError(w, http.StatusForbidden, "forbidden", "this endpoint requires the Meow app's device credentials")
 		default:
-			h(w, r, p)
-		}
-	}
-}
-
-func (s *Server) withAny(h authedHandler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if p, ok := s.authenticate(w, r); ok {
 			h(w, r, p)
 		}
 	}

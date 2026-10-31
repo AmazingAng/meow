@@ -128,26 +128,6 @@ func TestDeleteInboxRejectsUnsafeIntervals(t *testing.T) {
 		t.Fatal("invalid request deleted data", err)
 	}
 }
-func TestDeleteQuestionWakesWaiterAndRemovesResponse(t *testing.T) {
-	e := setup(t)
-	q, err := e.agent.Ask(ctx, client.AskRequest{Question: "Approval?", Choices: []string{"approve", "reject"}}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() { _, err := e.agent.Wait(ctx, q.ID, nil); done <- err }()
-	time.Sleep(100 * time.Millisecond)
-	deleteRequest(t, e, e.reg.DeviceToken, "/v1/notifications/"+q.NotificationID, 204)
-	select {
-	case err := <-done:
-		apiErr(t, err, 404, "not_found")
-	case <-time.After(2 * time.Second):
-		t.Fatal("delete did not wake waiter")
-	}
-	if _, err = e.phone.Respond(ctx, q.ID, "approve", "late"); err == nil {
-		t.Fatal("deleted question approved")
-	}
-}
 
 func TestDeleteDatabaseFailureRollsBackAndReturns500(t *testing.T) {
 	e := setup(t)
@@ -177,4 +157,12 @@ func TestDeleteDatabaseFailureRollsBackAndReturns500(t *testing.T) {
 	if _, err = e.st.Notification(ctx, n.ID); err != nil {
 		t.Fatal("failed query removed message", err)
 	}
+}
+
+func TestDeleteLegacyQuestionRemovesHistory(t *testing.T) {
+	e := setup(t)
+	id := seedLegacyHistory(t, e)
+	deleteRequest(t, e, e.reg.DeviceToken, "/v1/notifications/ntf_legacy", 204)
+	_, err := e.phone.Question(ctx, id)
+	apiErr(t, err, 404, "not_found")
 }

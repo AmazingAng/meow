@@ -40,7 +40,6 @@ targets:
         CFBundleLocalizations: [en, zh-Hans]
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSFaceIDUsageDescription: Meow uses Face ID to confirm approvals.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true # lets a development build talk to http://127.0.0.1
         ITSAppUsesNonExemptEncryption: false

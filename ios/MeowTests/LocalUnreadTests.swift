@@ -327,9 +327,7 @@ final class LocalUnreadModelTests: XCTestCase {
         XCTAssertEqual(sqlite3_open(file.path, &db), SQLITE_OK)
         defer { sqlite3_close(db) }
         XCTAssertEqual(sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil), SQLITE_OK)
-        let queue = ReplyQueue(fileURL: folder.appendingPathComponent("queue.json")) { _ in
-            throw URLError(.unsupportedURL)
-        }
+        let queue = ReplyQueue(fileURL: folder.appendingPathComponent("queue.json"))
         let model = AppModel(replies: queue, inboxStore: store)
         let refresh = Task { await model.refresh() }
         while !model.isLoading { await Task.yield() }

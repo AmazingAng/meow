@@ -49,9 +49,6 @@ func (s *Server) deleteSelection(w http.ResponseWriter, r *http.Request, p princ
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
-		for _, id := range result.QuestionIDs {
-			s.waits.publish(id)
-		}
 		if single {
 			w.WriteHeader(http.StatusNoContent)
 		} else {

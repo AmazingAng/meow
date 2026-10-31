@@ -59,7 +59,7 @@ final class InboxGroupingModelTests: XCTestCase {
             context: NotificationOrigin(workspace: "meow", workspaceId: "w", session: session, sessionId: sessionID), event: .result)
     }
     private func model() -> AppModel {
-        AppModel(replies: ReplyQueue(fileURL: folder.appendingPathComponent("replies.json")) { _ in throw URLError(.unsupportedURL) },
+        AppModel(replies: ReplyQueue(fileURL: folder.appendingPathComponent("replies.json")),
                  inboxStore: store, groupingStore: preferences)
     }
 

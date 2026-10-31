@@ -148,24 +148,6 @@ struct MeowAPI: Sendable {
         return try await send("GET", "/v1/inbox", query: q)
     }
 
-    /// Read the complete pending set before sorting by urgency. Ordinary inbox
-    /// pagination is chronological and can hide an older, more urgent question.
-    func pendingInbox(search: String = "", firstPage: InboxPage? = nil) async throws -> [MeowNotification] {
-        var page: InboxPage
-        if let firstPage { page = firstPage }
-        else { page = try await inbox(filter: "pending", search: search, cursor: nil, limit: 200) }
-        var result = page.notifications
-        var seenIDs = Set(result.map(\.id))
-        var cursors = Set<String>()
-        while let cursor = page.nextCursor {
-            try Task.checkCancellation()
-            guard cursors.insert(cursor).inserted else { throw URLError(.badServerResponse) }
-            page = try await inbox(filter: "pending", search: search, cursor: cursor, limit: 200)
-            result += page.notifications.filter { seenIDs.insert($0.id).inserted }
-        }
-        return result
-    }
-
     /// Synchronize history independently of the current local display query.
     /// A failed page throws without returning a misleading partial snapshot.
     func allInbox() async throws -> [MeowNotification] {
@@ -194,39 +176,12 @@ struct MeowAPI: Sendable {
         }
     }
 
-    func counts(timeout: TimeInterval = 30) async throws -> InboxCounts {
-        try await send("GET", "/v1/inbox/counts", timeout: timeout)
-    }
-
     func notification(_ id: String, timeout: TimeInterval = 30) async throws -> MeowNotification {
         try await send("GET", "/v1/notifications/\(id)", timeout: timeout)
     }
 
-    func markRead(_ id: String) async throws {
-        try await sendEmpty("POST", "/v1/notifications/\(id)/read")
-    }
-
-    /// Dedicated route: older mark-all handlers must never receive selected IDs.
-    func markRead(_ ids: [String]) async throws {
-        guard !ids.isEmpty, ids.count <= 200 else { throw URLError(.badURL) }
-        struct Result: Decodable { var marked: Int }
-        let result: Result = try await send("POST", "/v1/inbox/read-selected", body: ["ids": ids])
-        guard result.marked >= 0, result.marked <= Set(ids).count else { throw URLError(.badServerResponse) }
-    }
-
-    func markAllRead() async throws {
-        try await sendEmpty("POST", "/v1/inbox/read")
-    }
-
     func markDelivered(_ id: String, timeout: TimeInterval = 10) async throws {
         try await sendEmpty("POST", "/v1/notifications/\(id)/delivered", timeout: timeout)
-    }
-
-    // MARK: Questions
-
-    /// Answers a question. Reuse the same idempotency key when retrying.
-    func respond(questionID: String, answer: String, idempotencyKey: String) async throws -> MeowQuestion {
-        try await send("POST", "/v1/questions/\(questionID)/responses", body: ["answer": answer], idempotencyKey: idempotencyKey)
     }
 
     // MARK: Keys

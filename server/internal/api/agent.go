@@ -5,9 +5,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"meow.blue/meow/message"
 	"meow.blue/meow/server/internal/store"
@@ -17,12 +15,6 @@ const (
 	maxTitle  = message.MaxTitle
 	maxBodyCh = message.MaxBody
 	maxSource = message.MaxSource
-	maxAnswer = 2000
-	maxChoice = 32
-
-	defaultQuestionTTL = 15 * time.Minute
-	minQuestionTTL     = 10 * time.Second
-	maxQuestionTTL     = 24 * time.Hour
 )
 
 func (s *Server) whoami(w http.ResponseWriter, r *http.Request, p principal) {
@@ -97,87 +89,6 @@ func (s *Server) createNotification(w http.ResponseWriter, r *http.Request, p pr
 	writeJSON(w, created(w, replay), toNotificationJSON(n))
 }
 
-type askInput struct {
-	Question string   `json:"question"`
-	Body     string   `json:"body"`
-	Source   string   `json:"source"`
-	Priority string   `json:"priority"`
-	Choices  []string `json:"choices"`
-	Timeout  int      `json:"timeout"` // seconds
-}
-
-func (s *Server) createQuestion(w http.ResponseWriter, r *http.Request, p principal) {
-	var in askInput
-	if !decodeJSON(w, r, &in) {
-		return
-	}
-	in.Question, in.Body, in.Source = strings.TrimSpace(in.Question), strings.TrimSpace(in.Body), strings.TrimSpace(in.Source)
-	if in.Priority == "" {
-		in.Priority = "high" // someone is blocked waiting for the answer
-	}
-	ttl := defaultQuestionTTL
-	if in.Timeout != 0 {
-		ttl = time.Duration(in.Timeout) * time.Second
-	}
-	if ttl < minQuestionTTL || ttl > maxQuestionTTL {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_request", "timeout must be between 10 and 86400 seconds")
-		return
-	}
-	if !checkText(w, "question", in.Question, true, maxTitle) ||
-		!checkText(w, "body", in.Body, false, maxBodyCh) ||
-		!checkText(w, "source", in.Source, false, maxSource) ||
-		!checkEnum(w, "priority", in.Priority, "low", "normal", "high") {
-		return
-	}
-	choices, ok := normalizeChoices(w, in.Choices)
-	if !ok {
-		return
-	}
-	in.Choices = choices
-	idem, ok := idempotency(w, r, in)
-	if !ok {
-		return
-	}
-	q, replay, err := s.st.CreateQuestion(r.Context(), store.NewQuestion{
-		NewNotification: store.NewNotification{
-			DeviceID: p.key.DeviceID, KeyID: p.key.ID,
-			Title: in.Question, Body: in.Body, Source: in.Source, Priority: in.Priority,
-		},
-		Choices: choices,
-		TTL:     ttl,
-	}, idem)
-	if s.idemFailed(w, r, err) {
-		return
-	}
-	s.push.Enqueue(q.NotificationID)
-	writeJSON(w, created(w, replay), toQuestionJSON(q))
-}
-
-func normalizeChoices(w http.ResponseWriter, in []string) ([]string, bool) {
-	if len(in) == 0 {
-		return nil, true // free-text reply
-	}
-	if len(in) < 2 || len(in) > 8 {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_request", "choices must have between 2 and 8 entries")
-		return nil, false
-	}
-	out := make([]string, 0, len(in))
-	seen := map[string]bool{}
-	for _, c := range in {
-		c = strings.TrimSpace(c)
-		if !checkText(w, "choice", c, true, maxChoice) {
-			return nil, false
-		}
-		if seen[strings.ToLower(c)] {
-			writeError(w, http.StatusUnprocessableEntity, "invalid_request", "choices must be unique")
-			return nil, false
-		}
-		seen[strings.ToLower(c)] = true
-		out = append(out, c)
-	}
-	return out, true
-}
-
 func (s *Server) idemFailed(w http.ResponseWriter, r *http.Request, err error) bool {
 	switch {
 	case err == nil:
@@ -210,7 +121,7 @@ func (s *Server) loadQuestion(w http.ResponseWriter, r *http.Request, p principa
 		err = store.ErrNotFound
 	}
 	if err == nil && q.Status == store.StatusPending && !s.st.Now().Before(q.ExpiresAt) {
-		if err = s.ExpireDue(r.Context()); err == nil {
+		if _, err = s.st.ExpireDue(r.Context()); err == nil {
 			q, err = s.st.Question(r.Context(), id)
 		}
 	}
@@ -226,84 +137,12 @@ func (s *Server) loadQuestion(w http.ResponseWriter, r *http.Request, p principa
 }
 
 func (s *Server) getQuestion(w http.ResponseWriter, r *http.Request, p principal) {
-	if p.key != nil && !p.key.Has(store.ScopeAsk) {
-		writeError(w, http.StatusForbidden, "forbidden", "Device Key lacks the ask scope")
-		return
-	}
 	if q, ok := s.loadQuestion(w, r, p, r.PathValue("id")); ok {
 		writeJSON(w, http.StatusOK, toQuestionJSON(q))
 	}
 }
 
-// waitQuestion long-polls until the question leaves "pending" or ?timeout=
-// seconds pass (default 30, capped at MaxWait), then returns its current state.
-func (s *Server) waitQuestion(w http.ResponseWriter, r *http.Request, p principal) {
-	timeout := 30 * time.Second
-	if v := r.URL.Query().Get("timeout"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 {
-			writeError(w, http.StatusBadRequest, "invalid_request", "timeout must be a non-negative number of seconds")
-			return
-		}
-		timeout = time.Duration(n) * time.Second
-	}
-	timeout = min(timeout, s.maxWait)
-
-	id := r.PathValue("id")
-	updates, unsubscribe := s.waits.subscribe(id) // before the first read, so no update is missed
-	defer unsubscribe()
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-	for {
-		q, ok := s.loadQuestion(w, r, p, id)
-		if !ok {
-			return
-		}
-		if q.Status != store.StatusPending {
-			writeJSON(w, http.StatusOK, toQuestionJSON(q))
-			return
-		}
-		// Wake at expiry too, so the waiter sees "expired" without the background sweep.
-		expiry := time.NewTimer(max(q.ExpiresAt.Sub(s.st.Now()), 0) + 10*time.Millisecond)
-		select {
-		case <-updates:
-			expiry.Stop()
-			continue
-		case <-expiry.C:
-			continue
-		case <-deadline.C:
-		case <-s.waits.done: // shutting down; the client polls again after restart
-		case <-r.Context().Done():
-			expiry.Stop()
-			return
-		}
-		expiry.Stop()
-		writeJSON(w, http.StatusOK, toQuestionJSON(q))
-		return
-	}
-}
-
-func (s *Server) cancelQuestion(w http.ResponseWriter, r *http.Request, p principal) {
-	q, err := s.st.CancelQuestion(r.Context(), r.PathValue("id"), p.key.DeviceID)
-	switch {
-	case err == nil:
-		s.waits.publish(q.ID)
-		writeJSON(w, http.StatusOK, toQuestionJSON(q))
-	case errors.Is(err, store.ErrNotFound):
-		writeError(w, http.StatusNotFound, "not_found", "question not found")
-	case errors.Is(err, store.ErrResolved):
-		writeJSON(w, http.StatusConflict, conflictBody("already_resolved", "question is already "+q.Status, q))
-	default:
-		s.internalError(w, r, err)
-	}
-}
-
-func conflictBody(code, msg string, q store.Question) map[string]any {
-	return map[string]any{"error": errorBody{Code: code, Message: msg}, "question": toQuestionJSON(q)}
-}
-
-// quotaFailed writes 429 quota_exceeded for a store.QuotaError. Unlike
-// rate_limited, retrying soon won't help, so clients should not retry it.
+// Quotas differ from short-term request limits: retrying immediately cannot help.
 func quotaFailed(w http.ResponseWriter, err error) bool {
 	var q *store.QuotaError
 	if !errors.As(err, &q) {

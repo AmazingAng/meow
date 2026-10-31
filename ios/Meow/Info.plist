@@ -34,8 +34,6 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSFaceIDUsageDescription</key>
-	<string>Meow uses Face ID to confirm approvals.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

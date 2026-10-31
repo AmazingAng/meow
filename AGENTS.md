@@ -10,6 +10,8 @@ Meow V1 delivers notifications from agents and services to an iPhone. Users read
 the result and continue on their computer. The current app does not approve
 actions or send replies. Legacy questions and answers remain readable; preserve
 previously queued replies as copyable records rather than sending them again.
+Question writes and waits are 410 tombstones; only the owning phone can read
+legacy question history. New keys grant notify only; old ask grants are ignored.
 
 Start with [README.md](README.md) and [docs/architecture.md](docs/architecture.md).
 Use [contracts/notification-v1.schema.json](contracts/notification-v1.schema.json)
@@ -104,6 +106,12 @@ CGO, an ORM, a queue service or another database for an unrelated change.
   clients replace their local inbox from the server list. Follow the build 17+
   migration guidance in [deploy/README.md](deploy/README.md). Explicit environment
   settings override defaults; increasing retention cannot recover deleted data.
+- Use filesystem paths for the server database. Restrict database/WAL/SHM and
+  backups to 0600 and newly created data directories to 0700. Never overwrite
+  existing backups or follow final symlink/special-file targets.
+- Gateway concurrency defaults to 0 (unlimited); any positive cap is opt-in.
+  Preserve IP/enrollment limits, shared APNs-token/environment quota windows
+  and conditional invalid-token cleanup. Route deletion must not reset quota.
 - Use online snapshots for backups. Rehearse restoration on a separate database
   or volume. Check schema compatibility before proposing a binary-only rollback.
 

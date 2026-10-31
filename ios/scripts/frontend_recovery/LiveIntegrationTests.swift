@@ -4,7 +4,7 @@ import XCTest
 /// Only the native runner includes this test, with its own ephemeral Go server.
 @MainActor
 final class RecoveryLiveIntegrationTests: XCTestCase {
-    func testActualServerRegistrationReadAndPermanentReplyFailure() async throws {
+    func testActualServerRegistrationReadAndSavedReplyPreservation() async throws {
         let server = try XCTUnwrap(ProcessInfo.processInfo.environment["MEOW_RECOVERY_INTEGRATION_URL"].flatMap(URL.init(string:)))
         let oldServer = MeowShared.server
         let oldToken = MeowShared.deviceToken
@@ -21,10 +21,7 @@ final class RecoveryLiveIntegrationTests: XCTestCase {
             try? FileManager.default.removeItem(at: file)
         }
         MeowShared.server = server; MeowShared.deviceToken = nil
-        let queue = ReplyQueue(fileURL: file) { reply in
-            try await MeowAPI(server: server, token: MeowShared.deviceToken)
-                .respond(questionID: reply.questionID, answer: reply.answer, idempotencyKey: reply.idempotencyKey)
-        }
+        let queue = ReplyQueue(fileURL: file)
         let model = AppModel(replies: queue)
         await model.register()
         XCTAssertTrue(model.isRegistered)
@@ -40,16 +37,15 @@ final class RecoveryLiveIntegrationTests: XCTestCase {
 
         let original = PendingReply(idempotencyKey: "ios-live-integration", questionID: "qst_does_not_exist", answer: "original live answer", createdAt: .now)
         try JSONEncoder().encode([original]).write(to: file)
-        let restarted = ReplyQueue(fileURL: file) { reply in
-            try await MeowAPI(server: server, token: MeowShared.deviceToken)
-                .respond(questionID: reply.questionID, answer: reply.answer, idempotencyKey: reply.idempotencyKey)
-        }
+        let restarted = ReplyQueue(fileURL: file)
         let restored = AppModel(replies: restarted)
-        await restored.flushReplies()
+        await restored.loadSavedReplyRecords()
+        XCTAssertEqual(restored.queuedReplies[original.questionID]?.answer, original.answer)
+        XCTAssertTrue(restored.failedReplies.isEmpty)
+        let blocked = await restored.reset(server: server)
+        XCTAssertFalse(blocked)
         XCTAssertNotNil(restored.alert)
-        XCTAssertEqual(restored.failedReplies.first?.answer, original.answer)
-        XCTAssertEqual(restored.failedReplies.first?.failure?.status, 404)
-        let reset = await restored.reset(server: server)
+        let reset = await restored.reset(server: server, discardPendingReplies: true)
         XCTAssertTrue(reset)
         await restored.register()
         XCTAssertTrue(restored.isRegistered)

@@ -12,6 +12,11 @@ struct FailedRepliesView: View {
                             Text(reply.answer).textSelection(.enabled)
                             CopyButton(title: "Copy answer", text: reply.answer)
                         }
+                        .swipeActions {
+                            Button("Delete", role: .destructive) {
+                                Task { await model.dismissFailedReply(reply) }
+                            }
+                        }
                     }
                 } header: {
                     Text("Unsent records")
@@ -27,7 +32,7 @@ struct FailedRepliesView: View {
                             .foregroundStyle(.red)
                         Text(reply.answer).textSelection(.enabled)
                         if let failure = reply.failure {
-                            Text(AppModel.describeRefusal(failure.error))
+                            Text(failure.message)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }

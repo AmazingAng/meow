@@ -17,7 +17,7 @@ CREATE TABLE api_keys (
   key_hash     TEXT NOT NULL UNIQUE,
   hint         TEXT NOT NULL,
   name         TEXT NOT NULL DEFAULT '',
-  scopes       TEXT NOT NULL,                 -- comma separated: notify,ask
+  scopes       TEXT NOT NULL,                 -- comma separated; legacy ask grants are ignored
   created_at   INTEGER NOT NULL,
   last_used_at INTEGER,
   revoked_at   INTEGER

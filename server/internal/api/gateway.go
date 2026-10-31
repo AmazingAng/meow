@@ -34,7 +34,10 @@ func NewGateway(c GatewayConfig) http.Handler {
 		c.MaxConcurrentPushes = DefaultGatewayMaxConcurrentPushes
 	}
 	g := &gateway{GatewayConfig: c, enrollLimit: newLimiter(1.0/360, 10),
-		ipLimit: newLimiter(20, 200), pushSlots: make(chan struct{}, c.MaxConcurrentPushes), mux: http.NewServeMux()}
+		ipLimit: newLimiter(20, 200), mux: http.NewServeMux()}
+	if c.MaxConcurrentPushes > 0 {
+		g.pushSlots = make(chan struct{}, c.MaxConcurrentPushes)
+	}
 	g.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := g.Store.Ping(r.Context()); err != nil {
 			writeError(w, 503, "unavailable", "database unavailable")
@@ -112,6 +115,8 @@ func (g *gateway) enroll(w http.ResponseWriter, r *http.Request) {
 func gatewayStoreError(w http.ResponseWriter, err error) {
 	var quota *store.QuotaError
 	switch {
+	case errors.Is(err, store.ErrGatewayRouteChanged):
+		tooManyRequests(w, time.Second)
 	case errors.As(err, &quota):
 		tooManyRequests(w, time.Minute)
 	case errors.Is(err, store.ErrNotFound):
@@ -171,8 +176,10 @@ func (g *gateway) wake(w http.ResponseWriter, r *http.Request) {
 	if !g.admitPush(w, r) {
 		return
 	}
-	defer func() { <-g.pushSlots }()
-	if err := g.Store.TakeGatewayQuota(r.Context(), route.ID); err != nil {
+	if g.pushSlots != nil {
+		defer func() { <-g.pushSlots }()
+	}
+	if err := g.Store.TakeGatewayPushQuota(r.Context(), route); err != nil {
 		gatewayStoreError(w, err)
 		return
 	}
@@ -184,6 +191,10 @@ func (g *gateway) wake(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, push.ErrNotConfigured):
 			status = 503
 		case errors.As(err, &ae) && ae.InvalidToken():
+			if cleanupErr := g.Store.InvalidateGatewayRoute(r.Context(), route); cleanupErr != nil {
+				gatewayStoreError(w, cleanupErr)
+				return
+			}
 			status = 410
 		case errors.As(err, &ae) && !ae.Retryable():
 			status = 422

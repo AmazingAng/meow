@@ -21,10 +21,7 @@ final class NotificationOnlyTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: file) }
         let record = PendingReply(idempotencyKey: "old-answer", questionID: "qst_legacy", answer: "My saved answer", createdAt: .now)
         try JSONEncoder().encode([record]).write(to: file)
-        let queue = ReplyQueue(fileURL: file) { _ in
-            XCTFail("notification-only app must not send a saved reply")
-            throw URLError(.notConnectedToInternet)
-        }
+        let queue = ReplyQueue(fileURL: file)
         let model = AppModel(replies: queue)
         await model.loadSavedReplyRecords()
         XCTAssertEqual(model.queuedReplies[record.questionID]?.answer, record.answer)

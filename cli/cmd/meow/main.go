@@ -23,15 +23,11 @@ import (
 
 var version = "dev"
 
-// Exit codes for "meow ask", so scripts can branch without parsing output.
+// CLI exit codes.
 const (
-	exitOK        = 0
-	exitError     = 1
-	exitUsage     = 2
-	exitRejected  = 3
-	exitExpired   = 4
-	exitCancelled = 5
-	exitInterrupt = 130
+	exitOK    = 0
+	exitError = 1
+	exitUsage = 2
 )
 
 const usage = `meow — push notifications for agents
@@ -277,108 +273,6 @@ func cmdSend(args []string) int {
 		fmt.Fprintln(os.Stderr, "sent", n.ID)
 	}
 	return exitOK
-}
-
-func cmdAsk(args []string) int {
-	fs := flag.NewFlagSet("ask", flag.ContinueOnError)
-	choices := fs.String("choices", "", "")
-	timeout := fs.Int("timeout", 900, "")
-	body := fs.String("body", "", "")
-	source := fs.String("source", os.Getenv("MEOW_SOURCE"), "")
-	priority := fs.String("priority", "high", "")
-	fs.Bool("wait", true, "") // waiting is the default; accepted for compatibility
-	noWait := fs.Bool("no-wait", false, "")
-	asJSON := fs.Bool("json", false, "")
-	pos, err := parse(fs, args)
-	if err != nil {
-		return usageErr(err.Error())
-	}
-	text := strings.Join(pos, " ")
-	if text == "" {
-		return usageErr("ask needs a question")
-	}
-	req := client.AskRequest{Question: text, Body: *body, Source: *source, Priority: *priority, Timeout: *timeout}
-	if *choices != "" {
-		for _, ch := range strings.Split(*choices, ",") {
-			req.Choices = append(req.Choices, strings.TrimSpace(ch))
-		}
-	}
-	c, err := newClient()
-	if err != nil {
-		return fail(err)
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-	idem := newIdemKey()
-	q, err := retry(ctx, func() (*client.Question, error) { return c.Ask(ctx, req, idem) })
-	if err != nil {
-		return fail(err)
-	}
-	if *noWait {
-		if *asJSON {
-			return printJSON(q)
-		}
-		fmt.Println(q.ID)
-		return exitOK
-	}
-	fmt.Fprintf(os.Stderr, "waiting for an answer on your phone (%s, expires %s)…\n", q.ID, q.ExpiresAt.Local().Format("15:04:05"))
-	return waitAndPrint(ctx, c, q.ID, *asJSON)
-}
-
-func cmdWait(args []string) int {
-	fs := flag.NewFlagSet("wait", flag.ContinueOnError)
-	asJSON := fs.Bool("json", false, "")
-	pos, err := parse(fs, args)
-	if err != nil {
-		return usageErr(err.Error())
-	}
-	if len(pos) != 1 {
-		return usageErr("usage: meow wait <question-id>")
-	}
-	c, err := newClient()
-	if err != nil {
-		return fail(err)
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-	return waitAndPrint(ctx, c, pos[0], *asJSON)
-}
-
-func waitAndPrint(ctx context.Context, c *client.Client, id string, asJSON bool) int {
-	q, err := c.Wait(ctx, id, func(err error) {
-		fmt.Fprintln(os.Stderr, "meow: connection problem, retrying:", err)
-	})
-	if errors.Is(err, context.Canceled) {
-		// Interrupted: cancel the question so it can't be answered after nobody is waiting.
-		cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if _, cerr := c.Cancel(cctx, id); cerr == nil {
-			fmt.Fprintln(os.Stderr, "\nmeow: interrupted; question cancelled")
-		} else {
-			fmt.Fprintln(os.Stderr, "\nmeow: interrupted; could not cancel question:", cerr)
-		}
-		return exitInterrupt
-	}
-	if err != nil {
-		return fail(err)
-	}
-	if asJSON {
-		printJSON(q)
-	} else if q.Answer != nil {
-		fmt.Println(*q.Answer)
-	}
-	switch q.Status {
-	case "answered":
-		return exitOK
-	case "rejected":
-		return exitRejected
-	case "expired":
-		fmt.Fprintln(os.Stderr, "meow: question expired without an answer")
-		return exitExpired
-	default:
-		fmt.Fprintln(os.Stderr, "meow: question", q.Status)
-		return exitCancelled
-	}
 }
 
 func printJSON(v any) int {

@@ -232,6 +232,46 @@ func TestGatewayAPNsFailureNeverAccepted(t *testing.T) {
 	}
 }
 
+func TestGatewayInvalidAPNsRouteIsRemoved(t *testing.T) {
+	st, p, base := gatewayFixture(t)
+	r := enroll(t, base, "invalid_route")
+	p.err = &push.Error{Status: 410, Reason: "Unregistered"}
+	status, _ := gatewayRequest(t, base, "POST", "/v1/gateway/push", r.PushToken, wake(r))
+	if status != 410 {
+		t.Fatalf("invalid token status=%d", status)
+	}
+	if _, err := st.GatewayRoute(ctx, r.ID, r.ManagementToken, true); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("permanently invalid route retained: %v", err)
+	}
+}
+
+type rotatingInvalidGatewayPush struct {
+	st    *store.Store
+	route routeRegistration
+}
+
+func (p rotatingInvalidGatewayPush) Push(ctx context.Context, _ push.Message) error {
+	if err := p.st.UpdateGatewayRoute(ctx, p.route.ID, p.route.ManagementToken, strings.Repeat("b", 64), "production"); err != nil {
+		return err
+	}
+	return &push.Error{Status: 410, Reason: "Unregistered"}
+}
+
+func TestGatewayInvalidationPreservesConcurrentTokenRotation(t *testing.T) {
+	st, _, base := gatewayFixture(t)
+	r := enroll(t, base, "rotating_route")
+	server := httptest.NewServer(api.NewGateway(api.GatewayConfig{Store: st, Push: rotatingInvalidGatewayPush{st: st, route: r}}))
+	defer server.Close()
+	status, _ := gatewayRequest(t, server.URL, "POST", "/v1/gateway/push", r.PushToken, wake(r))
+	if status != 410 {
+		t.Fatalf("provider result=%d", status)
+	}
+	current, err := st.GatewayRoute(ctx, r.ID, r.ManagementToken, true)
+	if err != nil || current.APNsToken != strings.Repeat("b", 64) || current.APNsEnv != "production" {
+		t.Fatalf("new token was removed: %+v %v", current, err)
+	}
+}
+
 func TestGatewayConcurrentQuota(t *testing.T) {
 	// Isolate the durable per-route quota from the separate global busy limit.
 	_, p, base := gatewayFixtureWithPushLimit(t, 80)

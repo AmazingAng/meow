@@ -52,12 +52,6 @@ final class AppModel {
         }
     }
 
-    enum AnswerResult: Equatable {
-        case sent
-        case queued
-        case refused(String)
-    }
-
     // MARK: Registration
 
     private(set) var server = MeowShared.server
@@ -291,7 +285,6 @@ final class AppModel {
             MeowShared.server = registrationServer
             MeowShared.deviceID = reg.device.id
             store(key: reg.key)
-            await replies.resume()
             isRegistered = true
             rebuildInboxGroups()
             await hydrateInbox()
@@ -315,7 +308,7 @@ final class AppModel {
             }
         } else if !(await replies.pauseIfIdle()) {
             if await replies.outstandingCount > 0 {
-                alert = String(localized: "You have replies waiting to send. Keep waiting, or discard them to change servers.")
+                alert = String(localized: "Saved reply records are kept. Discard them to change servers.")
             } else {
                 alert = String(localized: "Couldn't prepare saved reply records. Your server and records have been kept. Check available storage and try again.")
             }
@@ -324,7 +317,6 @@ final class AppModel {
         if let scope = inboxScope {
             do { try await inboxStore.erase(scope: scope); groupingStore.erase(scope: scope) }
             catch {
-                await replies.resume()
                 alert = String(localized: "Couldn't remove saved messages. Your server has been kept. (\(error.localizedDescription))")
                 return false
             }
@@ -455,7 +447,7 @@ final class AppModel {
                     alert = String(localized: "The current Device Key's ID is unavailable. Your key has been kept.")
                     return
                 }
-                let key = try await api.createKey(name: "Default", scopes: ["notify", "ask"])
+                let key = try await api.createKey(name: "Default", scopes: ["notify"])
                 guard keyRotationIsCurrent(generation, api: api) else { return }
                 guard let secret = key.secret, secret.hasPrefix("meow_"), !key.id.isEmpty else {
                     alert = String(localized: "The server did not return a usable Device Key. Your current key has been kept.")
@@ -1212,21 +1204,6 @@ final class AppModel {
         changed([n.id])
     }
 
-    private func update(_ q: MeowQuestion) {
-        for i in savedNotifications.indices where savedNotifications[i].question?.id == q.id {
-            readRequests[savedNotifications[i].id] = nil
-            savedNotifications[i].question?.apply(q)
-            if savedNotifications[i].readAt == nil { savedNotifications[i].readAt = q.resolvedAt ?? .now }
-        }
-        if var n = details[q.notificationId] {
-            readRequests[n.id] = nil
-            n.question?.apply(q)
-            if n.readAt == nil { n.readAt = q.resolvedAt ?? .now }
-            details[n.id] = n
-        }
-        changed([q.notificationId])
-    }
-
     @ObservationIgnored private var badgeRevision = 0
     private func updateBadge() {
         guard let scope = inboxScope else { return }
@@ -1240,99 +1217,15 @@ final class AppModel {
         }
     }
 
-    // MARK: Answers
-
-    func answer(_ questionID: String, with answer: String, identity expectedIdentity: NotificationIdentity? = nil) async -> AnswerResult {
-        await hydrateInbox()
-        guard isRegistered, !isChangingServer else {
-            return .refused(String(localized: "The server is changing. Please try again afterward."))
-        }
-        guard let identity = NotificationIdentity.current,
-              expectedIdentity == nil || expectedIdentity == identity else {
-            return .refused(String(localized: "The server has changed."))
-        }
-        let generation = sessionGeneration
-        let outcome = await replies.submit(questionID: questionID, answer: answer, identity: identity)
-        let failures = await replies.failed
-        guard generation == sessionGeneration, !isChangingServer else {
-            return .refused(String(localized: "The server has changed."))
-        }
-        let result = apply(outcome, to: questionID)
-        failedReplies = failures
-        await refreshCounts()
-        return result
-    }
-
-    /// Answers from a notification action. The user isn't looking at the app,
-    /// so a refusal is reported with a local notification.
-    func answerFromNotification(_ questionID: String, with answer: String, identity: NotificationIdentity) async {
-        guard NotificationIdentity.current == identity else { return }
-        guard case .refused(let reason) = await self.answer(questionID, with: answer, identity: identity),
-              NotificationIdentity.current == identity else { return }
-        let content = UNMutableNotificationContent()
-        content.title = String(localized: "Your answer wasn't accepted")
-        content.body = reason
-        content.categoryIdentifier = NotificationCategory.info
-        try? await UNUserNotificationCenter.current().add(
-            UNNotificationRequest(identifier: "refused-\(questionID)", content: content, trigger: nil))
-    }
-
-    func flushReplies() async {
-        guard isRegistered, !isChangingServer else { return }
-        let generation = sessionGeneration
-        await hydrateInbox()
-        guard generation == sessionGeneration, !isChangingServer else { return }
-        let results = await replies.flush()
-        let pending = await replies.pending
-        let failures = await replies.failed
-        guard generation == sessionGeneration, !isChangingServer else { return }
-        var reasons: [String] = []
-        for (reply, outcome) in results {
-            let result = apply(outcome, to: reply.questionID)
-            if case .discarded = outcome { continue }
-            if case .refused(let reason) = result { reasons.append(reason) }
-        }
-        queuedReplies = Dictionary(pending.map { ($0.questionID, $0) }, uniquingKeysWith: { first, _ in first })
-        failedReplies = failures
-        if !reasons.isEmpty {
-            alert = reasons.joined(separator: "\n")
-        }
-    }
-
     func dismissFailedReply(_ reply: PendingReply) async {
         let generation = sessionGeneration
         do {
             try await replies.dismissFailure(reply.idempotencyKey)
-            let failures = await replies.failed
+            await loadSavedReplyRecords()
             guard generation == sessionGeneration else { return }
-            failedReplies = failures
         } catch {
             guard generation == sessionGeneration else { return }
             alert = Self.describe(error)
-        }
-    }
-
-    @discardableResult
-    private func apply(_ outcome: ReplyOutcome, to questionID: String) -> AnswerResult {
-        switch outcome {
-        case .discarded:
-            return .refused(String(localized: "This saved reply was discarded when changing servers."))
-        case .notSaved(let reason):
-            return .refused(reason)
-        case .accepted(let q):
-            queuedReplies[questionID] = nil
-            update(q)
-            return .sent
-        case .refused(let error):
-            queuedReplies[questionID] = nil
-            if let q = error.question { update(q) }
-            return .refused(Self.describeRefusal(error))
-        case .queued(let reply):
-            queuedReplies[questionID] = reply
-            return .queued
-        case .alreadyQueued(let reply):
-            queuedReplies[questionID] = reply
-            return .refused(String(localized: "Already sending “\(reply.answer)”."))
         }
     }
 
@@ -1372,21 +1265,4 @@ final class AppModel {
         return error.localizedDescription
     }
 
-    static func describeRefusal(_ error: MeowAPIError) -> String {
-        switch error.code {
-        case "already_resolved":
-            if let answer = error.question?.answer {
-                return String(localized: "This question was already answered: “\(answer)”.")
-            }
-            return String(localized: "This question is no longer waiting for an answer.")
-        case "expired":
-            return String(localized: "This question expired before your answer arrived.")
-        case "invalid_answer":
-            return String(localized: "That answer isn't one of the choices.")
-        case "not_found":
-            return String(localized: "This question no longer exists.")
-        default:
-            return describe(error)
-        }
-    }
 }

@@ -106,3 +106,27 @@ Before the server upgrade, take the online backup described above using the curr
 This server automatically replaces the inbox index and adds expiry indexes in one migration transaction. Back up the live database before upgrading; index creation may make startup longer on a large database. Existing content, credentials, quotas and the `720h` retention default are preserved. The HTTP contract is unchanged, so this update needs only a server/gateway deployment, without a CLI or iPhone update. Older binaries reject schema v6: retain a pre-upgrade online snapshot for rollback, and preserve the upgraded database separately.
 
 Cleanup now commits bounded batches so normal writes can proceed between batches. If a later batch fails, already committed batches remain deleted; retrying cleanup safely resumes. Push retries release worker slots while waiting, and overflow remains in SQLite for the periodic sweep. Retry scheduling is in memory; a restart does not retain an upstream cooldown across processes.
+
+## Notification-only security update
+
+Rebuild the API and gateway with the Go 1.27.3 Docker image. Notification clients
+continue sending with existing keys; no key rotation is needed. Old approval
+clients must upgrade: question creation/response/cancel/wait now return 410;
+question history is phone-only. Schema v7 adds shared APNs-token/environment
+quota windows, backfilling active v6 route usage without deleting history.
+Back up before upgrading: older binaries reject v7, so rollback requires the
+pre-upgrade snapshot rather than replacing only the binary.
+A new iOS build removes its unused reply execution code and creates
+notify-only keys when rotating. CLI releases must be rebuilt with the new Go
+patch; a source update does not replace already installed binaries.
+
+Database/WAL/SHM and new snapshots are 0600; new data directories are 0700.
+Existing regular files are tightened on open. Use trusted, service-owned paths;
+symlink/special-file database or backup targets are rejected. Existing backups
+are never replaced. New container data directories are created with mode 0700.
+
+The gateway's `MEOW_GATEWAY_MAX_CONCURRENT_PUSHES` now defaults to `0`, disabling
+the optional fixed cap. If your `.env` explicitly contains `32`, remove that
+entry or set it to `0` to open it up. IP limits remain enabled. The existing
+60/minute allowance is now shared across routes for the same APNs token and
+environment; registering another route or changing IP cannot reset it.
