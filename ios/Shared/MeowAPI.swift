@@ -149,15 +149,26 @@ struct MeowAPI: Sendable {
     }
 
     /// Synchronize history independently of the current local display query.
+    func syncPage(cursor: String?) async throws -> InboxPage {
+        var query = [URLQueryItem(name: "sync", value: "1"), URLQueryItem(name: "filter", value: "all"),
+                     URLQueryItem(name: "limit", value: "200")]
+        if let cursor { query.append(URLQueryItem(name: "sync_cursor", value: cursor)) }
+        return try await retryingHistory { try await send("GET", "/v1/inbox", query: query) }
+    }
+
+    /// Synchronize history independently of the current local display query.
     /// A failed page throws without returning a misleading partial snapshot.
-    func allInbox() async throws -> [MeowNotification] {
+    func allInbox(firstPage: InboxPage? = nil) async throws -> [MeowNotification] {
+        var initial = firstPage
         var cursor: String?
         var cursors = Set<String>()
         var seen = Set<String>()
         var items: [MeowNotification] = []
         repeat {
             try Task.checkCancellation()
-            let page = try await historyPage(cursor: cursor)
+            let page: InboxPage
+            if let first = initial { page = first; initial = nil }
+            else { page = try await historyPage(cursor: cursor) }
             items += page.notifications.filter { seen.insert($0.id).inserted }
             cursor = page.nextCursor
             if let cursor, !cursors.insert(cursor).inserted { throw URLError(.badServerResponse) }
@@ -166,9 +177,13 @@ struct MeowAPI: Sendable {
     }
 
     private func historyPage(cursor: String?) async throws -> InboxPage {
+        try await retryingHistory { try await inbox(filter: "all", search: "", cursor: cursor, limit: 200) }
+    }
+
+    private func retryingHistory(_ fetch: () async throws -> InboxPage) async throws -> InboxPage {
         var retries = 0
         while true {
-            do { return try await inbox(filter: "all", search: "", cursor: cursor, limit: 200) }
+            do { return try await fetch() }
             catch let error as MeowAPIError where error.status == 429 && retries < 3 {
                 retries += 1
                 try await Task.sleep(for: error.retryAfter ?? .seconds(1))

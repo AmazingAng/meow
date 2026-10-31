@@ -126,7 +126,7 @@ func waitForPushStatus(t *testing.T, st *store.Store, id, status string) {
 }
 
 func TestScheduledRetryHonorsRetryAfter(t *testing.T) {
-	for _, delay := range []time.Duration{37 * time.Second, time.Minute} {
+	for _, delay := range []time.Duration{37 * time.Second, time.Minute, 15 * time.Minute, 20 * time.Minute} {
 		t.Run(delay.String(), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				st, reg := reviewStore(t)

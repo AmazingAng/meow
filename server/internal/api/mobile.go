@@ -160,6 +160,10 @@ func (s *Server) revokeKey(w http.ResponseWriter, r *http.Request, p principal) 
 // inbox lists notifications newest first. Pass next_cursor back as ?cursor= for the next page.
 func (s *Server) inbox(w http.ResponseWriter, r *http.Request, p principal) {
 	q := r.URL.Query()
+	if q.Get("sync") == "1" {
+		s.syncInbox(w, r, p)
+		return
+	}
 	limit := 50
 	if v := q.Get("limit"); v != "" {
 		n, err := strconv.Atoi(v)

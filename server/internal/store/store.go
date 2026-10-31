@@ -32,7 +32,10 @@ var schemaSQL string
 //go:embed gateway.sql
 var gatewaySQL string
 
-const schemaVersion = 7
+//go:embed sync.sql
+var syncSQL string
+
+const schemaVersion = 8
 
 var (
 	ErrNotFound            = errors.New("not found")
@@ -211,6 +214,11 @@ func (s *Store) migrate(ctx context.Context) error {
  SELECT lower(apns_token),apns_env,MAX(quota_at),SUM(quota_count) FROM gateway_routes
  WHERE quota_at>? GROUP BY lower(apns_token),apns_env
  ON CONFLICT(apns_token,apns_env) DO UPDATE SET quota_at=MAX(quota_at,excluded.quota_at),quota_count=MAX(quota_count,excluded.quota_count)`, ms(s.now().Add(-time.Minute))); err != nil {
+				return err
+			}
+		}
+		if v < 8 {
+			if _, err := tx.ExecContext(ctx, syncSQL); err != nil {
 				return err
 			}
 		}
@@ -567,10 +575,11 @@ type QuestionState struct {
 	ExpiresAt time.Time
 }
 
-const notificationSelect = `SELECT n.id, n.device_id, COALESCE(n.key_id, ''), n.type, n.title, n.body, n.source, n.priority,
+const notificationColumns = `n.id, n.device_id, COALESCE(n.key_id, ''), n.type, n.title, n.body, n.source, n.priority,
 	COALESCE(n.question_id, ''), n.push_status, COALESCE(n.push_error, ''), n.created_at, n.delivered_at, n.read_at,
-	q.status, q.answer, q.choices, q.expires_at, n.context, n.event
-	FROM notifications n LEFT JOIN questions q ON q.id = n.question_id`
+	q.status, q.answer, q.choices, q.expires_at, n.context, n.event`
+const notificationFrom = `FROM notifications n LEFT JOIN questions q ON q.id = n.question_id`
+const notificationSelect = `SELECT ` + notificationColumns + ` ` + notificationFrom
 
 func scanNotification(row scanner) (Notification, error) {
 	var n Notification

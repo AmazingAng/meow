@@ -158,6 +158,7 @@ func TestPruneCommitsBoundedBatchesAndRollsBackFailingBatch(t *testing.T) {
 
 func downgradePerformanceSchema(t *testing.T, s *Store) {
 	t.Helper()
+	stripSyncSchema(t, s)
 	for _, q := range []string{
 		`DROP INDEX notifications_inbox`, `CREATE INDEX notifications_inbox ON notifications(device_id,created_at DESC)`,
 		`DROP INDEX IF EXISTS notifications_expiry`, `DROP INDEX IF EXISTS questions_expiry`,

@@ -190,14 +190,21 @@ func (a *APNs) send(ctx context.Context, m Message, tok string) error {
 		Reason string `json:"reason"`
 	}
 	_ = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body)
-	return &Error{Status: resp.StatusCode, Reason: body.Reason}
+	delay := retryAfter(resp.Header.Get("Retry-After"), a.Now())
+	switch {
+	case resp.StatusCode >= 500 && resp.StatusCode < 600:
+		delay = max(delay, 15*time.Minute)
+	case resp.StatusCode == http.StatusTooManyRequests:
+		delay = max(delay, time.Minute)
+	}
+	return &Error{Status: resp.StatusCode, Reason: body.Reason, RetryAfter: delay}
 }
 
 // Disabled is used when no APNs credentials are configured, e.g. in local development.
 type Disabled struct{ Log *slog.Logger }
 
 func (d Disabled) Push(_ context.Context, m Message) error {
-	d.Log.Debug("push skipped: APNs not configured", "payload", string(m.Payload))
+	d.Log.Debug("push skipped: APNs not configured", "notification", m.CollapseID)
 	return ErrNotConfigured
 }
 

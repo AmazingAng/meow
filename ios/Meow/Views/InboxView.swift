@@ -347,9 +347,15 @@ struct NotificationRow: View {
     var notification: MeowNotification
     var now: Date
     @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var preview: InboxPreview?
 
     var body: some View {
         row(now: now)
+            .task(id: notification.body) {
+                let value = await InboxPreviewCache.shared.preview(notification.body)
+                guard !Task.isCancelled else { return }
+                preview = value
+            }
     }
 
     private func row(now: Date) -> some View {
@@ -374,7 +380,7 @@ struct NotificationRow: View {
             } else {
                 HStack(alignment: .firstTextBaseline) { metadata }
             }
-            if let line = NotificationBody(n.body).listPreview {
+            if preview?.body == n.body, let line = preview?.text {
                 Text(line)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

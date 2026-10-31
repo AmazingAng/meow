@@ -595,3 +595,95 @@ extension LocalInboxModelTests {
         XCTAssertNil(saved)
     }
 }
+
+extension LocalInboxModelTests {
+    func testIncrementalSyncWarmRefreshAndRestartUseOneEmptyPage() async throws {
+        let calls = LocalCallCounter()
+        // A later NSE delivery must not be mistaken for a completed sync cursor.
+        try await store.save([localItem("ntf_sync_4999")], scope: scope)
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.keyEncodingStrategy = .convertToSnakeCase
+        LocalInboxProtocol.install { request in
+            XCTAssertEqual(request.url!.path, "/v1/inbox")
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            XCTAssertEqual(query.first { $0.name == "sync" }?.value, "1")
+            let start = query.first { $0.name == "sync_cursor" }?.value.flatMap(Int.init) ?? 0
+            let end = min(start + 200, 5000)
+            let items = (start..<end).map { localItem("ntf_sync_\($0)") }
+            calls.increment()
+            return (200, try encoder.encode(InboxPage(notifications: items, nextCursor: nil, syncCursor: String(end), hasMore: end < 5000)))
+        }
+        let model = AppModel(inboxStore: store)
+        await model.refresh()
+        XCTAssertEqual(model.savedNotifications.count, 5000)
+        XCTAssertEqual(calls.value, 25)
+        let cursor = try await store.syncCursor(scope: scope)
+        XCTAssertEqual(cursor, "5000")
+        await model.refresh()
+        XCTAssertEqual(calls.value, 26)
+        let restarted = AppModel(inboxStore: InboxStore(fileURL: folder.appendingPathComponent("inbox.sqlite")))
+        await restarted.refresh()
+        XCTAssertEqual(calls.value, 27)
+        XCTAssertEqual(restarted.savedNotifications.count, 5000)
+    }
+
+    func testIncrementalSyncResumesCommittedPageAfterLaterNetworkFailure() async throws {
+        let calls = LocalCallCounter()
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.keyEncodingStrategy = .convertToSnakeCase
+        LocalInboxProtocol.install { request in
+            calls.increment()
+            let cursor = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "sync_cursor" }?.value
+            if cursor == "first" && calls.value == 2 { throw URLError(.networkConnectionLost) }
+            let page = cursor == "first"
+                ? InboxPage(notifications: [localItem("second")], nextCursor: nil, syncCursor: "done", hasMore: false)
+                : InboxPage(notifications: [localItem("first")], nextCursor: nil, syncCursor: "first", hasMore: true)
+            return (200, try encoder.encode(page))
+        }
+        let model = AppModel(inboxStore: store)
+        await model.refresh()
+        XCTAssertNotNil(model.loadError)
+        let checkpoint = try await store.syncCursor(scope: scope)
+        XCTAssertEqual(checkpoint, "first")
+        await model.refresh()
+        XCTAssertNil(model.loadError)
+        XCTAssertEqual(Set(model.savedNotifications.map(\.id)), ["first", "second"])
+        XCTAssertEqual(calls.value, 3)
+    }
+}
+
+extension LocalInboxModelTests {
+    func testIncrementalWriteFailureKeepsOnlineContentButDoesNotAdvanceCheckpoint() async throws {
+        try await store.save([localItem("saved")], scope: scope)
+        try executeSQLite("CREATE TRIGGER fail_sync BEFORE INSERT ON inbox_messages WHEN NEW.id='new' BEGIN SELECT RAISE(ABORT,'disk full'); END")
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(InboxPage(notifications: [localItem("new")], nextCursor: nil, syncCursor: "done", hasMore: false))
+        LocalInboxProtocol.install { _ in (200, data) }
+        let model = AppModel(inboxStore: store)
+        await model.refresh()
+        XCTAssertNotNil(model.notification(id: "new"))
+        XCTAssertNotNil(model.inboxStorageError)
+        let failedCursor = try await store.syncCursor(scope: scope)
+        XCTAssertNil(failedCursor)
+        try executeSQLite("DROP TRIGGER fail_sync")
+        await model.refresh()
+        let recovered = try await store.syncCursor(scope: scope)
+        XCTAssertEqual(recovered, "done")
+        XCTAssertNil(model.loadError)
+        XCTAssertNil(model.inboxStorageError)
+        XCTAssertEqual(Set(model.savedNotifications.map(\.id)), ["saved", "new"])
+    }
+
+    func testMalformedSyncEnvelopeDoesNotAdvanceCursor() async throws {
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.keyEncodingStrategy = .convertToSnakeCase
+        for page in [InboxPage(notifications: [localItem("bad")], nextCursor: nil, hasMore: true),
+                     InboxPage(notifications: [], nextCursor: nil, syncCursor: "empty-more", hasMore: true)] {
+            let data = try encoder.encode(page)
+            LocalInboxProtocol.install { _ in (200, data) }
+            let model = AppModel(inboxStore: store)
+            await model.refresh()
+            XCTAssertNotNil(model.loadError)
+            let cursor = try await store.syncCursor(scope: scope)
+            XCTAssertNil(cursor)
+            XCTAssertNil(model.notification(id: "bad"))
+        }
+    }
+}

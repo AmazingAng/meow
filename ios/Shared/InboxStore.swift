@@ -155,6 +155,68 @@ final class InboxStore: @unchecked Sendable {
             return Int(sqlite3_column_int64(statement, 0))
         }
     }
+
+    func syncCursor(scope: String) async throws -> String? {
+        try await perform { try self.open(); return try self.metadata("sync_cursor." + scope) }
+    }
+
+    enum SyncConflict: Error { case changed }
+
+    struct Snapshot: Sendable {
+        let revision: Int64
+        let items: [MeowNotification]
+    }
+
+    func changedSnapshot(scope: String, since revision: Int64?) async throws -> Snapshot? {
+        try await perform {
+            try self.open()
+            let statement = try self.prepare("SELECT revision FROM inbox_revisions WHERE scope=?")
+            defer { sqlite3_finalize(statement) }
+            try self.bind(scope, at: 1, to: statement)
+            try self.require(sqlite3_step(statement) == SQLITE_ROW)
+            let current = sqlite3_column_int64(statement, 0)
+            guard revision != current else { return nil }
+            // Read the revision first: a concurrent extension write can cause an
+            // extra reload, but cannot label old rows with a newer revision.
+            return Snapshot(revision: current, items: try self.loadRows(scope: scope))
+        }
+    }
+
+    func applySyncPage(_ items: [MeowNotification], cursor: String, expectedCursor: String?, scope: String,
+                       isCurrent: @escaping @Sendable () -> Bool = { true }) async throws {
+        guard !cursor.isEmpty, cursor.utf8.count <= 4096 else { throw Failure(message: "Invalid inbox sync cursor.") }
+        try await perform {
+            try self.open()
+            try self.transaction {
+                guard isCurrent(), try self.metadata("active_scope") == scope,
+                      try self.metadata("sync_cursor." + scope) == expectedCursor
+                else { throw SyncConflict.changed }
+                var incoming = items
+                let previous = try self.prepare("SELECT payload FROM inbox_messages WHERE scope=? AND id=?")
+                defer { sqlite3_finalize(previous) }
+                for index in incoming.indices {
+                    incoming[index].readAt = nil
+                    if let question = incoming[index].question, question.status == .pending {
+                        sqlite3_reset(previous); sqlite3_clear_bindings(previous)
+                        try self.bind(scope, at: 1, to: previous)
+                        try self.bind(incoming[index].id, at: 2, to: previous)
+                        let status = sqlite3_step(previous)
+                        if status == SQLITE_ROW, let raw = sqlite3_column_blob(previous, 0) {
+                            let data = Data(bytes: raw, count: Int(sqlite3_column_bytes(previous, 0)))
+                            let old = try JSONDecoder().decode(MeowNotification.self, from: data)
+                            if let resolved = old.question, resolved.id == question.id, resolved.status != .pending {
+                                incoming[index].question = resolved
+                            }
+                        } else { try self.require(status == SQLITE_DONE) }
+                    }
+                }
+                let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+                try self.writeRows(incoming, encoded: try incoming.map { try encoder.encode($0) }, scope: scope)
+                try self.setMetadata("sync_cursor." + scope, value: cursor)
+                guard isCurrent() else { throw SyncConflict.changed }
+            }
+        }
+    }
     deinit { if let db { sqlite3_close_v2(db) } }
 
     struct Failure: LocalizedError {
@@ -177,28 +239,32 @@ final class InboxStore: @unchecked Sendable {
             let status = sqlite3_step(known)
             if status == SQLITE_DONE { return nil }
             try self.require(status == SQLITE_ROW)
-            let statement = try self.prepare(
-                "SELECT payload,read_at FROM inbox_messages WHERE scope=? ORDER BY created_at DESC,id DESC")
-            defer { sqlite3_finalize(statement) }
-            try self.bind(scope, at: 1, to: statement)
-            var items: [MeowNotification] = []
-            let decoder = JSONDecoder()
-            while true {
-                let status = sqlite3_step(statement)
-                if status == SQLITE_DONE { break }
-                try self.require(status == SQLITE_ROW)
-                guard let bytes = sqlite3_column_blob(statement, 0) else {
-                    throw Failure(message: "A saved message is unreadable.")
-                }
-                let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, 0)))
-                var item = try decoder.decode(MeowNotification.self, from: data)
-                item.readAt =
-                    sqlite3_column_type(statement, 1) == SQLITE_NULL
-                    ? nil : Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, 1))
-                items.append(item)
-            }
-            return items
+            return try self.loadRows(scope: scope)
         }
+    }
+
+    private func loadRows(scope: String) throws -> [MeowNotification] {
+        let statement = try prepare(
+            "SELECT payload,read_at FROM inbox_messages WHERE scope=? ORDER BY created_at DESC,id DESC")
+        defer { sqlite3_finalize(statement) }
+        try bind(scope, at: 1, to: statement)
+        var items: [MeowNotification] = []
+        let decoder = JSONDecoder()
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { break }
+            try require(status == SQLITE_ROW)
+            guard let bytes = sqlite3_column_blob(statement, 0) else {
+                throw Failure(message: "A saved message is unreadable.")
+            }
+            let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, 0)))
+            var item = try decoder.decode(MeowNotification.self, from: data)
+            item.readAt =
+                sqlite3_column_type(statement, 1) == SQLITE_NULL
+                ? nil : Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, 1))
+            items.append(item)
+        }
+        return items
     }
 
     func save(_ items: [MeowNotification], scope: String) async throws {
@@ -223,6 +289,7 @@ final class InboxStore: @unchecked Sendable {
             try self.open()
             try self.transaction {
                 if try self.metadata("active_scope") == scope { try self.setMetadata("active_scope", value: nil) }
+                try self.setMetadata("sync_cursor." + scope, value: nil)
                 for table in ["inbox_deletions", "inbox_messages", "inbox_scopes"] {
                     let statement = try self.prepare("DELETE FROM \(table) WHERE scope=?")
                     defer { sqlite3_finalize(statement) }
@@ -318,6 +385,26 @@ final class InboxStore: @unchecked Sendable {
                     "CREATE TABLE IF NOT EXISTS inbox_deletions(scope TEXT NOT NULL,id TEXT NOT NULL,PRIMARY KEY(scope,id))"
                 )
                 try execute("CREATE INDEX IF NOT EXISTS inbox_messages_unread ON inbox_messages(scope,read_at)")
+                try execute("""
+                    CREATE TABLE IF NOT EXISTS inbox_revisions(
+                      scope TEXT PRIMARY KEY REFERENCES inbox_scopes(scope) ON DELETE CASCADE,
+                      revision INTEGER NOT NULL);
+                    INSERT OR IGNORE INTO inbox_revisions SELECT scope,0 FROM inbox_scopes;
+                    CREATE TRIGGER IF NOT EXISTS inbox_revision_scope AFTER INSERT ON inbox_scopes BEGIN
+                      INSERT INTO inbox_revisions VALUES(NEW.scope,0);
+                    END;
+                    CREATE TRIGGER IF NOT EXISTS inbox_revision_insert AFTER INSERT ON inbox_messages BEGIN
+                      UPDATE inbox_revisions SET revision=revision+1 WHERE scope=NEW.scope;
+                    END;
+                    CREATE TRIGGER IF NOT EXISTS inbox_revision_update AFTER UPDATE ON inbox_messages
+                    WHEN OLD.payload IS NOT NEW.payload OR OLD.read_at IS NOT NEW.read_at
+                      OR OLD.created_at IS NOT NEW.created_at BEGIN
+                      UPDATE inbox_revisions SET revision=revision+1 WHERE scope=NEW.scope;
+                    END;
+                    CREATE TRIGGER IF NOT EXISTS inbox_revision_delete AFTER DELETE ON inbox_messages BEGIN
+                      UPDATE inbox_revisions SET revision=revision+1 WHERE scope=OLD.scope;
+                    END;
+                    """)
             }
             try execute(
                 "CREATE INDEX IF NOT EXISTS inbox_messages_order ON inbox_messages(scope,created_at DESC,id DESC);")

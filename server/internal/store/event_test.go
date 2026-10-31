@@ -15,6 +15,7 @@ func TestEventMigrationPersistenceAndBackup(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Reconstruct the actual v4 schema, retaining content and credentials.
+	stripSyncSchema(t, st)
 	if _, err = st.w.Exec(`ALTER TABLE notifications DROP COLUMN event; PRAGMA user_version=4`); err != nil {
 		t.Fatal(err)
 	}

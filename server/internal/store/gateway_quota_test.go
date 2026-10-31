@@ -116,6 +116,7 @@ func TestGatewayQuotaMigrationPreservesActiveUsage(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	stripSyncSchema(t, st)
 	if _, err := st.w.Exec(`DROP TABLE gateway_push_quotas; PRAGMA user_version=6`); err != nil {
 		t.Fatal(err)
 	}

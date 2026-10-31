@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"net/netip"
 	"time"
 )
 
@@ -11,16 +10,7 @@ const DefaultGatewayMaxConcurrentPushes = 0 // unlimited unless the operator opt
 // Share allowance across address aliases and an IPv6 client's interface
 // addresses. Proxy selection still follows the explicitly configured trust.
 func gatewayClientIP(r *http.Request, trustProxy bool) string {
-	raw := clientIP(r, trustProxy)
-	address, err := netip.ParseAddr(raw)
-	if err != nil {
-		return raw
-	}
-	address = address.Unmap()
-	if address.Is6() {
-		return netip.PrefixFrom(address, 64).Masked().String()
-	}
-	return address.String()
+	return clientIP(r, trustProxy)
 }
 
 // Never queue blocked push requests or spend route quota when all provider

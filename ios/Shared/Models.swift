@@ -104,6 +104,8 @@ struct InboxCounts: Codable, Hashable, Sendable {
 struct InboxPage: Codable, Sendable {
     var notifications: [MeowNotification]
     var nextCursor: String?
+    var syncCursor: String? = nil
+    var hasMore: Bool? = nil
 }
 
 enum MeowJSON {

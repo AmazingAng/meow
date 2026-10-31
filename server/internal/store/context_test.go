@@ -14,6 +14,7 @@ func TestContextMigrationPersistenceAndBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	stripSyncSchema(t, st)
 	if _, err = st.w.Exec(`ALTER TABLE notifications DROP COLUMN event; ALTER TABLE notifications DROP COLUMN context; PRAGMA user_version=2`); err != nil {
 		t.Fatal(err)
 	}

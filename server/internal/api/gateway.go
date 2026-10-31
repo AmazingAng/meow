@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"time"
 
 	"meow.blue/meow/server/internal/push"
@@ -198,6 +199,17 @@ func (g *gateway) wake(w http.ResponseWriter, r *http.Request) {
 			status = 410
 		case errors.As(err, &ae) && !ae.Retryable():
 			status = 422
+		case ae != nil:
+			if ae.Status == 429 || (ae.Status >= 500 && ae.Status < 600) {
+				status = ae.Status
+			}
+			if ae.RetryAfter > 0 {
+				seconds := int64(ae.RetryAfter / time.Second)
+				if ae.RetryAfter%time.Second != 0 {
+					seconds++
+				}
+				w.Header().Set("Retry-After", strconv.FormatInt(seconds, 10))
+			}
 		}
 		writeError(w, status, "push_failed", "APNs did not accept the wake notification")
 		return

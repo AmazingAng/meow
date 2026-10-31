@@ -130,3 +130,23 @@ the optional fixed cap. If your `.env` explicitly contains `32`, remove that
 entry or set it to `0` to open it up. IP limits remain enabled. The existing
 60/minute allowance is now shared across routes for the same APNs token and
 environment; registering another route or changing IP cannot reset it.
+
+
+## Incremental sync and provider cooldowns (schema v8)
+
+Deploy the updated server and gateway binaries/images to enable incremental
+phone synchronization and preserve provider cooldowns. Take an online backup
+with the currently running binary first. Schema v8 adds per-device sequence
+tracking and an index, backfilling existing records transactionally; startup may
+take longer for a large cache. Retention remains `720h`, existing keys continue
+working, and old clients retain ordinary pagination. Updated iOS clients opt in
+automatically; old servers remain compatible through full-history sync. No CLI
+update is required for these fixes.
+
+Older binaries reject schema v8. Rollback requires the pre-upgrade snapshot;
+retain the upgraded database separately and account for messages received after
+that snapshot. Expiry does not erase downloaded iPhone history. A server restart
+or snapshot restore causes one safe client backfill rather than trusting a
+checkpoint from a previous process. APNs 5XX retries now wait at least 15 minutes,
+429 at least one minute, and longer provider `Retry-After` is preserved through
+the gateway. Retry deadlines remain in memory and do not survive a restart.

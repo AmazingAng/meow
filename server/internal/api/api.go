@@ -13,11 +13,13 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
 
 	"meow.blue/meow/message"
+	"meow.blue/meow/server/internal/ids"
 	"meow.blue/meow/server/internal/store"
 )
 
@@ -35,6 +37,7 @@ type Config struct {
 }
 
 type Server struct {
+	syncEpoch  string
 	gatewayURL string
 	st         *store.Store
 	push       Enqueuer
@@ -50,7 +53,8 @@ func New(c Config) *Server {
 		c.Log = slog.New(slog.DiscardHandler)
 	}
 	s := &Server{
-		st: c.Store, push: c.Push, log: c.Log, trustProxy: c.TrustProxy, gatewayURL: c.GatewayURL,
+		syncEpoch: ids.New("sync"),
+		st:        c.Store, push: c.Push, log: c.Log, trustProxy: c.TrustProxy, gatewayURL: c.GatewayURL,
 		ipLimit:  newLimiter(20, 200),     // all requests, per client IP
 		regLimit: newLimiter(1.0/360, 10), // device registrations: 10/hour per IP
 		keyLimit: newLimiter(1, 60),       // per Device Key
@@ -134,14 +138,26 @@ func clientIP(r *http.Request, trustProxy bool) string {
 	if trustProxy {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			hops := strings.Split(xff, ",")
-			return strings.TrimSpace(hops[len(hops)-1])
+			return normalizedClientIP(strings.TrimSpace(hops[len(hops)-1]))
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
 	}
-	return host
+	return normalizedClientIP(host)
+}
+
+func normalizedClientIP(raw string) string {
+	address, err := netip.ParseAddr(raw)
+	if err != nil {
+		return raw
+	}
+	address = address.Unmap()
+	if address.Is6() {
+		return netip.PrefixFrom(address, 64).Masked().String()
+	}
+	return address.String()
 }
 
 // ---- authentication ----

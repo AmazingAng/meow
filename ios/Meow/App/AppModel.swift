@@ -173,6 +173,7 @@ final class AppModel {
     @ObservationIgnored private var sessionGeneration = 0
     @ObservationIgnored private var hydrationTask: Task<[MeowNotification]?, Error>?
     @ObservationIgnored private var hydratedScope: String?
+    @ObservationIgnored private var localInboxRevision: Int64?
     @ObservationIgnored private var mutationRevision: UInt64 = 0
     @ObservationIgnored private var persistenceRevision: UInt64 = 0
     @ObservationIgnored private var itemRevisions: [String: UInt64] = [:]
@@ -338,6 +339,7 @@ final class AppModel {
         hydrationTask?.cancel()
         hydrationTask = nil
         hydratedScope = nil
+        localInboxRevision = nil
         retryTask?.cancel()
         retryTask = nil
         isLoading = false
@@ -814,7 +816,9 @@ final class AppModel {
     }
 
     private func refreshSnapshot() async {
-        guard isRegistered, !isChangingServer, let api, let scope = inboxScope else { return }
+        guard isRegistered, !isChangingServer, let api, let scope = inboxScope,
+              let identity = NotificationIdentity.current,
+              identity.server == api.server, identity.token == api.token else { return }
         loadGeneration += 1
         let generation = loadGeneration
         isLoading = true
@@ -824,36 +828,104 @@ final class AppModel {
         guard generation == loadGeneration, !isChangingServer else { return }
         let revision = mutationRevision
         do {
-            let items = try await api.allInbox()
-            guard generation == loadGeneration, !isChangingServer else { return }
-            let current = Dictionary(savedNotifications.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            var merged = current
-            for var item in items {
-                // Server omission/expiry is not a command to erase local history.
-                item.readAt = current[item.id]?.readAt
-                if item.question?.status == .pending, let previous = current[item.id]?.question,
-                   previous.status != .pending { item.question = previous }
-                merged[item.id] = item
+            if hydratedScope != scope {
+                // Keep online content usable after a local read failure; never
+                // advance a checkpoint that this iPhone cannot save safely.
+                let items = try await api.allInbox()
+                await mergeHistorySnapshot(items, revision: revision, generation: generation, scope: scope)
+            } else {
+                let checkpoint = try await inboxStore.syncCursor(scope: scope)
+                let first = try await api.syncPage(cursor: checkpoint)
+                guard generation == loadGeneration, !isChangingServer else { return }
+                if first.syncCursor == nil {
+                    guard first.hasMore == nil else { throw URLError(.badServerResponse) }
+                    // Older servers ignore the additive query. Reuse their first
+                    // page and keep their original all-or-nothing snapshot flow.
+                    let items = try await api.allInbox(firstPage: first)
+                    await mergeHistorySnapshot(items, revision: revision, generation: generation, scope: scope)
+                } else {
+                    try await receiveSyncWindow(first, checkpoint: checkpoint, api: api, scope: scope,
+                                                identity: identity, generation: generation, revision: revision)
+                }
             }
-            for (id, changedAt) in itemRevisions where changedAt > revision { merged[id] = current[id] }
-            let changedIDs = Set(merged.compactMap { current[$0.key] == $0.value ? nil : $0.key })
-            savedNotifications = ordered(Array(merged.values))
-            let present = Set(savedNotifications.map(\.id))
-            details = details.filter { present.contains($0.key) }
-            hasLoaded = true
-            loadError = nil
-            hasSyncedInbox = true
-            // A failed local read must never turn a short server cache into a
-            // complete local snapshot. Keep the disk history intact for retry.
-            if hydratedScope == scope { persistInbox(changedIDs) }
-            await reloadSharedInbox()
-            guard generation == loadGeneration, !isChangingServer else { return }
-            updateBadge()
         } catch {
-            guard generation == loadGeneration, !Self.isCancellation(error) else { return }
+            guard generation == loadGeneration, !isChangingServer, !Self.isCancellation(error) else { return }
             loadError = Self.describe(error)
             hasLoaded = true
+            await reloadSharedInbox()
         }
+    }
+
+    private func receiveSyncWindow(_ first: InboxPage, checkpoint: String?, api: MeowAPI, scope: String,
+                                   identity: NotificationIdentity, generation: Int, revision: UInt64) async throws {
+        var page = first, expected = checkpoint
+        var seen = Set<String>()
+        while true {
+            try Task.checkCancellation()
+            guard generation == loadGeneration, !isChangingServer, NotificationIdentity.current == identity else {
+                throw CancellationError()
+            }
+            guard let cursor = page.syncCursor, let more = page.hasMore,
+                  !cursor.isEmpty, cursor.utf8.count <= 4096, page.nextCursor == nil,
+                  !more || (!page.notifications.isEmpty && cursor != expected && seen.insert(cursor).inserted)
+            else { throw URLError(.badServerResponse) }
+            do {
+                let ids = Set(page.notifications.map(\.id))
+                let dirty = pendingInboxChanges.filter { ids.contains($0.key) && (itemRevisions[$0.key] ?? 0) <= revision }
+                try await inboxStore.applySyncPage(page.notifications, cursor: cursor, expectedCursor: expected, scope: scope,
+                                                   isCurrent: { NotificationIdentity.current == identity })
+                for (id, change) in dirty where pendingInboxChanges[id]?.revision == change.revision {
+                    pendingInboxChanges[id] = nil
+                }
+            } catch is InboxStore.SyncConflict {
+                throw CancellationError()
+            } catch {
+                guard generation == loadGeneration, !isChangingServer else { throw CancellationError() }
+                inboxStorageError = String(localized: "Couldn't save messages on this iPhone. (\(error.localizedDescription))")
+                await mergeHistorySnapshot(page.notifications, revision: revision, generation: generation,
+                                           scope: scope, complete: false)
+                throw error
+            }
+            guard generation == loadGeneration, !isChangingServer else { throw CancellationError() }
+            expected = cursor
+            if !more { break }
+            page = try await api.syncPage(cursor: cursor)
+        }
+        hasLoaded = true
+        loadError = nil
+        hasSyncedInbox = true
+        if pendingInboxChanges.isEmpty { inboxStorageError = nil }
+        await reloadSharedInbox()
+        guard generation == loadGeneration, !isChangingServer else { return }
+        updateBadge()
+    }
+
+    private func mergeHistorySnapshot(_ items: [MeowNotification], revision: UInt64, generation: Int,
+                                      scope: String, complete: Bool = true) async {
+        guard generation == loadGeneration, !isChangingServer else { return }
+        let current = Dictionary(savedNotifications.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var merged = current
+        for var item in items {
+            // Server omission/expiry is not a command to erase local history.
+            item.readAt = current[item.id]?.readAt
+            if item.question?.status == .pending, let previous = current[item.id]?.question,
+               previous.status != .pending { item.question = previous }
+            merged[item.id] = item
+        }
+        for (id, changedAt) in itemRevisions where changedAt > revision { merged[id] = current[id] }
+        let changedIDs = Set(merged.compactMap { current[$0.key] == $0.value ? nil : $0.key })
+        savedNotifications = ordered(Array(merged.values))
+        let present = Set(savedNotifications.map(\.id))
+        details = details.filter { present.contains($0.key) }
+        hasLoaded = true
+        loadError = nil
+        if complete { hasSyncedInbox = true }
+        // A failed local read must never turn a short server cache into a
+        // complete local snapshot. Keep the disk history intact for retry.
+        if hydratedScope == scope { persistInbox(changedIDs) }
+        await reloadSharedInbox()
+        guard generation == loadGeneration, !isChangingServer else { return }
+        updateBadge()
     }
 
     // MARK: Local grouping
@@ -1073,9 +1145,10 @@ final class AppModel {
         guard !isChangingServer, let scope = inboxScope, hydratedScope == scope else { return }
         let generation = sessionGeneration, revision = mutationRevision
         do {
-            let items = try await inboxStore.load(scope: scope) ?? []
-            guard generation == sessionGeneration, !isChangingServer else { return }
-            var merged = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            guard let snapshot = try await inboxStore.changedSnapshot(scope: scope, since: localInboxRevision) else { return }
+            guard generation == sessionGeneration, !isChangingServer, inboxScope == scope else { return }
+            localInboxRevision = snapshot.revision
+            var merged = Dictionary(snapshot.items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             // Keep unsaved online content visible with its storage warning until
             // the dirty patch succeeds. Tombstones remove older disk rows too.
             for (id, change) in pendingInboxChanges { merged[id] = change.item }

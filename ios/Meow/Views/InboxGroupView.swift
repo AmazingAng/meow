@@ -4,6 +4,7 @@ struct InboxGroupRow: View {
     var group: InboxGroup
     var isSearching = false
     @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var preview: InboxPreview?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -26,8 +27,8 @@ struct InboxGroupRow: View {
                     .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
             }
             if let latest = group.latest {
-                if let preview = NotificationBody(latest.body).listPreview {
-                    Text(preview)
+                if preview?.body == latest.body, let text = preview?.text {
+                    Text(text)
                         .lineLimit(2)
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
@@ -38,6 +39,12 @@ struct InboxGroupRow: View {
             }
         }
         .padding(.vertical, 8)
+        .task(id: group.latest?.body) {
+            guard let body = group.latest?.body else { preview = nil; return }
+            let value = await InboxPreviewCache.shared.preview(body)
+            guard !Task.isCancelled else { return }
+            preview = value
+        }
         .accessibilityElement(children: .combine)
         .accessibilityValue(Text("\(group.unreadCount) matching unread messages"))
         .accessibilityHint(Text(group.mode.title))

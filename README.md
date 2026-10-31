@@ -119,9 +119,16 @@ Saved history remains searchable after restarting the app while offline.
 Entering a session, project or Agent group marks the current matching snapshot read once. New arrivals remain unread. Swipe a message or group left to mark it read or delete it; group deletion confirms the matching message count and removes successful items from both server and iPhone. The header contains only view switching, deletion and search; read actions remain on groups and messages. Search and pagination never broaden these operations beyond the selected IDs.
 
 On foreground entry or pull-to-refresh, the app loads saved messages first and
-fetches every page of retained server history in the background. Only a complete
-snapshot merges remote changes; omission never deletes local history, and a failed page preserves it. Overlapping refreshes share one download; verified foreground pushes fetch only their changed record. Local mutations persist small atomic SQLite patches rather than re-encoding the complete history. The first synchronization can
-take longer; empty results show progress while synchronization is outstanding.
+synchronizes retained server history in the background. The first sync fetches
+all pages; later refreshes request only inserts and changes, with one empty page
+when nothing changed. Each page and its cursor commit together, so interrupted
+sync resumes without losing already downloaded history. Server restarts trigger
+a safe backfill. Older servers retain full-history pagination. Omission never
+deletes local history. Overlapping refreshes share one download; verified pushes
+fetch only their changed record. Local mutations persist small atomic patches;
+unchanged local revisions skip full payload decoding. Markdown previews are parsed
+by a bounded background cache. The first synchronization can take longer; empty
+results show progress while synchronization is outstanding.
 The app and notification extension share this SQLite database in the App Group. The app imports existing private history transactionally once and retains the old database; failed migration is reported and can retry. Verified origin messages are saved by the extension too, so they can remain on the phone after server expiry even before the app is opened. Duplicate pushes do not increase unread counts or reset read messages. Switching servers or re-registering clears and deactivates the old credential's history; deletion markers prevent stale sync/pushes from restoring explicitly deleted messages.
 
 Unread state belongs to this iPhone. Single, group and all-selected read actions commit locally without HTTP, including offline; a local storage failure leaves the messages unread and explains the failure. The icon badge is derived from the same local database. The extension rechecks the local count just before completion; the app reconciles on open. Server cache expiry never clears phone unread state. New server pushes omit `aps.badge`; the extension also strips badges from older-server payloads. If origin fetch/storage/extension execution cannot finish, the notification retains its safe fallback and leaves the existing badge unchanged. Background badges are best-effort, not an exact delivery guarantee. Server read/count endpoints remain available for legacy clients; the current iOS app does not call them.

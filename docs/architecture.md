@@ -192,6 +192,51 @@ Upgrade clients before shortening the server cache: old clients treated a comple
 
 Run `python3 -B scripts/verify_bounded_cache.py --output dist/cache-check --docker` to verify the retention lifecycle, quota/idempotency boundaries, real Go-server to native Swift history persistence, migration rollback, fault injection, Compose wiring and iOS SDK compilation. Omit `--docker` only when Docker is unavailable; the report records that omission. No simulator or phone installation is performed.
 
+## Incremental inbox synchronization (schema v8)
+
+Authenticated phones opt in with `GET /v1/inbox?sync=1&limit=200`; the response
+contains `notifications`, opaque `sync_cursor`, and Boolean `has_more`. Pass the
+cursor back as `sync_cursor` and continue while `has_more` is true. Sync does not
+accept search, display filters or the legacy `cursor`; ordinary inbox pagination
+is unchanged. Sender Device Keys still cannot read the inbox.
+
+SQLite triggers assign a monotonic, per-device sequence to inserts and visible
+record updates, including legacy-question changes. The `(device_id,sync_sequence)`
+index enumerates a fixed upper bound for each sync window. Concurrent inserts or
+updates beyond that bound are retrieved in the next window. Deleting/expiring
+records never resets the sequence and does not signal local deletion. Cursors
+contain device and process-epoch fences: foreign-device cursors fail; a server
+restart/restore safely restarts enumeration. They are pagination positions, not
+credentials. They do not reveal another device's activity.
+
+The iPhone commits each page and its checkpoint in one SQLite transaction, with
+compare-and-set and active-registration checks. A push arriving before initial
+sync cannot become a high-water mark that skips history. Local tombstones and
+read flags win over remote records. Servers that omit the additive envelope use
+the existing complete-snapshot path, reusing the first response. A failed local
+save never advances its checkpoint; saved pages survive a later request failure.
+
+A local per-scope revision changes transactionally with message inserts, updates,
+reads and deletes, across app/NSE connections. A cursor-only update does not
+invalidate it. Unchanged refreshes skip full local JSON decoding. Row previews
+are computed off the main actor in a shared LRU cache capped at 128 entries and
+512 KiB of source UTF-8; these limits bound retained inputs, not process RSS.
+Canceled or recycled rows cannot display a previous body's preview. Full detail
+formatting and original notification bodies are unchanged.
+
+APNs retryable errors preserve `Retry-After`, including HTTP dates. Provider 5XX
+uses a minimum 15-minute delay; provider 429 uses at least one minute. Longer
+provider delays win. The gateway forwards retryable status and rounded-up delay
+seconds; its optional admission-cap 429 keeps its separate short cooldown.
+Workers remain available while delayed jobs wait. Process restart still resets
+in-memory retry scheduling, as documented above. Disabled push diagnostics log
+only the notification ID, never the body. API and gateway IP limits share IPv4
+alias normalization and an IPv6 /64 budget.
+
+Run `python3 -B scripts/verify_security_efficiency.py --output <fresh-directory>`
+for the source-only gauntlet; it uses disposable data and a simulator, never real
+push credentials. Evidence records coverage scope and untested boundaries.
+
 ## Local inbox grouping
 
 The iOS header offers Messages, Sessions, Projects and Agent through a dedicated view menu. Header actions are ordered View, Delete, Search from left to right. The header title is noninteractive text aligned to the leading edge in every view and uses the same localized name as the view menu. The view menu contains only these four choices, with a checked square for the current view and empty squares for the others. It contains no notification filters, group-selection or global read actions; there is no dropdown on the title. Agent is the display label for the existing source grouping, including other sending services; the `sources` storage identifier and merge rules are unchanged. `InboxGrouping` derives groups from the complete local history before applying search, unread filtering and display pagination. Session identity uses source, workspace identity and session ID, with a typed name fallback only when the ID is absent. Display names use the latest nonempty name from the complete group, so generated titles and renames do not split ID-bearing sessions. Project groups deliberately combine matching project names across workspace IDs and agents. Missing metadata remains accessible through the Agent or Unclassified group.

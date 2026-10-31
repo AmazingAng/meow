@@ -39,6 +39,9 @@ class Fixture(BaseHTTPRequestHandler):
     key_reset_check = False
     reset_sender_secret = None
     connection_error = False
+    sync_epoch = ""
+    sync_sequence = 0
+    sync_versions = {}
     lock = threading.RLock()
 
     @classmethod
@@ -57,6 +60,9 @@ class Fixture(BaseHTTPRequestHandler):
         cls.key_reset_check = False
         cls.reset_sender_secret = None
         cls.connection_error = False
+        cls.sync_epoch = uuid.uuid4().hex
+        cls.sync_sequence = 0
+        cls.sync_versions = {}
         for ident, title, choices, expiry, read in [
             ('info', 'Build completed', False, 0, False),
             ('later', 'What should I work on next?', None, 3600, False),
@@ -231,6 +237,8 @@ class Fixture(BaseHTTPRequestHandler):
             if self.connection_error:
                 return self.send_json({'error': {'code': 'unavailable', 'message': 'Connection test failed.'}}, 503)
             query = parse_qs(url.query)
+            if query.get('sync') == ['1']:
+                return self.sync_page(query)
             filtered = self.items
             mode = query.get('filter', ['all'])[0]
             if mode == 'pending':
@@ -248,6 +256,30 @@ class Fixture(BaseHTTPRequestHandler):
             if url.path == '/v1/notifications/' + n['id']:
                 return self.send_json(n)
         return self.send_json({}, 404)
+
+    def sync_page(self, query):
+        cls = type(self)
+        for item in self.items:
+            encoded = json.dumps(item, sort_keys=True)
+            previous = cls.sync_versions.get(item['id'])
+            if previous is None or previous[1] != encoded:
+                cls.sync_sequence += 1
+                cls.sync_versions[item['id']] = (cls.sync_sequence, encoded)
+        after = ceiling = 0
+        if raw := query.get('sync_cursor', [None])[0]:
+            epoch, lower, upper = raw.split('.')
+            if epoch == cls.sync_epoch:
+                after, ceiling = int(lower), int(upper)
+        if not ceiling:
+            ceiling = cls.sync_sequence
+        rows = sorted((cls.sync_versions[item['id']][0], item) for item in self.items
+                      if after < cls.sync_versions[item['id']][0] <= ceiling)
+        limit = int(query.get('limit', ['200'])[0])
+        more = len(rows) > limit
+        rows = rows[:limit]
+        after = rows[-1][0] if more else ceiling
+        cursor = f'{cls.sync_epoch}.{after}.{ceiling if more else 0}'
+        return self.send_json({'notifications': [item for _, item in rows], 'sync_cursor': cursor, 'has_more': more})
 
     def do_DELETE(self):
         with self.lock:
