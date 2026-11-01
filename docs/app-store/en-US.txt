@@ -1,0 +1,33 @@
+NAME
+Meow: AI Agent Notifications
+
+SUBTITLE
+Your agents, in your pocket
+
+PROMOTIONAL_TEXT
+Let your agents work. Meow brings new results, errors, and requests for your attention to your iPhone, so you can step away and return when it matters.
+
+KEYWORDS
+developer,terminal,automation,alerts,workflow,cli,push,selfhosted,coding,monitor,build
+
+DESCRIPTION
+Let your agents work. Meow brings their updates to your iPhone.
+
+Get notified when an AI agent finishes a turn, encounters an error, or needs your attention. Read the context on your phone, then continue in the original tool on your computer.
+
+CONNECT YOUR WORKFLOW
+Connect Claude Code, Codex, or Cursor with the Meow command-line tool. Scripts, build jobs, and other services can send notifications through the CLI or HTTP API too. The CLI is available for macOS and Linux.
+
+AN INBOX THAT STAYS ORGANIZED
+Browse messages by session, project, or agent. Search downloaded history on your device, including while offline. Mark messages or groups read, or delete the items you no longer need.
+
+READ THE WHOLE RESULT
+Open a notification to read the full message, with Markdown, code blocks, and tables. Session and project context help you recognize which task needs you.
+
+MAKE IT YOURS
+Choose the Meow sound or the default system notification sound. Important messages can use Time Sensitive notifications when allowed by your iOS notification and Focus settings.
+
+CHOOSE YOUR SERVER
+Start with the suggested official server, or connect to a Meow server you host yourself. No personal Meow account is required. Messages sent to a server are cached there; downloaded history is stored on your iPhone. See the privacy policy for data handling and retention.
+
+Meow delivers notifications. Replies and decisions stay in the original tool on your computer. Notification delivery requires a working network connection and the relevant system permissions.

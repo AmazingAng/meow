@@ -1,0 +1,83 @@
+{
+  "fictional_demo_data": true,
+  "actual_app_screens": true,
+  "production_network_used": false,
+  "screenshots": [
+    {
+      "file": "zh-Hans-04-full-result.png",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "alpha": false,
+      "sha256": "e1a1ae8e86680fd895575d7ade5d3f4fab8d6802281c62b959f3e0d59736c1ac"
+    },
+    {
+      "file": "zh-Hans-03-projects.png",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "alpha": false,
+      "sha256": "aeff04e0104c961de0fe7a33012f1ecd5be5dcf6ecc0adb0a56e2f4aef1af71c"
+    },
+    {
+      "file": "zh-Hans-02-sessions.png",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "alpha": false,
+      "sha256": "5777b2f828128d272994606bed44e2d134864e8e6e3b8116635009f56528e8ec"
+    },
+    {
+      "file": "zh-Hans-01-messages.png",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "alpha": false,
+      "sha256": "ac036ca4f162546904bcb04238efc7832aed343d4b3c6288c2ef29097c5e92af"
+    },
+    {
+      "file": "en-US-04-full-result.png",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "alpha": false,
+      "sha256": "fe3a9d081554ef13008004027fa4ee30511babfb190ba83eb5a5dbab4f6f4fca"
+    },
+    {
+      "file": "en-US-03-projects.png",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "alpha": false,
+      "sha256": "f8aa457f3a38c2c7418977f015156e3281204bb0a85a1c92218044169b9675fc"
+    },
+    {
+      "file": "en-US-02-sessions.png",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "alpha": false,
+      "sha256": "c75fb11c7f6d0151ea60c321b82e454bad6aa5c70594a0f643972fd85d38cb50"
+    },
+    {
+      "file": "en-US-01-messages.png",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "alpha": false,
+      "sha256": "58612bf2e82fd7a743ecc7f493285b2ef92135612d41ecf05b4b31e066dcbdfe"
+    }
+  ],
+  "version": "0.1.0",
+  "build": "27",
+  "source_commit": "9820ab7",
+  "screenshots_visually_inspected": true
+}

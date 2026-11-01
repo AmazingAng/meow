@@ -1,0 +1,13 @@
+{
+  "app_id": "6824443742",
+  "version": "0.1.0",
+  "candidate_build": "27",
+  "materials_prepared": true,
+  "metadata_length_validation": "passed",
+  "screenshots": 8,
+  "capture_test": "passed",
+  "app_store_connect_fields_saved": false,
+  "app_store_connect_blocker": "Apple sign-in page did not load; user handoff requested",
+  "submitted_to_app_review": false,
+  "review_contact_private_data_stored": false
+}
