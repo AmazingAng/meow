@@ -24,7 +24,8 @@ type GatewayRoute struct {
 // RegisterGatewayRoute creates an independent device route and secret hashes.
 func (s *Store) RegisterGatewayRoute(ctx context.Context, token, environment, binding string) (GatewayRegistration, error) {
 	r := GatewayRegistration{ID: ids.New("gwd"), ManagementToken: ids.Secret("gwm"), PushToken: ids.Secret("gwp"), BindingID: binding}
-	_, err := s.w.ExecContext(ctx, `INSERT INTO gateway_routes(id,management_hash,push_hash,apns_token,apns_env,binding_id) VALUES(?,?,?,?,?,?)`, r.ID, Hash(r.ManagementToken), Hash(r.PushToken), token, environment, binding)
+	now := ms(s.now())
+	_, err := s.w.ExecContext(ctx, `INSERT INTO gateway_routes(id,management_hash,push_hash,apns_token,apns_env,binding_id,created_at,last_seen_at) VALUES(?,?,?,?,?,?,?,?)`, r.ID, Hash(r.ManagementToken), Hash(r.PushToken), token, environment, binding, now, now)
 	return r, err
 }
 
@@ -34,12 +35,13 @@ func (s *Store) GatewayRoute(ctx context.Context, id, secret string, management 
 		column = "management_hash"
 	}
 	var r GatewayRoute
-	err := s.r.QueryRowContext(ctx, `SELECT id,apns_token,apns_env,binding_id FROM gateway_routes WHERE id=? AND `+column+`=?`, id, Hash(secret)).Scan(&r.ID, &r.APNsToken, &r.APNsEnv, &r.BindingID)
+	err := s.r.QueryRowContext(ctx, `SELECT id,apns_token,apns_env,binding_id FROM gateway_routes WHERE id=? AND `+column+`=? AND last_seen_at>?`, id, Hash(secret), ms(s.now().Add(-GatewayRouteTTL))).Scan(&r.ID, &r.APNsToken, &r.APNsEnv, &r.BindingID)
 	return r, noRows(err)
 }
 
 func (s *Store) UpdateGatewayRoute(ctx context.Context, id, secret, token, environment string) error {
-	res, err := s.w.ExecContext(ctx, `UPDATE gateway_routes SET apns_token=?,apns_env=? WHERE id=? AND management_hash=?`, token, environment, id, Hash(secret))
+	now := s.now()
+	res, err := s.w.ExecContext(ctx, `UPDATE gateway_routes SET apns_token=?,apns_env=?,last_seen_at=MAX(last_seen_at,?) WHERE id=? AND management_hash=? AND last_seen_at>?`, token, environment, ms(now), id, Hash(secret), ms(now.Add(-GatewayRouteTTL)))
 	return affected(res, err)
 }
 
@@ -91,11 +93,11 @@ func (s *Store) TakeGatewayQuota(ctx context.Context, id string) error {
 // route update/revocation cannot spend a different token's quota or revive a
 // deleted route. The caller retries after reloading the route when this fails.
 func (s *Store) TakeGatewayPushQuota(ctx context.Context, route GatewayRoute) error {
-	now := ms(s.now())
-	cutoff := now - int64(time.Minute/time.Millisecond)
 	return s.tx(ctx, func(tx *sql.Tx) error {
+		now := ms(s.now())
+		cutoff := now - int64(time.Minute/time.Millisecond)
 		var token, environment string
-		if err := tx.QueryRowContext(ctx, `SELECT apns_token,apns_env FROM gateway_routes WHERE id=?`, route.ID).Scan(&token, &environment); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT apns_token,apns_env FROM gateway_routes WHERE id=? AND last_seen_at>?`, route.ID, now-int64(GatewayRouteTTL/time.Millisecond)).Scan(&token, &environment); err != nil {
 			return noRows(err)
 		}
 		if token != route.APNsToken || environment != route.APNsEnv {
@@ -113,6 +115,10 @@ func (s *Store) TakeGatewayPushQuota(ctx context.Context, route GatewayRoute) er
 		if err == nil && n == 0 {
 			return &QuotaError{Limit: "gateway_pushes", Max: 60}
 		}
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE gateway_routes SET last_seen_at=MAX(last_seen_at,?) WHERE id=?`, now, route.ID)
 		return err
 	})
 }

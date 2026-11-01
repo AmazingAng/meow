@@ -35,7 +35,7 @@ var gatewaySQL string
 //go:embed sync.sql
 var syncSQL string
 
-const schemaVersion = 8
+const schemaVersion = 9
 
 var (
 	ErrNotFound            = errors.New("not found")
@@ -219,6 +219,16 @@ func (s *Store) migrate(ctx context.Context) error {
 		}
 		if v < 8 {
 			if _, err := tx.ExecContext(ctx, syncSQL); err != nil {
+				return err
+			}
+		}
+		if v < 9 {
+			if _, err := tx.ExecContext(ctx, lifecycleSchema); err != nil {
+				return err
+			}
+			// Existing routes get a complete inactivity window at upgrade;
+			// neither their secrets nor their independent quotas are replaced.
+			if _, err := tx.ExecContext(ctx, `UPDATE gateway_routes SET created_at=?,last_seen_at=?`, ms(s.now()), ms(s.now())); err != nil {
 				return err
 			}
 		}
@@ -483,8 +493,7 @@ func (s *Store) ListKeys(ctx context.Context, deviceID string) ([]APIKey, error)
 
 func (s *Store) RevokeKey(ctx context.Context, deviceID, keyID string) error {
 	res, err := s.w.ExecContext(ctx,
-		`UPDATE api_keys SET revoked_at = ? WHERE id = ? AND device_id = ? AND revoked_at IS NULL`,
-		ms(s.now()), keyID, deviceID)
+		`DELETE FROM api_keys WHERE id = ? AND device_id = ? AND revoked_at IS NULL`, keyID, deviceID)
 	if err != nil {
 		return err
 	}
@@ -928,8 +937,9 @@ func (s *Store) PruneInactiveDevices(ctx context.Context, idle time.Duration) (i
 	return res.RowsAffected()
 }
 
-// Prune deletes resolved questions and notifications older than retention, and
-// content-free quota/idempotency metadata after 24h. Pending questions are always kept.
+// Prune deletes resolved questions and notifications older than retention,
+// previously revoked credentials, and quota/idempotency metadata after 24h.
+// Pending questions and independent notification quota receipts are preserved.
 // Each bounded batch is atomic; earlier batches remain committed if a later one fails.
 func (s *Store) Prune(ctx context.Context, retention time.Duration) (int64, error) {
 	now := s.now()
@@ -948,16 +958,17 @@ func (s *Store) pruneBatch(ctx context.Context, cutoff, metadataCutoff int64) (i
 	var total int64
 	err := s.tx(ctx, func(tx *sql.Tx) error {
 		for _, stmt := range []struct {
-			sql string
-			arg int64
+			sql  string
+			args []any
 		}{
-			{`DELETE FROM questions WHERE rowid IN (SELECT rowid FROM questions WHERE status != 'pending' AND created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, cutoff},
-			{`DELETE FROM notifications WHERE rowid IN (SELECT rowid FROM notifications WHERE question_id IS NULL AND created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, cutoff},
+			{`DELETE FROM api_keys WHERE rowid IN (SELECT rowid FROM api_keys WHERE revoked_at IS NOT NULL ORDER BY revoked_at,rowid LIMIT 1000)`, nil},
+			{`DELETE FROM questions WHERE rowid IN (SELECT rowid FROM questions WHERE status != 'pending' AND created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, []any{cutoff}},
+			{`DELETE FROM notifications WHERE rowid IN (SELECT rowid FROM notifications WHERE question_id IS NULL AND created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, []any{cutoff}},
 			// Keep metadata for the full retry window even after content expires.
-			{`DELETE FROM idempotency WHERE rowid IN (SELECT rowid FROM idempotency WHERE created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, metadataCutoff},
-			{`DELETE FROM notification_receipts WHERE rowid IN (SELECT rowid FROM notification_receipts WHERE created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, metadataCutoff},
+			{`DELETE FROM idempotency WHERE rowid IN (SELECT rowid FROM idempotency WHERE created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, []any{metadataCutoff}},
+			{`DELETE FROM notification_receipts WHERE rowid IN (SELECT rowid FROM notification_receipts WHERE created_at <= ? ORDER BY created_at, rowid LIMIT 1000)`, []any{metadataCutoff}},
 		} {
-			res, err := tx.ExecContext(ctx, stmt.sql, stmt.arg)
+			res, err := tx.ExecContext(ctx, stmt.sql, stmt.args...)
 			if err != nil {
 				return err
 			}

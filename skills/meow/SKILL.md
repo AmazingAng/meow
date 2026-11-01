@@ -7,7 +7,7 @@ description: Install, configure, troubleshoot and use Meow, notifications for AI
 
 Meow sends a notification to the user's iPhone. Meow V1 only delivers notifications: the user reads them on the phone and responds in the agent on their computer.
 
-Use CLI 0.1.7 or later. Older setup commands can overwrite this skill, and `meow setup cursor` needs 0.1.7.
+Use CLI 0.1.10 or later. This includes the Go certificate-validation fix and safe credential-file writes; 0.1.9 and earlier should be upgraded even if notifications work.
 
 - iPhone app: creates the device, shows the server address and the Device Key.
 - `meow` CLI (macOS and Linux): sends notifications.
@@ -25,7 +25,7 @@ meow version
 
 If `meow` isn't on PATH but `~/.local/bin/meow` exists, use `~/.local/bin/meow` in place of `meow` in every command below.
 
-Check the version before proceeding: if it is older than 0.1.7, upgrade using step 1 even if notifications already work. A custom/dev version string does not establish compatibility; check its provenance rather than assuming it is the latest release.
+Check the version before proceeding: if it is older than 0.1.10, upgrade using step 1 even if notifications already work. A custom/dev version string does not establish compatibility or the fixed Go toolchain; check its provenance rather than assuming it is the latest release.
 
 Then run `meow doctor`. It changes nothing and checks the server, the Device Key, push registration and the connected agents, but does not enforce the minimum CLI version. If the version is suitable and every check passes, go straight to [Use Meow](#use-meow).
 
@@ -43,7 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/AmazingAng/meow/main/scripts/instal
 
 - If `~/.local/bin` is not on PATH, the installer prints the `export PATH=...` line. Suggest it to the user; don't edit their shell profile without asking.
 - Don't pass `--server` to the installer from an agent. With `--server` it starts interactive setup, which needs a terminal.
-- To pin a version: download the script, then run `sh install.sh --version 0.1.7 --install-dir "$HOME/.local/bin"`.
+- To pin a version: download the script, then run `sh install.sh --version 0.1.10 --install-dir "$HOME/.local/bin"`.
 - Windows is not supported.
 
 To upgrade an existing Homebrew installation, use `brew update && brew upgrade amazingang/tap/meow`. For a direct installation, re-run the installer above without `--server`; it replaces the binary without changing saved credentials or hooks. Afterwards check `command -v meow` and `meow version` again. If PATH still selects another copy, use the upgraded binary's absolute path. Do not re-run setup or prompt for a Device Key merely to upgrade; only re-run an agent's setup when its hook configuration needs updating (for example Cursor's two-hook integration).
@@ -139,6 +139,8 @@ Ask the user whether the notification arrived. `sent <id>` only means the server
 | A legacy ask/wait command fails with "notification-only" | Expected in V1. Use `meow send` and ask in the agent. |
 
 `MEOW_SERVER` and `MEOW_KEY` override the config file, and `MEOW_SOURCE` sets the default sender label. Don't set `MEOW_KEY` in shell profiles or files you commit; in CI, use the platform's secret store ([references/http.md](references/http.md)).
+
+The saved config contains a plaintext sender key protected by file permissions. Keep its directory private, including when overriding `MEOW_CONFIG` or `XDG_CONFIG_HOME`; do not put it in a shared or repository directory. CLI upgrades preserve saved credentials and existing hook authorization when the hook command is unchanged.
 
 ## Use Meow
 

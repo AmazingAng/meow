@@ -16,6 +16,14 @@ builds:
     flags: [-trimpath]
     ldflags:
       - -s -w -X main.version={{ .Version }}
+    hooks:
+      post:
+        - cmd: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -mode=binary "{{ .Path }}"
+          output: true
+          # Scan with the host Go toolchain, not the cross-compiled target.
+          env:
+            - GOOS={{ .Runtime.Goos }}
+            - GOARCH={{ .Runtime.Goarch }}
 
 archives:
   - formats: [tar.gz]

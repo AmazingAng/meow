@@ -148,6 +148,7 @@ func run(gatewayMode bool) error {
 		handler = api.NewGateway(api.GatewayConfig{Store: st, Push: pusher,
 			TrustProxy: env("MEOW_TRUST_PROXY", "") == "true", MaxConcurrentPushes: maxConcurrentPushes})
 		log.Info("gateway limits", "requests_per_second_per_ip", 20, "request_burst", 200, "concurrent_pushes", maxConcurrentPushes)
+		wg.Go(func() { maintainGateway(bg, st, log) })
 	} else {
 		dispatcher := push.NewDispatcher(st, pusher, log)
 		wg.Go(func() { dispatcher.Run(bg, 4) })

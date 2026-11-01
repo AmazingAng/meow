@@ -74,9 +74,19 @@ func Save(c Config) error {
 		return err
 	}
 	b, _ := json.MarshalIndent(c, "", "  ")
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+	f, err := os.CreateTemp(filepath.Dir(p), ".meow-config-*")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, p)
+	defer os.Remove(f.Name())
+	// CreateTemp is exclusive and does not follow pre-created symlinks. Set
+	// the final mode explicitly even under an unusually restrictive umask.
+	if err := f.Chmod(0600); err != nil {
+		return errors.Join(err, f.Close())
+	}
+	_, writeErr := f.Write(append(b, '\n'))
+	if err := errors.Join(writeErr, f.Close()); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), p)
 }

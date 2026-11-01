@@ -50,6 +50,8 @@ MEOW_DOMAIN=meow.example.com MEOW_PUSH_GATEWAY_URL=https://push.example.com \
 
 The app registers with the gateway automatically. The gateway only sees routing IDs, never the message content. The phone fetches content directly from this server, so the server must still be reachable from the phone (public HTTPS, or a VPN when away from the LAN).
 
+Routes expire after 90 days without a management update or admitted wake. Gateway startup and five-minute cleanup remove abandoned routes; active traffic renews them. If an old route expires, open Meow online or retry push registration in Settings: the app automatically creates and binds a new route after the gateway rejects the old one. This does not remove downloaded phone history or require a new sender Device Key.
+
 ## Settings
 
 | Variable | Default | |
@@ -62,5 +64,7 @@ The app registers with the gateway automatically. The gateway only sees routing 
 | `MEOW_PUSH_GATEWAY_URL` | | Wake gateway |
 
 Back up with `meow-server backup /path/backup.db`, not by copying the live file. `docker compose down -v` deletes the data volumes, so confirm with the user before running it.
+
+The credential/route cleanup update uses schema v9 for both API and gateway databases. Take a private online backup before upgrading each process; older binaries require restoring the matching pre-upgrade snapshot on rollback. Revoking a Device Key deletes that credential and its per-key retry metadata, preserving notifications, legacy answers and the independent daily message quota. Existing revoked rows are cleaned in batches by API maintenance.
 
 After the server is up, the user enters its address in the iPhone app, then continues with step 2 in [../SKILL.md](../SKILL.md).

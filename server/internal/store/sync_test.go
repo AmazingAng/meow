@@ -12,6 +12,7 @@ import (
 // merely relabel the latest database as an older version.
 func stripSyncSchema(t *testing.T, s *Store) {
 	t.Helper()
+	stripLifecycleSchema(t, s)
 	for _, q := range []string{`DROP TRIGGER inbox_sync_device`, `DROP TRIGGER inbox_sync_insert`, `DROP TRIGGER inbox_sync_update`, `DROP TRIGGER inbox_sync_question`, `DROP INDEX notifications_sync`, `ALTER TABLE notifications DROP COLUMN sync_sequence`, `DROP TABLE inbox_sync_clock`} {
 		if _, err := s.w.Exec(q); err != nil {
 			t.Fatal(err)

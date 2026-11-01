@@ -112,6 +112,12 @@ CGO, an ORM, a queue service or another database for an unrelated change.
 - Gateway concurrency defaults to 0 (unlimited); any positive cap is opt-in.
   Preserve IP/enrollment limits, shared APNs-token/environment quota windows
   and conditional invalid-token cleanup. Route deletion must not reset quota.
+  Routes expire after 90 inactive days; management updates and admitted wakes
+  renew activity. Migration gives existing routes a full inactivity window;
+  expired route authentication fails before background cleanup runs.
+- Revoked sender credentials are deleted, with per-key idempotency metadata;
+  notification/legacy history and independent daily quota receipts survive.
+  CLI credential saves use exclusive private temporary files and atomic rename.
 - Use online snapshots for backups. Rehearse restoration on a separate database
   or volume. Check schema compatibility before proposing a binary-only rollback.
 

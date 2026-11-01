@@ -168,7 +168,7 @@ and separate user consent. Meow does not currently claim this capability.
 
 The [`meow` skill](skills/meow/SKILL.md) teaches Claude Code, Codex and other
 agents to install the CLI, guide setup, troubleshoot and send notifications.
-Use Meow CLI 0.1.7 or later for all three supported agent integrations. Check `meow version` before setup; `meow doctor` does not enforce this minimum. Upgrade an existing Homebrew installation with `brew update && brew upgrade amazingang/tap/meow`, or re-run the direct installer without `--server`; saved credentials are preserved. Install the skill, then ask the agent to set up Meow:
+Use Meow CLI 0.1.10 or later, including the certificate-validation and credential-file security fixes, for all three supported agent integrations. Check `meow version` before setup; `meow doctor` does not enforce this minimum. Upgrade an existing Homebrew installation with `brew update && brew upgrade amazingang/tap/meow`, or re-run the direct installer without `--server`; saved credentials are preserved. Install the skill, then ask the agent to set up Meow:
 
 ```sh
 npx skills add AmazingAng/meow -g          # Node.js 22.20+; asks which agents to install to

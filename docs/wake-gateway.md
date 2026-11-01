@@ -129,8 +129,15 @@ server identity. Ambiguous network failures can still duplicate an alert.
 - APNs `Unregistered`, invalid-token and token/topic errors remove the matching
   route. Conditional deletion preserves a token rotated while a push was in
   flight. Transient network/provider failures do not delete registrations.
-- SQLite upgrades to v7 transactionally, preserving active legacy quota usage.
-  Old binaries cannot read v7 databases;
+- Routes expire after 90 days without management updates or admitted wakes.
+  Expired credentials return 401 before APNs access, even before physical cleanup.
+  The gateway removes abandoned routes on startup and every five minutes in
+  bounded batches. Current iOS clients recover through their existing automatic
+  re-enrollment and origin-binding flow; open Meow online or retry registration
+  in Settings if an inactive installation no longer receives pushes.
+- SQLite upgrades to v9 transactionally, preserving active legacy quota usage
+  and initializing existing routes' activity timestamps at upgrade time.
+  Old binaries cannot read v9 databases;
   keep a pre-upgrade snapshot if you need to roll back.
 
 Current verification: `python3 -B scripts/verify_launch_hardening.py --output dist/launch-check`.

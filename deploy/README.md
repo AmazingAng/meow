@@ -150,3 +150,26 @@ or snapshot restore causes one safe client backfill rather than trusting a
 checkpoint from a previous process. APNs 5XX retries now wait at least 15 minutes,
 429 at least one minute, and longer provider `Retry-After` is preserved through
 the gateway. Retry deadlines remain in memory and do not survive a restart.
+
+## Credential and gateway lifecycle (schema v9)
+
+Upgrade both API and gateway processes/images for this security update. Back up
+each database online with the currently running binary before upgrading. Schema
+v9 adds route activity timestamps and credential-reference/cleanup indexes;
+existing routes receive a full 90-day inactivity window at upgrade. Older
+binaries reject v9: use the pre-upgrade snapshot for rollback, preserving the
+newer database separately.
+
+Revocation now deletes the sender credential and its per-key idempotency rows.
+Notification bodies, legacy answers and independent daily message receipts are
+preserved. API maintenance also removes old revoked rows in bounded batches.
+
+The gateway rejects routes after 90 days without a management update or admitted
+wake, and removes them on startup and every five minutes. Active routes renew
+without a phone interaction. If a long-inactive route expires, open Meow online
+or retry push registration in Settings; current apps automatically re-enroll and
+bind the new route. No sender re-login, local history deletion or iOS rebuild is
+needed. Shared token/environment quotas and unlimited default concurrency stay
+unchanged. CLI users should separately upgrade to v0.1.10 for the rebuilt Go
+toolchain and private atomic config writes; server deployment does not update
+their installed executable.
