@@ -125,6 +125,13 @@ func cmdHook(args []string) (code int) {
 	if !send {
 		return
 	}
+	// Cursor applies the label before freezing its first delivery payload.
+	if kind != "cursor-stop" {
+		if err := applyHookSource(kind, cfg, &req); err != nil {
+			hookLog("%s: invalid source label configuration", kind)
+			return
+		}
+	}
 	if kind == "codex-stop" {
 		if err := recordCodexHookRun(input, summary); err != nil {
 			hookLog("codex-stop: cannot record runtime evidence")
@@ -227,4 +234,19 @@ func sendHook(ctx context.Context, c *client.Client, req client.NotifyRequest, i
 		}
 	}
 	return err
+}
+
+// Keep agent identity for metadata lookup and deduplication independent of its
+// display label. Validate before delivery (and before Cursor freezes a payload).
+func applyHookSource(kind string, cfg config.Config, req *client.NotifyRequest) error {
+	agent, _, _ := strings.Cut(kind, "-")
+	source := strings.TrimSpace(cfg.AgentSources[agent])
+	if source == "" {
+		return nil
+	}
+	if err := message.ValidateText("source", source, false, message.MaxSource); err != nil {
+		return err
+	}
+	req.Source = source
+	return nil
 }
