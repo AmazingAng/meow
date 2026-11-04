@@ -267,9 +267,13 @@ final class InboxStore: @unchecked Sendable {
         return items
     }
 
+    #if DEBUG
+    /// Test fixture only: replaces the scope's entire history, pruning every
+    /// unlisted row. Production must never treat a list as complete history.
     func save(_ items: [MeowNotification], scope: String) async throws {
         try await perform { try self.write(items, scope: scope) }
     }
+    #endif
 
     func applyChanges(_ items: [MeowNotification], deleting: Set<String> = [], scope: String) async throws {
         try await perform { try self.writeChanges(items, deleting: deleting, scope: scope) }
@@ -297,17 +301,6 @@ final class InboxStore: @unchecked Sendable {
                     try self.require(sqlite3_step(statement) == SQLITE_DONE)
                 }
             }
-        }
-    }
-
-    /// Called synchronously on the model actor so successive snapshots enter the
-    /// serial queue in order, including optimistic reads and their rollbacks.
-    func enqueueSave(
-        _ items: [MeowNotification], scope: String,
-        completion: @escaping @Sendable (Result<Void, Error>) -> Void
-    ) {
-        queue.async {
-            completion(Result { try self.write(items, scope: scope) })
         }
     }
 
@@ -451,6 +444,7 @@ final class InboxStore: @unchecked Sendable {
         }
     }
 
+    #if DEBUG
     private func write(_ items: [MeowNotification], scope: String) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -479,6 +473,7 @@ final class InboxStore: @unchecked Sendable {
             try require(sqlite3_step(prune) == SQLITE_DONE)
         }
     }
+    #endif
 
     private func ensureScope(_ scope: String) throws {
         let statement = try prepare("INSERT OR IGNORE INTO inbox_scopes(scope) VALUES(?)")

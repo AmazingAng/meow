@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sqlite3
@@ -358,6 +359,23 @@ def run(args, **kwargs):
     return subprocess.run(args, cwd=ROOT, check=True, text=True, capture_output=True, **kwargs).stdout
 
 
+def ui_test_names():
+    source = (ROOT / 'ios/MeowUITests/UIOptimizationTests.swift').read_text()
+    return re.findall(r'^\s*func (test\w+)\(\)', source, re.M)
+
+
+def shards(names, jobs, durations, unit_tests):
+    """Longest-first split using the previous run's timings (30s when unknown)."""
+    groups = [[] for _ in range(max(1, min(jobs, len(names))))]
+    # Unit tests run on the first shard and take about as long as one UI case.
+    totals = [30.0 if unit_tests else 0.0] + [0.0] * (len(groups) - 1)
+    for name in sorted(names, key=lambda n: -durations.get(n, 30.0)):
+        i = totals.index(min(totals))
+        groups[i].append(name)
+        totals[i] += durations.get(name, 30.0)
+    return groups
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True, type=Path)
@@ -367,38 +385,78 @@ def main():
     parser.add_argument('--test-case', action='append', help='Run a UIOptimizationTests method; repeat for a focused group.')
     parser.add_argument('--appearance', choices=['light', 'dark'], help='Set the disposable simulator appearance before testing.')
     parser.add_argument('--coverage', action='store_true', help='Collect code coverage in the result bundle.')
+    parser.add_argument('--jobs', type=int, default=4,
+                        help='Simulators running UI tests in parallel, each with its own fixture server (default 4).')
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    Fixture.reset()
-    server = ThreadingHTTPServer(('127.0.0.1', 0), Fixture)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    device = None
+    derived = output.parent / 'DerivedData'
+    # Kept beside DerivedData, so later runs with the same parent balance shards by real timings.
+    timings = output.parent / 'ui-test-durations.json'
+    try:
+        durations = json.loads(timings.read_text())
+    except (OSError, ValueError):
+        durations = {}
+    groups = shards(args.test_case or ui_test_names(), args.jobs, durations, not args.ui_only)
+    # Each shard owns its fixture state, lock and simulator; resets reinstall only that shard's app.
+    fixtures = [type(f'Fixture{i}', (Fixture,), {'lock': threading.RLock()}) for i in range(len(groups))]
+    servers = []
+    for fixture in fixtures:
+        fixture.reset()
+        fixture.app_path = derived / 'Build/Products/Debug-iphonesimulator/Meow.app'
+        server = ThreadingHTTPServer(('127.0.0.1', 0), fixture)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        servers.append(server)
+    devices = []
     try:
         run(['xcodegen', 'generate', '--spec', 'ios/project.yml'])
-        device = run(['xcrun', 'simctl', 'create', 'Meow UI Polish Temporary', args.device_type, args.runtime]).strip()
-        Fixture.device_id = device
-        Fixture.app_path = output.parent / 'DerivedData/Build/Products/Debug-iphonesimulator/Meow.app'
-        if args.appearance:
-            run(['xcrun', 'simctl', 'boot', device])
-            run(['xcrun', 'simctl', 'bootstatus', device, '-b'])
-            run(['xcrun', 'simctl', 'ui', device, 'appearance', args.appearance])
-        env = os.environ.copy()
-        env['TEST_RUNNER_MEOW_UI_OPTIMIZATION_SERVER'] = 'http://127.0.0.1:' + str(server.server_port)
+        for i, fixture in enumerate(fixtures):
+            device = run(['xcrun', 'simctl', 'create', f'Meow UI Polish Temporary {i + 1}', args.device_type, args.runtime]).strip()
+            devices.append(device)
+            fixture.device_id = device
+            if args.appearance:
+                run(['xcrun', 'simctl', 'boot', device])
+                run(['xcrun', 'simctl', 'bootstatus', device, '-b'])
+                run(['xcrun', 'simctl', 'ui', device, 'appearance', args.appearance])
+        coverage = ['-enableCodeCoverage', 'YES'] if args.coverage else []
+        build = ['xcodebuild', 'build-for-testing', '-project', 'ios/Meow.xcodeproj', '-scheme', 'Meow',
+                 '-destination', 'platform=iOS Simulator,id=' + devices[0], '-derivedDataPath', str(derived),
+                 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_ALLOWED=YES', *coverage]
+        with (output / 'build.log').open('w') as log:
+            if subprocess.run(build, cwd=ROOT, text=True, stdout=log, stderr=subprocess.STDOUT).returncode:
+                raise SystemExit('Build failed; see ' + str(output / 'build.log'))
+        xctestrun = max((derived / 'Build/Products').glob('Meow_*.xctestrun'), key=lambda p: p.stat().st_mtime)
+        bundles, jobs = [], []
+        for i, (group, device, server) in enumerate(zip(groups, devices, servers)):
+            env = os.environ.copy()
+            env['TEST_RUNNER_MEOW_UI_OPTIMIZATION_SERVER'] = 'http://127.0.0.1:' + str(server.server_port)
+            bundle = output / f'shard-{i + 1}.xcresult'
+            command = ['xcodebuild', 'test-without-building', '-xctestrun', str(xctestrun),
+                       '-destination', 'platform=iOS Simulator,id=' + device, '-resultBundlePath', str(bundle),
+                       '-parallel-testing-enabled', 'NO', *coverage]
+            command += ['-only-testing:MeowUITests/UIOptimizationTests/' + name for name in group]
+            if i == 0 and not args.ui_only:
+                command.append('-only-testing:MeowTests')
+            log = (output / f'test-{i + 1}.log').open('w')
+            jobs.append((subprocess.Popen(command, cwd=ROOT, env=env, text=True, stdout=log, stderr=subprocess.STDOUT), log))
+            bundles.append(bundle)
+        failed_shards = 0
+        for process, log in jobs:
+            failed_shards += process.wait() != 0
+            log.close()
+        # One test.log and ui.xcresult, as callers of this runner expect.
+        with (output / 'test.log').open('w') as combined:
+            for path in [output / 'build.log'] + [output / f'test-{i + 1}.log' for i in range(len(groups))]:
+                combined.write(path.read_text())
+        for name, seconds in re.findall(r"UIOptimizationTests (test\w+)\]' passed \(([\d.]+) seconds\)",
+                                        (output / 'test.log').read_text()):
+            durations[name] = float(seconds)
+        timings.write_text(json.dumps(durations, indent=2, sort_keys=True) + '\n')
         bundle = output / 'ui.xcresult'
-        command = ['xcodebuild', 'test', '-project', 'ios/Meow.xcodeproj', '-scheme', 'Meow',
-                   '-destination', 'platform=iOS Simulator,id=' + device,
-                   '-derivedDataPath', str(output.parent / 'DerivedData'), '-resultBundlePath', str(bundle),
-                   '-parallel-testing-enabled', 'NO',
-                   'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_ALLOWED=YES']
-        if args.coverage:
-            command += ['-enableCodeCoverage', 'YES']
-        command += ['-only-testing:MeowUITests/UIOptimizationTests' + ('/' + name if name else '')
-                    for name in (args.test_case or [''])]
-        if not args.ui_only:
-            command.append('-only-testing:MeowTests')
-        with (output / 'test.log').open('w') as log:
-            result = subprocess.run(command, cwd=ROOT, env=env, text=True, stdout=log, stderr=subprocess.STDOUT)
+        if len(bundles) == 1:
+            bundles[0].rename(bundle)
+        else:
+            run(['xcrun', 'xcresulttool', 'merge', *map(str, bundles), '--output-path', str(bundle)])
         summary = json.loads(run(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', str(bundle)]))
         (output / 'results.json').write_text(json.dumps(summary, indent=2) + '\n')
         raw = output / 'attachments'
@@ -411,12 +469,13 @@ def main():
                 if name.endswith('.png') and not name.startswith('Screenshot'):
                     shutil.copy2(raw / attachment['exportedFileName'], shots / (name.split('_0_')[0].removesuffix('.png') + '.png'))
         print(json.dumps({k: summary[k] for k in ['result', 'passedTests', 'failedTests', 'skippedTests']}, indent=2))
-        if result.returncode or summary['failedTests'] or summary['skippedTests']:
+        if failed_shards or summary['failedTests'] or summary['skippedTests']:
             raise SystemExit('Verification failed; see ' + str(output / 'test.log'))
     finally:
-        server.shutdown()
-        server.server_close()
-        if device:
+        for server in servers:
+            server.shutdown()
+            server.server_close()
+        for device in devices:
             subprocess.run(['xcrun', 'simctl', 'shutdown', device], capture_output=True)
             run(['xcrun', 'simctl', 'delete', device])
 

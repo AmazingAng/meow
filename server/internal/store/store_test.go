@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -69,6 +70,40 @@ func TestRegisterAndAuthenticate(t *testing.T) {
 	}
 	if err := s.RevokeKey(ctx, reg.Device.ID, k.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second revoke = %v", err)
+	}
+}
+
+func TestReregistrationClaimsAPNsToken(t *testing.T) {
+	s, _ := openTest(t)
+	old, other, current := register(t, s), register(t, s), register(t, s)
+	token, otherToken := strings.Repeat("ab", 32), strings.Repeat("cd", 32)
+	upper, env := strings.ToUpper(token), "production"
+	for _, u := range []struct {
+		id  string
+		tok *string
+	}{{old.Device.ID, &upper}, {other.Device.ID, &otherToken}} {
+		if _, err := s.UpdateDevice(ctx, u.id, DeviceUpdate{APNsToken: u.tok, APNsEnv: &env}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The same phone registers again: the old registration must stop receiving pushes.
+	d, err := s.UpdateDevice(ctx, current.Device.ID, DeviceUpdate{APNsToken: &token, APNsEnv: &env})
+	if err != nil || d.APNsToken != token {
+		t.Fatalf("UpdateDevice = %+v, %v", d, err)
+	}
+	if d, _ := s.Device(ctx, old.Device.ID); d.APNsToken != "" {
+		t.Fatalf("old registration kept token %q", d.APNsToken)
+	}
+	if d, _ := s.Device(ctx, other.Device.ID); d.APNsToken != otherToken {
+		t.Fatalf("another phone lost its token: %q", d.APNsToken)
+	}
+	// Updating only the name leaves every token in place.
+	name := "renamed"
+	if _, err := s.UpdateDevice(ctx, old.Device.ID, DeviceUpdate{Name: &name}); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := s.Device(ctx, current.Device.ID); d.APNsToken != token {
+		t.Fatalf("name update cleared the current token: %q", d.APNsToken)
 	}
 }
 
