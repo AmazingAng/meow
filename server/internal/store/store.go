@@ -391,12 +391,24 @@ type DeviceUpdate struct {
 	APNsEnv   *string
 }
 
+// An APNs token reaches one app install, which holds one registration at a time.
+// Claiming a token removes it from older registrations, so their remaining
+// Device Keys can't keep waking the phone with pushes it can no longer open.
 func (s *Store) UpdateDevice(ctx context.Context, id string, u DeviceUpdate) (Device, error) {
-	_, err := s.w.ExecContext(ctx, `UPDATE devices SET
-		name       = COALESCE(?1, name),
-		apns_token = CASE WHEN ?2 IS NULL THEN apns_token ELSE NULLIF(?2, '') END,
-		apns_env   = COALESCE(?3, apns_env)
-		WHERE id = ?4`, u.Name, u.APNsToken, u.APNsEnv, id)
+	err := s.tx(ctx, func(tx *sql.Tx) error {
+		if u.APNsToken != nil && *u.APNsToken != "" {
+			if _, err := tx.ExecContext(ctx, `UPDATE devices SET apns_token = NULL
+				WHERE id != ? AND lower(apns_token) = lower(?)`, id, *u.APNsToken); err != nil {
+				return err
+			}
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE devices SET
+			name       = COALESCE(?1, name),
+			apns_token = CASE WHEN ?2 IS NULL THEN apns_token ELSE NULLIF(?2, '') END,
+			apns_env   = COALESCE(?3, apns_env)
+			WHERE id = ?4`, u.Name, u.APNsToken, u.APNsEnv, id)
+		return err
+	})
 	if err != nil {
 		return Device{}, err
 	}
