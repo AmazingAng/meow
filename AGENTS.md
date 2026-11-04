@@ -159,6 +159,9 @@ python3 -B ios/scripts/verify_ui_optimization.py --output dist/ui-check
 
 Choose a fresh output directory for each run. The runner supports `--test-case`
 for a focused UI check and `--ui-only` when unit tests need not be repeated.
+It builds once, then splits UI cases across `--jobs` simulators (default 4),
+each with its own fixture server. Reuse the same output parent directory so
+DerivedData and `ui-test-durations.json` (used to balance shards) are reused.
 For layout changes, inspect exported screenshots, including Chinese and large
 Dynamic Type where relevant. Real SpringBoard banner verification uses
 `ios/scripts/verify_system_notification_banner.py`. Neither a simulator fixture

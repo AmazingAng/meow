@@ -671,7 +671,7 @@ final class AppModel {
                 guard let binding else { return }
                 try await api.bindGateway(binding)
                 guard generation == sessionGeneration, !Task.isCancelled else { return }
-                    } else { throw URLError(.badServerResponse) }
+            } else { throw URLError(.badServerResponse) }
             hasPushToken = true
             pushRegistrationError = nil
         } catch {
@@ -785,7 +785,7 @@ final class AppModel {
             let loaded = await loadDetail(id)
             guard loaded, generation == sessionGeneration, identity == NotificationIdentity.current, !isChangingServer
             else { return }
-                counts = InboxCounts(
+            counts = InboxCounts(
                 unread: savedNotifications.filter(\.isUnread).count,
                 pending: savedNotifications.filter { $0.question?.isOpen() == true }.count)
             updateBadge()

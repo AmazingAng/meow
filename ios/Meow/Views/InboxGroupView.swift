@@ -66,11 +66,15 @@ struct InboxGroupView: View {
     @State private var displayLimit = 50
     @State private var isSearching = false
     @State private var showsMembers = false
+    /// Local to this page: the home inbox has no filter control to undo it.
+    @State private var filter = AppModel.Filter.all
     @FocusState private var searchFocused: Bool
 
     private var current: InboxGroup? { model.inboxGroup(id) }
     private var presentation: InboxGroup? { current ?? fallback }
-    private var matches: [MeowNotification] { current?.matches ?? [] }
+    private var matches: [MeowNotification] {
+        (current?.matches ?? []).filter { filter != .unread || $0.isUnread }
+    }
     private var failedIDs: Set<String> {
         model.failedGroupReadIDs.intersection(Set(current?.matches.map(\.id) ?? []))
     }
@@ -107,8 +111,8 @@ struct InboxGroupView: View {
                     } description: {
                         Text("This group has no messages matching the current filters.")
                     } actions: {
-                        if !model.search.isEmpty || model.filter != .all {
-                            Button("Clear search and filters") { model.search = ""; model.filter = .all }
+                        if !model.search.isEmpty || filter != .all {
+                            Button("Clear search and filters") { model.search = ""; filter = .all }
                         }
                     }
                 }
@@ -134,11 +138,12 @@ struct InboxGroupView: View {
                 .accessibilityIdentifier("group.search")
                 Menu {
                     Section("Filter notifications") {
-                        ForEach(AppModel.Filter.visibleCases) { filter in
-                            Button { model.filter = filter } label: {
-                                if model.filter == filter { Label { Text(filter.title) } icon: { Image(systemName: "checkmark") } }
-                                else { Text(filter.title) }
+                        ForEach(AppModel.Filter.visibleCases) { option in
+                            Button { filter = option } label: {
+                                if filter == option { Label { Text(option.title) } icon: { Image(systemName: "checkmark") } }
+                                else { Text(option.title) }
                             }
+                            .accessibilityIdentifier("group.filter.\(option.rawValue)")
                         }
                     }
                     Button("Mark matching messages as read") {
@@ -162,7 +167,7 @@ struct InboxGroupView: View {
             }
         }
         .onChange(of: model.search) { displayLimit = 50 }
-        .onChange(of: model.filter) { displayLimit = 50 }
+        .onChange(of: filter) { displayLimit = 50 }
         .onAppear {
             guard !didMarkEntryRead else { return }
             didMarkEntryRead = true
