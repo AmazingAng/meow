@@ -646,7 +646,11 @@ func insertNotification(ctx context.Context, tx *sql.Tx, n Notification) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO notification_receipts (notification_id, device_id, created_at) VALUES (?, ?, ?)`,
+	return insertReceipt(ctx, tx, n)
+}
+
+func insertReceipt(ctx context.Context, tx *sql.Tx, n Notification) error {
+	_, err := tx.ExecContext(ctx, `INSERT INTO notification_receipts (notification_id, device_id, created_at) VALUES (?, ?, ?)`,
 		n.ID, n.DeviceID, ms(n.CreatedAt))
 	return err
 }

@@ -95,6 +95,10 @@ Both direct-APNs and relay Compose files pass `MEOW_RETENTION` from `.env`, defa
 
 Update iOS clients to the version that preserves independent local history **before** shortening the server window. Keep the rollout default `MEOW_RETENTION=720h` until every iPhone is on build 17 or later; only then explicitly shorten the window, for example to `12h`. Existing `.env` or service settings with an explicit `12h` continue to override the new default: set them to `720h` **before restarting**. Longer retention cannot recover already-pruned messages and remains a finite window for older clients. This server version automatically upgrades the SQLite schema to add a content-free 24-hour send-receipt ledger; make an online backup before upgrading. Older server binaries do not understand the new schema: rollback requires the pre-upgrade backup, not just swapping the binary. TTL does not remove old backup files or guarantee byte erasure from SQLite/WAL.
 
+For an installation whose clients already keep independent history, use `MEOW_RETENTION=24h` for a shorter delivery window. Shortening retention prunes old server copies, including any messages the phone has not downloaded yet. Apply the desired retention to existing backups separately.
+
+For a direct-APNs deployment that only needs notification previews, `MEOW_RETENTION=0` removes eligible cached records on startup and sends new previews without inserting a message row. A wake-gateway deployment requires positive retention. An updated direct server can also honor `Cache: no` on individual sends. See [direct push without a message cache](../README.md#direct-push-without-a-message-cache) for delivery and retry semantics.
+
 ### Semantic event rollout (schema v5)
 
 Upgrade the server, then the CLI/adapters, then iOS to show event icons. Old clients ignore the additive field; old messages keep their title and remain generic. New CLI/adapters explicitly emit `result`, `attention` or `failure`; custom integrations may omit `event`. Do not infer or backfill events from titles. Existing cache TTL and the App's independent local history are unchanged.
