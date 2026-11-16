@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -17,7 +19,7 @@ func TestCacheConfiguration(t *testing.T) {
 		input   string
 		want    time.Duration
 		invalid bool
-	}{{"", 720 * time.Hour, false}, {"12h", 12 * time.Hour, false}, {"720h", 720 * time.Hour, false}, {"24h", 24 * time.Hour, false}, {"1h", time.Hour, false}, {"0", 0, true}, {"-1h", 0, true}, {"30m", 0, true}, {"bad", 0, true}} {
+	}{{"", 720 * time.Hour, false}, {"12h", 12 * time.Hour, false}, {"720h", 720 * time.Hour, false}, {"24h", 24 * time.Hour, false}, {"1h", time.Hour, false}, {"0", 0, false}, {"-1h", 0, true}, {"30m", 0, true}, {"bad", 0, true}} {
 		t.Run(tt.input, func(t *testing.T) {
 			t.Setenv("MEOW_RETENTION", tt.input)
 			got, err := retentionFromEnv()
@@ -158,4 +160,22 @@ func TestCacheMaintenanceLogsExpiryAndDeviceFailures(t *testing.T) {
 		cancel()
 		synctest.Wait()
 	})
+}
+
+func TestZeroRetentionRejectsIncompatibleOriginBeforeTouchingDatabase(t *testing.T) {
+	for _, gateway := range []string{"", "https://gateway.example.invalid"} {
+		t.Run(gateway, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "must-not-be-created.db")
+			t.Setenv("MEOW_DB", path)
+			t.Setenv("MEOW_RETENTION", "0")
+			t.Setenv("MEOW_APNS_KEY_FILE", "")
+			t.Setenv("MEOW_PUSH_GATEWAY_URL", gateway)
+			if err := run(false); err == nil || !strings.Contains(err.Error(), "requires direct APNs") {
+				t.Fatalf("expected configuration failure, got %v", err)
+			}
+			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("database was touched: %v", err)
+			}
+		})
+	}
 }

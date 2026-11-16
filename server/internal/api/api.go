@@ -20,6 +20,7 @@ import (
 
 	"meow.blue/meow/message"
 	"meow.blue/meow/server/internal/ids"
+	"meow.blue/meow/server/internal/push"
 	"meow.blue/meow/server/internal/store"
 )
 
@@ -32,17 +33,22 @@ type Config struct {
 	GatewayURL string // fixed operator-configured gateway; empty selects direct APNs
 	Store      *store.Store
 	Push       Enqueuer
+	DirectPush push.Pusher // only set when direct APNs is configured
+	NoCache    bool
 	Log        *slog.Logger
 	TrustProxy bool // use the last X-Forwarded-For hop as the client IP
 }
 
 type Server struct {
-	syncEpoch  string
-	gatewayURL string
-	st         *store.Store
-	push       Enqueuer
-	log        *slog.Logger
-	trustProxy bool
+	syncEpoch   string
+	gatewayURL  string
+	st          *store.Store
+	push        Enqueuer
+	directPush  push.Pusher
+	directSlots chan struct{}
+	noCache     bool
+	log         *slog.Logger
+	trustProxy  bool
 
 	ipLimit, regLimit, keyLimit, devLimit *limiter
 	mux                                   *http.ServeMux
@@ -55,6 +61,7 @@ func New(c Config) *Server {
 	s := &Server{
 		syncEpoch: ids.New("sync"),
 		st:        c.Store, push: c.Push, log: c.Log, trustProxy: c.TrustProxy, gatewayURL: c.GatewayURL,
+		directPush: c.DirectPush, directSlots: make(chan struct{}, uncachedPushConcurrency), noCache: c.NoCache,
 		ipLimit:  newLimiter(20, 200),     // all requests, per client IP
 		regLimit: newLimiter(1.0/360, 10), // device registrations: 10/hour per IP
 		keyLimit: newLimiter(1, 60),       // per Device Key

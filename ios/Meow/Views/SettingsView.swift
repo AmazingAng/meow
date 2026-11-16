@@ -100,7 +100,7 @@ struct SettingsView: View {
                     .accessibilityIdentifier("settings.server")
                     if let key = model.deviceKey {
                         CopyButton(title: "Device Key", text: key,
-                                   maskedPreview: String(key.prefix(3)) + "…" + String(key.suffix(3)))
+                                   maskedPreview: AppModel.maskedDeviceKey(key))
                             .accessibilityHint("Tap to copy the complete Device Key")
                             .accessibilityIdentifier("settings.deviceKey")
                     } else {

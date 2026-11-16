@@ -272,19 +272,25 @@ For a persistent Docker deployment with Caddy HTTPS, see [deploy/README.md](depl
 | `MEOW_ADDR` | `:8080` | |
 | `MEOW_DB` | `meow.db` | filesystem path on a persistent local volume; files are restricted to 0600 |
 | `MEOW_GATEWAY_MAX_CONCURRENT_PUSHES` | `0` | gateway only; 0 = no fixed concurrency cap; positive values opt into a cap |
-| `MEOW_RETENTION` | `720h` | server delivery-cache lifetime (minimum `1h`); startup and every 5 minutes prune expired content; downloaded iPhone history is independent |
+| `MEOW_RETENTION` | `720h` | server delivery-cache lifetime (minimum `1h`, or `0` with direct APNs); downloaded iPhone history is independent |
 | `MEOW_TRUST_PROXY` | | `true` to rate-limit by `X-Forwarded-For` behind a reverse proxy |
 | `MEOW_APNS_KEY_FILE`, `MEOW_APNS_KEY_ID`, `MEOW_APNS_TEAM_ID`, `MEOW_APNS_TOPIC` | | APNs token auth (.p8); push is disabled when unset |
 
 ### Message cache and iPhone history
 
-The server is a short-lived delivery cache, not the archive of the iPhone's inbox. During the client rollout it defaults to **720 hours (30 days)** of message content, then automatically deletes expired notifications and resolved legacy questions on startup and every **5 minutes**. Pending legacy questions remain until resolved/expired. After every iPhone has independent local-history support (build 17 or later), an operator may explicitly shorten the window, for example `MEOW_RETENTION=12h` (minimum `1h`). Disabling storage is unsupported: a gateway wake needs the message to remain available for the iPhone to fetch.
+The server is a short-lived delivery cache, not the archive of the iPhone's inbox. During the client rollout it defaults to **720 hours (30 days)** of message content, then automatically deletes expired notifications and resolved legacy questions on startup and every **5 minutes**. Pending legacy questions remain until resolved/expired. After every iPhone has independent local-history support (build 17 or later), an operator may explicitly shorten the window, for example `MEOW_RETENTION=12h` (minimum `1h`). A wake gateway needs the message to remain available for the iPhone to fetch.
 
 Messages already downloaded by the app stay in its local SQLite history and remain searchable/readable after server expiry, refresh and app restart. Server omission or a missing-detail `404` is not a local-delete instruction. Unread counts include local-only history; old messages can still be marked read and explicitly deleted on the iPhone. Deleting a message/range in the app removes the current iPhone's saved copy and any matching server content. Deletion/expiry on the server or another client does not erase other already-downloaded copies. A device that stays offline beyond the cache window may miss messages; a new installation cannot recover history that has already expired on the server.
 
 Content-free per-device send receipts and creation-idempotency metadata are kept for **24 hours**, independently of body retention. Expiry or explicit deletion does not reset daily message limits or cause a replayed event to create another push. A retry whose body has expired returns `404 not_found` within the idempotency window; use a new event/key for a new notification.
 
 **Upgrade the iOS app with independent local-history support before shortening server retention.** Older app versions replace their cache with the server's list and may lose downloaded history. The rollout default is `MEOW_RETENTION=720h`; keep it until every iPhone is on build 17 or later. Existing explicit settings such as `MEOW_RETENTION=12h` in `.env` or a service environment still override this default: change them to `720h` **before restarting** during rollout. Increasing retention cannot recover content already deleted; even 720h is finite and cannot preserve older clients' history indefinitely. Automatic server cleanup does not delete devices or rotate keys; inactive-device cleanup remains a separate opt-in setting.
+
+### Direct push without a message cache
+
+On a server using direct APNs with its own Apple credentials, set `MEOW_RETENTION=0` for all new notifications, or add `Cache: no` to an individual `POST /v1/notifications` on an updated server. Zero retention removes eligible previous cache records at startup. The per-request header leaves other messages alone. A wake-gateway origin returns `422 cache_required` for the header and rejects zero retention at startup.
+
+Direct uncached requests deliver the usual bounded preview synchronously, with APNs expiration zero. The full message and grouping context are never inserted into the server inbox, so the current iOS app cannot backfill or save the full message. APNs acceptance returns `201`; a recorded successful replay returns `200` with the same ID. A concurrent or interrupted attempt with an unknown result returns `409 push_outcome_unknown` without another push. Provider failure returns `502 push_failed` and replays the same failure for that key. Device routing, request diagnostics and the 24-hour send and idempotency ledgers still apply.
 
 TTL is logical deletion, not guaranteed forensic erasure of SQLite free pages, WAL files or existing backups. Configure encrypted storage and a separate backup retention policy when appropriate.
 

@@ -69,6 +69,22 @@ final class UIOptimizationTests: XCTestCase {
         capture("local-unread-authority", app)
     }
 
+    func test32GroupFilterDoesNotLeakToHomeInbox() {
+        scenario("grouping")
+        let app = open()
+        browse("sessions", in: app)
+        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "inbox.group.", "Deploy")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10)); row.tap()
+        XCTAssertTrue(app.buttons["group.actions"].waitForExistence(timeout: 5)); app.buttons["group.actions"].tap()
+        let unread = app.buttons["group.filter.unread"]
+        XCTAssertTrue(unread.waitForExistence(timeout: 5)); unread.tap()
+        XCTAssertTrue(app.staticTexts["No matching messages"].waitForExistence(timeout: 5), "entering the group read its messages")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        browse("messages", in: app)
+        let read = app.descendants(matching: .any).matching(identifier: "notification.ntf_group_a1").firstMatch
+        XCTAssertTrue(read.waitForExistence(timeout: 5), "a group's filter must not hide read messages on the home inbox")
+    }
+
     func test01GuidedSetupAndBackNavigation() throws {
         scenario("onboarding-missing-key")
         let app = XCUIApplication()
@@ -146,7 +162,7 @@ final class UIOptimizationTests: XCTestCase {
         app.tabBars.buttons["Settings"].tap()
         let copyKey = app.buttons["settings.deviceKey"]
         reveal(copyKey, in: app)
-        XCTAssertTrue(copyKey.label.contains("meo…ure") || (copyKey.value as? String)?.contains("meo…ure") == true)
+        XCTAssertTrue(copyKey.label.contains("meow_…ture") || (copyKey.value as? String)?.contains("meow_…ture") == true)
         XCTAssertFalse(app.buttons["Copy Device Key"].exists)
         XCTAssertFalse(app.staticTexts["meow_disposable_ui_fixture"].exists)
         copyKey.tap()
