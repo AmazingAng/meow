@@ -4,7 +4,7 @@
 //
 //	MEOW_ADDR           listen address (default :8080)
 //	MEOW_DB             SQLite database path (default meow.db); keep it on a persistent volume
-//	MEOW_RETENTION      how long resolved questions and notifications are cached (rollout default 720h)
+//	MEOW_RETENTION      how long resolved questions and notifications are cached (default 720h; 0 requires direct APNs)
 //	MEOW_TRUST_PROXY    "true" to take the client IP from X-Forwarded-For (behind a reverse proxy)
 //	MEOW_MAX_KEYS_PER_DEVICE      active Device Keys per device (default 10, 0 = unlimited)
 //	MEOW_MAX_PENDING_QUESTIONS    unanswered questions per device (default 20, 0 = unlimited)
@@ -125,6 +125,10 @@ func run(gatewayMode bool) error {
 	if err != nil {
 		return err
 	}
+	direct, isDirect := pusher.(*push.APNs)
+	if !gatewayMode && retention == 0 && !isDirect {
+		return errors.New("MEOW_RETENTION=0 requires direct APNs credentials; the wake gateway needs a cache")
+	}
 	defaultDB := "meow.db"
 	if gatewayMode {
 		defaultDB = "gateway.db"
@@ -150,9 +154,6 @@ func run(gatewayMode bool) error {
 		log.Info("gateway limits", "requests_per_second_per_ip", 20, "request_burst", 200, "concurrent_pushes", maxConcurrentPushes)
 		wg.Go(func() { maintainGateway(bg, st, log) })
 	} else {
-		dispatcher := push.NewDispatcher(st, pusher, log)
-		wg.Go(func() { dispatcher.Run(bg, 4) })
-
 		if st.Limits, err = limitsFromEnv(); err != nil {
 			return err
 		}
@@ -163,8 +164,26 @@ func run(gatewayMode bool) error {
 		log.Info("device limits", "keys", st.Limits.KeysPerDevice, "pending_questions", st.Limits.PendingQuestions,
 			"daily_messages", st.Limits.DailyMessages, "inactive_device_ttl", inactiveTTL.String())
 
+		var queued api.Enqueuer
+		var directPush push.Pusher
+		if isDirect {
+			directPush = direct
+		}
+		if retention == 0 {
+			// Remove old cached records before the listener can serve them.
+			if _, err = st.ExpireDue(bg); err != nil {
+				return fmt.Errorf("expire legacy questions before disabling the cache: %w", err)
+			}
+			if _, err = st.Prune(bg, 0); err != nil {
+				return fmt.Errorf("prune old messages before disabling the cache: %w", err)
+			}
+		} else {
+			dispatcher := push.NewDispatcher(st, pusher, log)
+			queued = dispatcher
+			wg.Go(func() { dispatcher.Run(bg, 4) })
+		}
 		srv := api.New(api.Config{
-			Store: st, Push: dispatcher, Log: log,
+			Store: st, Push: queued, DirectPush: directPush, NoCache: retention == 0, Log: log,
 			TrustProxy: env("MEOW_TRUST_PROXY", "") == "true",
 			GatewayURL: gatewayURL(pusher),
 		})
@@ -208,9 +227,13 @@ func run(gatewayMode bool) error {
 }
 
 func retentionFromEnv() (time.Duration, error) {
-	retention, err := time.ParseDuration(env("MEOW_RETENTION", "720h"))
+	raw := env("MEOW_RETENTION", "720h")
+	if raw == "0" {
+		return 0, nil
+	}
+	retention, err := time.ParseDuration(raw)
 	if err != nil || retention < time.Hour {
-		return 0, fmt.Errorf("MEOW_RETENTION must be a duration of at least 1h, e.g. 12h; disabling the cache is not supported")
+		return 0, fmt.Errorf("MEOW_RETENTION must be 0 for direct APNs without a cache or a duration of at least 1h")
 	}
 	return retention, nil
 }

@@ -114,6 +114,8 @@ Set `event=result` for new output (not necessarily success), `attention` when so
 | `422` | Invalid field, or the `Idempotency-Key` was already used for a different request. |
 | `429` | Rate limited. Retry later with the same `Idempotency-Key`. |
 
+On an updated self-hosted server using direct APNs, `Cache: no` sends only the push preview and skips the server inbox. Use it only if the user accepts that there is no full-message backfill. Check for `Cache-Control: no-store` in the response. A wake-gateway server returns `422 cache_required`. An uncached send with an unknown outcome returns `409 push_outcome_unknown` for that idempotency key.
+
 `Idempotency-Key` is optional: up to 128 non-space printable ASCII characters. Use one value per logical notification, including its phase when a run sends multiple updates, so a retried request isn't shown twice.
 
 Don't let a failed notification fail the build. For example, append `|| echo "Meow notification failed" >&2` to the command.

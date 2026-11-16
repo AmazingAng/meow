@@ -78,10 +78,15 @@ func (s *Server) createNotification(w http.ResponseWriter, r *http.Request, p pr
 	if !ok {
 		return
 	}
-	n, replay, err := s.st.CreateNotification(r.Context(), store.NewNotification{
+	notification := store.NewNotification{
 		DeviceID: p.key.DeviceID, KeyID: p.key.ID,
 		Event: in.Event, Type: in.Type, Title: in.Title, Body: in.Body, Source: in.Source, Priority: in.Priority, Context: in.Context,
-	}, idem)
+	}
+	if s.noCache || cacheOptOut(r) {
+		s.sendUncached(w, r, notification, idem)
+		return
+	}
+	n, replay, err := s.st.CreateNotification(r.Context(), notification, idem)
 	if s.idemFailed(w, r, err) {
 		return
 	}

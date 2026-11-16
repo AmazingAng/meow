@@ -58,10 +58,12 @@ Routes expire after 90 days without a management update or admitted wake. Gatewa
 | --- | --- | --- |
 | `MEOW_ADDR` | `:8080` | Listen address |
 | `MEOW_DB` | `meow.db` | Keep it on a persistent volume |
-| `MEOW_RETENTION` | `720h` | Old notifications and legacy questions are pruned |
+| `MEOW_RETENTION` | `720h` | Delivery cache. Use `24h` for supported iPhones with local history, or `0` for preview-only direct APNs |
 | `MEOW_TRUST_PROXY` | | Set to `true` behind a reverse proxy, so rate limits use `X-Forwarded-For` |
 | `MEOW_APNS_KEY_FILE`, `MEOW_APNS_KEY_ID`, `MEOW_APNS_TEAM_ID`, `MEOW_APNS_TOPIC` | | Direct APNs |
 | `MEOW_PUSH_GATEWAY_URL` | | Wake gateway |
+
+Wake-gateway servers need a positive cache duration (minimum 1 hour) so iPhones can fetch the full message. An updated direct-APNs server can send previews without caching, globally with `MEOW_RETENTION=0` or per HTTP send using `Cache: no`. Such sends cannot be recovered in the iPhone inbox.
 
 Back up with `meow-server backup /path/backup.db`, not by copying the live file. `docker compose down -v` deletes the data volumes, so confirm with the user before running it.
 
