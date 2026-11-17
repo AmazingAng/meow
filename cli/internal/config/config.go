@@ -14,6 +14,8 @@ import (
 type Config struct {
 	Server string `json:"server,omitempty"`
 	Key    string `json:"key,omitempty"`
+	// AgentSources overrides hook display labels by agent: claude, codex, cursor.
+	AgentSources map[string]string `json:"agent_sources,omitempty"`
 	// Installed maps an agent ("claude", "codex", "cursor") to the meow executable
 	// "meow setup" wrote into its config, so uninstall can find it even when
 	// the binary isn't named meow or has since moved.

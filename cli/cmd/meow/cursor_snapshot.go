@@ -152,6 +152,9 @@ func cursorStopNotification(input []byte, summary bool, cfg config.Config) (clie
 	if err != nil {
 		return client.NotifyRequest{}, "", false, err
 	}
+	if err := applyHookSource("cursor-stop", cfg, &result.Notification); err != nil {
+		return client.NotifyRequest{}, "", false, err
+	}
 	// The first stop freezes context and presentation too, including a generic
 	// fallback. Later replies, renames or replays must not create another payload.
 	if err := writeCursorSnapshot(path, result, false); err != nil {
@@ -164,7 +167,7 @@ func cursorStopNotification(input []byte, summary bool, cfg config.Config) (clie
 }
 
 func cursorFrozenResult(result adapters.Result) (client.NotifyRequest, string, bool, error) {
-	if !result.Send || result.IdempotencyKey == "" || result.Notification.Source != "Cursor" {
+	if !result.Send || result.IdempotencyKey == "" || strings.TrimSpace(result.Notification.Source) == "" {
 		return client.NotifyRequest{}, "", false, fmt.Errorf("invalid frozen Cursor delivery")
 	}
 	if _, err := result.Notification.Normalize(); err != nil {

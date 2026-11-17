@@ -140,6 +140,18 @@ Ask the user whether the notification arrived. `sent <id>` only means the server
 
 `MEOW_SERVER` and `MEOW_KEY` override the config file, and `MEOW_SOURCE` sets the default sender label. Don't set `MEOW_KEY` in shell profiles or files you commit; in CI, use the platform's secret store ([references/http.md](references/http.md)).
 
+### Custom Agent labels
+
+On CLI versions supporting `agent_sources`, hook display names can be configured
+in the existing private CLI config, for example:
+`"agent_sources": {"codex": "codex-macmini", "claude": "claude-laptop", "cursor": "cursor-work"}`.
+Preserve the server, Device Key and unrelated fields when editing that file; do
+not print or copy its credentials. Unset or blank entries retain default names.
+Labels are trimmed and limited to 64 Unicode characters. This setting affects
+hooks only, not metadata lookup or delivery keys. Cursor retains the frozen
+label on replay; changes apply to new generations. Manual sends must pass the
+same display name with `--source` to join the matching Agent group.
+
 The saved config contains a plaintext sender key protected by file permissions. Keep its directory private, including when overriding `MEOW_CONFIG` or `XDG_CONFIG_HOME`; do not put it in a shared or repository directory. CLI upgrades preserve saved credentials and existing hook authorization when the hook command is unchanged.
 
 ## Use Meow

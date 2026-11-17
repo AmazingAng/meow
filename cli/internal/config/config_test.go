@@ -102,3 +102,31 @@ func TestSaveConcurrentAndFailedRenameLeaveNoTemporaryFiles(t *testing.T) {
 		t.Fatal("failed write changed existing destination")
 	}
 }
+
+func TestAgentSourcesSurviveSave(t *testing.T) {
+	t.Setenv("MEOW_CONFIG", filepath.Join(t.TempDir(), "config.json"))
+	want := Config{Server: "https://example.invalid", Key: "meow_disposable", AgentSources: map[string]string{"codex": "codex-macmini", "claude": "claude-laptop", "cursor": "cursor-work"}}
+	if err := Save(want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Server != want.Server || got.Key != want.Key {
+		t.Fatal("config fields changed")
+	}
+	for agent, label := range want.AgentSources {
+		if got.AgentSources[agent] != label {
+			t.Fatalf("%s label was not preserved", agent)
+		}
+	}
+	got.Installed = map[string]string{"codex": "/example/meow"}
+	if err := Save(got); err != nil {
+		t.Fatal(err)
+	}
+	got, err = LoadFile()
+	if err != nil || got.AgentSources["codex"] != "codex-macmini" {
+		t.Fatal("setup save discarded source mapping")
+	}
+}
